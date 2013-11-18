@@ -10,6 +10,9 @@
 #include <iterator>
 #include <algorithm>
 #include <numeric>
+#include <windows.h>
+#include <sqlext.h>
+#include <stdio.h>
 
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff };
 enum { uFnLargest, uFnLargestN};
