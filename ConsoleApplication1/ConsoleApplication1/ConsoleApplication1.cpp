@@ -53,30 +53,29 @@ SQLRETURN dbConn(SQLHENV hEnv, SQLHDBC* hDBC) {
 }
 
 
-int _tmain(int argc, char* argv[])
+int _tmain(int argc, TCHAR* argv[])
 {
 	const int bufSize(256);
 	SQLHENV               hEnv       = NULL;		   // Env Handle from SQLAllocEnv()
 	SQLHDBC               hDBC       = NULL;           // Connection handle
-	HSTMT                 hStmt      = NULL,hStmt1 = NULL;		   // Statement handle
+	HSTMT                 hStmt = NULL, hStmt1 = NULL, hStmt2 = NULL;		   // Statement handle
 	SQLWCHAR              szDSN[]    = L"newSp";       // Data Source Name buffer
 	SQLWCHAR              szUID[]    = L"root";		   // User ID buffer
 	SQLWCHAR              szPasswd[] = L"ragtinmor";   // Password buffer
-	char                  szDate[bufSize];		       // Model buffer
-	char                  szPrice[bufSize];		       // Model buffer
+	char                  szDate[bufSize];	
+	char                  szPrice[bufSize];	
 	SQLLEN                cbModel;		               // Model buffer bytes recieved
 	RETCODE               retcode;
 	SQLRETURN             fsts;
 	SQLCHAR*              thisSQL;
 
 	// variables
-	int numMcIterations = argc>1 ? atoi(argv[1]) : 100;
-	int productId = 363;
-	string productStartDateString("2014-01-03");
+	int productId       = argc>1 ? _ttoi(argv[1]) : 363;
+	int numMcIterations = argc>2 ? _ttoi(argv[2]) : 100;
+	string productStartDateString;
 	cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
 
 
-	boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 	unsigned	uI;
 	int oldProductBarrierId = 0, productBarrierId = 0;
 	int historyStep = 1;
@@ -101,7 +100,21 @@ int _tmain(int argc, char* argv[])
 	if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO) {	exit(1);}
 	retcode = SQLAllocStmt(hDBC, &hStmt); 	 // Allocate memory for statement handle
 	retcode = SQLAllocStmt(hDBC, &hStmt1); 	 // Allocate memory for statement handle
+	retcode = SQLAllocStmt(hDBC, &hStmt2); 	 // Allocate memory for statement handle
 
+	// get product from DB
+	// ** SQL fetch block
+	sprintf(lineBuffer, "%s%d%s", "select StrikeDate from product where ProductId='", productId, "'");
+	thisSQL = (SQLCHAR *)lineBuffer;
+	retcode = SQLPrepareA(hStmt2, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
+	fsts = SQLExecute(hStmt2);                                     // Execute the SQL statement
+	if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute get basic info ", hStmt2, SQL_HANDLE_STMT);	exit(1); }
+	// ** end SQL fetch block
+	SQLBindCol(hStmt2, 1, SQL_C_CHAR, lineBuffer, bufSize, &cbModel); // bind columns
+	retcode = SQLFetch(hStmt2);
+	if (retcode != SQL_SUCCESS && retcode != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", hStmt2, SQL_HANDLE_STMT);	exit(1); }
+	productStartDateString = lineBuffer;
+	boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 
 
 	// read underlying prices
@@ -217,7 +230,7 @@ int _tmain(int argc, char* argv[])
 	*/
 
 
-	// get product from DB
+	// get barriers from DB
 	// table productbarrier
 	enum {colProductBarrierId=1,colProductId,
 		colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
