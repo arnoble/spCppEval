@@ -58,7 +58,7 @@ int _tmain(int argc, TCHAR* argv[])
 	const int bufSize(256);
 	SQLHENV               hEnv       = NULL;		   // Env Handle from SQLAllocEnv()
 	SQLHDBC               hDBC       = NULL;           // Connection handle
-	HSTMT                 hStmt = NULL, hStmt1 = NULL, hStmt2 = NULL;		   // Statement handle
+	HSTMT                 hStmt = NULL, hStmt1 = NULL, hStmt2 = NULL, hStmt3 = NULL;		   // Statement handle
 	SQLWCHAR              szDSN[]    = L"newSp";       // Data Source Name buffer
 	SQLWCHAR              szUID[]    = L"root";		   // User ID buffer
 	SQLWCHAR              szPasswd[] = L"ragtinmor";   // Password buffer
@@ -70,7 +70,8 @@ int _tmain(int argc, TCHAR* argv[])
 	SQLCHAR*              thisSQL;
 
 	// variables
-	int productId       = argc>1 ? _ttoi(argv[1]) : 363;
+	srand(time(0)); // reseed rand
+	int productId = argc > 1 ? _ttoi(argv[1]) : 363;
 	int numMcIterations = argc>2 ? _ttoi(argv[2]) : 100;
 	string productStartDateString;
 	cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
@@ -85,7 +86,7 @@ int _tmain(int argc, TCHAR* argv[])
 	double anyDouble, barrier, uBarrier, payoff, strike, cap, participation;
 	string word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
 	bool capitalOrIncome, above, at;
-	vector<double> ulReturns;
+	vector<double> ulReturns[50];
 	vector<int>    monDateIndx;
 	vector<string> payoffType = { "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall" };
 	vector<int>::iterator intIterator;
@@ -101,6 +102,7 @@ int _tmain(int argc, TCHAR* argv[])
 	retcode = SQLAllocStmt(hDBC, &hStmt); 	 // Allocate memory for statement handle
 	retcode = SQLAllocStmt(hDBC, &hStmt1); 	 // Allocate memory for statement handle
 	retcode = SQLAllocStmt(hDBC, &hStmt2); 	 // Allocate memory for statement handle
+	retcode = SQLAllocStmt(hDBC, &hStmt3); 	 // Allocate memory for statement handle
 
 	// get product from DB
 	// ** SQL fetch block
@@ -116,9 +118,33 @@ int _tmain(int argc, TCHAR* argv[])
 	productStartDateString = lineBuffer;
 	boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 
+	// get underlyingids for this product from DB
+	vector<int> ulIds;
+	// ** SQL fetch block
+	sprintf(lineBuffer, "%s%d%s", "select distinct UnderlyingId from productbarrier join barrierrelation using (ProductBarrierId) where ProductId='", productId, "'");
+	thisSQL = (SQLCHAR *)lineBuffer;
+	retcode = SQLPrepareA(hStmt3, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
+	fsts = SQLExecute(hStmt3);                                     // Execute the SQL statement
+	if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute get underlying ids ", hStmt3, SQL_HANDLE_STMT);	exit(1); }
+	// ** end SQL fetch block
+	SQLBindCol(hStmt3, 1, SQL_C_CHAR, lineBuffer, bufSize, &cbModel); // bind columns
+	retcode = SQLFetch(hStmt3);
+	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+		uid = atoi(lineBuffer);
+		if (find(ulIds.begin(), ulIds.end(), uid) == ulIds.end()) {      // build list of uids
+			ulIds.push_back(uid);
+		}
+		// next record
+		retcode = SQLFetch(hStmt3);
+	}
+	numUl = ulIds.size();
+
+
 
 	// read underlying prices
-	thisSQL = (SQLCHAR *)"select Date,Price from prices where UnderlyingId='1' ";
+	sprintf(lineBuffer, "%s", "select Date,Price from prices where UnderlyingId='1' ");
+	if (numMcIterations) { strcat(lineBuffer, " and Date >='1992-12-31'"); }
+	thisSQL = (SQLCHAR *)lineBuffer;
 	retcode = SQLPrepareA(hStmt, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
 	fsts = SQLExecute(hStmt);                                     // Execute the SQL statement
 	if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute", hStmt, SQL_HANDLE_STMT);	exit(1); }		
@@ -140,13 +166,13 @@ int _tmain(int argc, TCHAR* argv[])
 			date bDate(from_simple_string(szDate));
 			if (!firstTime) {
 				double thisReturn = thisPrice / previousPrice;
-				ulReturns.push_back(thisReturn);
+				ulReturns[0].push_back(thisReturn);
 				date_duration dateDiff(bDate - lastDate);
 				numDayDiff = dateDiff.days();
 				while (numDayDiff>1){
 					ulOriginalPrices.at(0).date.push_back(word);
 					ulOriginalPrices.at(0).price.push_back(thisPrice);
-					ulReturns.push_back(1.0);
+					ulReturns[0].push_back(1.0);
 					numDayDiff -= 1;
 				}
 			}
@@ -159,10 +185,10 @@ int _tmain(int argc, TCHAR* argv[])
 		ulOriginalPrices.at(0).price.push_back(thisPrice);
 		retcode = SQLFetch(hStmt);  // Fetch next row from result set
 	}
-	totalNumDays = ulOriginalPrices.at(0).price.size();
+	totalNumDays    = ulOriginalPrices.at(0).price.size();
 	totalNumReturns = totalNumDays - 1;
-	numUl = ulOriginalPrices.size();
-	ulPrices = ulOriginalPrices; // copy onstructor called
+	numUl           = ulOriginalPrices.size();
+	ulPrices        = ulOriginalPrices; // copy constructor called
 	vector<double> thesePrices(numUl), startLevels(numUl);
 	vector<int> ulIdNameMap = { -1, 0 };
 
@@ -274,7 +300,7 @@ int _tmain(int argc, TCHAR* argv[])
 		if (find(monDateIndx.begin(), monDateIndx.end(), anyInt) == monDateIndx.end()) {
 			monDateIndx.push_back(anyInt);
 		}
-		numBarriers += 1;
+		numBarriers += 1;		
 
 		// barrier relations
 		// table barrierrelation
@@ -302,16 +328,17 @@ int _tmain(int argc, TCHAR* argv[])
 		
 		retcode = SQLFetch(hStmt1);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-			uid      = atoi(szbrUnderlyingId);
-			barrier  = atof(szbrBarrier);
-			above    = atoi(szbrAbove) == 1;
-			at       = atoi(szbrAt) == 1;
-			startDateString = szbrStartDate;
-			endDateString = szbrEndDate;
-			uBarrier = atof(szbrUpperBarrier);
+			uid              = atoi(szbrUnderlyingId);
+			barrier          = atof(szbrBarrier);
+			above            = atoi(szbrAbove) == 1;
+			at               = atoi(szbrAt) == 1;
+			startDateString  = szbrStartDate;
+			endDateString    = szbrEndDate;
+			uBarrier         = atof(szbrUpperBarrier);
 			if (uid) {
 				spr.barrier.at(numBarriers - 1).brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, startDateString, endDateString, above, at, productStartDateString));
 			}
+
 			// next record
 			retcode = SQLFetch(hStmt1);
 		}
@@ -368,7 +395,7 @@ int _tmain(int argc, TCHAR* argv[])
 		// create new random sample for next iteration
 		for (i = 1; i < totalNumReturns; i++){
 			int thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
-			double thisReturn = ulReturns[thisIndx];
+			double thisReturn = ulReturns[0][thisIndx];
 			ulPrices.at(0).price[i] = ulPrices.at(0).price[i - 1] * thisReturn;
 		}
 		cout << ".";
