@@ -63,7 +63,7 @@ int _tmain(int argc, TCHAR* argv[])
 	SQLWCHAR              szUID[]    = L"root";		   // User ID buffer
 	SQLWCHAR              szPasswd[] = L"ragtinmor";   // Password buffer
 	char                  szDate[bufSize];	
-	char                  szPrice[bufSize];	
+	char                  szPrice[bufSize],szAllPrices[bufSize][100];
 	SQLLEN                cbModel;		               // Model buffer bytes recieved
 	RETCODE               retcode;
 	SQLRETURN             fsts;
@@ -91,7 +91,7 @@ int _tmain(int argc, TCHAR* argv[])
 	vector<string> payoffType = { "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall" };
 	vector<int>::iterator intIterator;
 	char lineBuffer[1000], charBuffer[1000];
-	vector<UlTimeseries> ulOriginalPrices(1), ulPrices(1); // underlying prices
+	vector<UlTimeseries> ulOriginalPrices(100), ulPrices(100); // underlying prices
 
 	
 
@@ -120,6 +120,7 @@ int _tmain(int argc, TCHAR* argv[])
 
 	// get underlyingids for this product from DB
 	vector<int> ulIds;
+	vector<int> ulIdNameMap(1000);
 	// ** SQL fetch block
 	sprintf(lineBuffer, "%s%d%s", "select distinct UnderlyingId from productbarrier join barrierrelation using (ProductBarrierId) where ProductId='", productId, "'");
 	thisSQL = (SQLCHAR *)lineBuffer;
@@ -134,6 +135,7 @@ int _tmain(int argc, TCHAR* argv[])
 		if (find(ulIds.begin(), ulIds.end(), uid) == ulIds.end()) {      // build list of uids
 			ulIds.push_back(uid);
 		}
+		ulIdNameMap[uid] = ulIds.size()-1;
 		// next record
 		retcode = SQLFetch(hStmt3);
 	}
@@ -142,57 +144,73 @@ int _tmain(int argc, TCHAR* argv[])
 
 
 	// read underlying prices
-	sprintf(lineBuffer, "%s", "select Date,Price from prices where UnderlyingId='1' ");
-	if (numMcIterations) { strcat(lineBuffer, " and Date >='1992-12-31'"); }
-	thisSQL = (SQLCHAR *)lineBuffer;
+	char ulSql[1000];
+	sprintf(ulSql, "%s", "select p0.Date Date"); // form sql
+	for (i=0; i<numUl; i++) { sprintf(lineBuffer, "%s%d%s", ",p", i, ".price "); strcat(ulSql, lineBuffer); }
+	strcat(ulSql, " from prices p0 ");
+	if (numUl > 1) { for (i=1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s", " join prices p", i, " using (Date) "); strcat(ulSql, lineBuffer); } }
+	sprintf(lineBuffer, "%s%d%s", " where p0.underlyingId = '", ulIds.at(0), "'"); 
+	strcat(ulSql, lineBuffer);
+	if (numUl > 1) { for (i=1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
+	if (numMcIterations) { strcat(ulSql, " and Date >='1992-12-31'"); }
+	strcat(ulSql," order by Date");
+
+
+	// bind DB prices to szAllPrices
+	//sprintf(lineBuffer, "%s", "select Date,Price from prices where UnderlyingId='1' ");
+	//if (numMcIterations) { strcat(lineBuffer, " and Date >='1992-12-31'"); }
+	//thisSQL = (SQLCHAR *)lineBuffer;
+	thisSQL = (SQLCHAR *)ulSql;
 	retcode = SQLPrepareA(hStmt, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
-	fsts = SQLExecute(hStmt);                                     // Execute the SQL statement
+	fsts = SQLExecute(hStmt);                                       // Execute the SQL statement
 	if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute", hStmt, SQL_HANDLE_STMT);	exit(1); }		
 	SQLBindCol(hStmt, 1, SQL_C_CHAR, szDate,  bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, 2, SQL_C_CHAR, szPrice, bufSize, &cbModel); // bind columns
+	SQLBindCol(hStmt, 2, SQL_C_CHAR, szAllPrices[0], bufSize, &cbModel); // bind columns
+	if (numUl > 1) { for (i = 1; i < numUl; i++) { SQLBindCol(hStmt, 2+i, SQL_C_CHAR, szAllPrices[i], bufSize, &cbModel); } }
 
 	// Get row of data from the result set defined above in the statement
-	bool firstTime(true);
-	double previousPrice;
+	bool   firstTime(true);
+	double previousPrice[100];
 	boost::gregorian::date lastDate;
 	retcode = SQLFetch(hStmt);
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-		int numDayDiff;
-		double thisPrice;
-		thisPrice = atof(szPrice);
-		// pad non-trading days
-		{
-			using namespace boost::gregorian;
-			date bDate(from_simple_string(szDate));
-			if (!firstTime) {
-				double thisReturn = thisPrice / previousPrice;
-				ulReturns[0].push_back(thisReturn);
-				date_duration dateDiff(bDate - lastDate);
-				numDayDiff = dateDiff.days();
-				while (numDayDiff>1){
-					ulOriginalPrices.at(0).date.push_back(word);
-					ulOriginalPrices.at(0).price.push_back(thisPrice);
-					ulReturns[0].push_back(1.0);
-					numDayDiff -= 1;
+		for (i = 0; i < numUl; i++) {
+			int    numDayDiff;
+			double thisPrice;
+			thisPrice = atof(szAllPrices[i]);
+			// pad non-trading days
+			{
+				using namespace boost::gregorian;
+				date bDate(from_simple_string(szDate));
+				if (!firstTime) {
+					double thisReturn = thisPrice / previousPrice[i];
+					ulReturns[i].push_back(thisReturn);
+					date_duration dateDiff(bDate - lastDate);
+					numDayDiff = dateDiff.days();
+					while (numDayDiff > 1){
+						ulOriginalPrices.at(0).date.push_back(word);
+						ulOriginalPrices.at(0).price.push_back(thisPrice);
+						ulReturns[0].push_back(1.0);
+						numDayDiff -= 1;
+					}
 				}
+				else{ firstTime = false; }
+				lastDate         = bDate;
+				previousPrice[i] = thisPrice;
 			}
-			else{ firstTime = false; }
-			lastDate = bDate;
-			previousPrice = thisPrice;
+			// printf("%s\t%s\n",szDate,szPrice);  // Print row (model)
+			ulOriginalPrices.at(i).date.push_back(szDate);
+			ulOriginalPrices.at(i).price.push_back(thisPrice);
 		}
-		// printf("%s\t%s\n",szDate,szPrice);  // Print row (model)
-		ulOriginalPrices.at(0).date.push_back(szDate);
-		ulOriginalPrices.at(0).price.push_back(thisPrice);
-		retcode = SQLFetch(hStmt);  // Fetch next row from result set
+
+		// Fetch next row from result set
+		retcode = SQLFetch(hStmt);  
 	}
 	totalNumDays    = ulOriginalPrices.at(0).price.size();
 	totalNumReturns = totalNumDays - 1;
 	numUl           = ulOriginalPrices.size();
 	ulPrices        = ulOriginalPrices; // copy constructor called
 	vector<double> thesePrices(numUl), startLevels(numUl);
-	vector<int> ulIdNameMap = { -1, 0 };
-
-
 
 
 	// get product
