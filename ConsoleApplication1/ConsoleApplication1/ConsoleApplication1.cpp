@@ -304,7 +304,10 @@ int _tmain(int argc, TCHAR* argv[])
 
 	int numAllIterations(0);
 	for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-		numAllIterations += spr.barrier.at(thisBarrier).hit.size();
+		if (spr.barrier.at(thisBarrier).capitalOrIncome) {
+			numAllIterations += spr.barrier.at(thisBarrier).hit.size();
+		}
+		
 	}
 	cout << endl;
 	for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
