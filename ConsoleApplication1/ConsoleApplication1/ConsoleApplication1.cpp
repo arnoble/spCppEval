@@ -6,52 +6,6 @@
 using namespace std;
 
 
-// get info on SQL error
-void extract_error(
-	char *fn,
-	SQLHANDLE handle,
-	SQLSMALLINT type)
-{
-	SQLINTEGER  i = 0;
-	SQLINTEGER  native;
-	SQLWCHAR    state[7];
-	SQLWCHAR    text[256];
-	SQLSMALLINT len;
-	SQLRETURN   ret;
-	fprintf(stderr,
-		"\n"
-		"The driver reported the following diagnostics whilst running "
-		"%s\n\n",
-		fn);
-	do
-	{
-		ret = SQLGetDiagRec(type, handle, ++i, state, &native, text, sizeof(text), &len);
-		if (SQL_SUCCEEDED(ret))
-			printf("%s:%ld:%ld:%s\n", state, i, native, text);
-	} while (ret == SQL_SUCCESS);
-}
-
-// open connection to DataSource newSp
-SQLRETURN dbConn(SQLHENV hEnv, SQLHDBC* hDBC) {
-	SQLWCHAR              szDSN[] = L"newSp";       // Data Source Name buffer
-	SQLWCHAR              szUID[] = L"root";		   // User ID buffer
-	SQLWCHAR              szPasswd[] = L"ragtinmor";   // Password buffer
-	SQLRETURN             fsts;
-
-	fsts = SQLAllocHandle(SQL_HANDLE_DBC, hEnv, hDBC);  // Allocate memory for the connection handle
-	if (!SQL_SUCCEEDED(fsts))	{
-		extract_error("SQLAllocHandle for dbc", hEnv, SQL_HANDLE_ENV);
-		exit(1);
-	}
-	// Connect to Data Source
-	fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
-	if (!SQL_SUCCEEDED(fsts))	{
-		extract_error("SQLAllocHandle for connect", hDBC, SQL_HANDLE_DBC);
-		exit(1);
-	}
-	return fsts;
-}
-
 
 int _tmain(int argc, TCHAR* argv[])
 {
@@ -59,19 +13,13 @@ int _tmain(int argc, TCHAR* argv[])
 	const int bufSize(256);
 	SQLHENV               hEnv       = NULL;		   // Env Handle from SQLAllocEnv()
 	SQLHDBC               hDBC       = NULL;           // Connection handle
-	HSTMT                 hStmt = NULL, hStmt1 = NULL, hStmt2 = NULL, hStmt3 = NULL;		   // Statement handle
-	SQLWCHAR              szDSN[]    = L"newSp";       // Data Source Name buffer
-	SQLWCHAR              szUID[]    = L"root";		   // User ID buffer
-	SQLWCHAR              szPasswd[] = L"ragtinmor";   // Password buffer
 	char                  szDate[bufSize];	
 	char                  szPrice[bufSize], **szAllPrices = new char*[maxUls];
 	SQLLEN                cbModel;		               // Model buffer bytes recieved
 	RETCODE               retcode;
-	SQLRETURN             fsts;
 	SQLCHAR*              thisSQL;
 
 	// initialise
-
 	srand(time(0)); // reseed rand
 	int              productId = argc > 1 ? _ttoi(argv[1]) : 363;
 	int              numMcIterations = argc>2 ? _ttoi(argv[2]) : 100;
@@ -96,59 +44,27 @@ int _tmain(int argc, TCHAR* argv[])
 		szAllPrices[i] = new char[bufSize];
 	}
 
-	// open database
+	// open database, get productStartDate
 	MyDB  mydb((char **)szAllPrices), mydb1((char **)szAllPrices);
-	//SQLAllocEnv(&hEnv);        	             // Allocate memory for ODBC Environment handle
-	//fsts = dbConn(hEnv, &hDBC);              // connect
-	//if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO) {	exit(1);}
-	//retcode = SQLAllocStmt(hDBC, &hStmt); 	 // Allocate memory for statement handle
-	//retcode = SQLAllocStmt(hDBC, &hStmt1); 	 // Allocate memory for statement handle
-	//retcode = SQLAllocStmt(hDBC, &hStmt2); 	 // Allocate memory for statement handle
-	//retcode = SQLAllocStmt(hDBC, &hStmt3); 	 // Allocate memory for statement handle
-	// get product from DB
-	// ** SQL fetch block
 	sprintf(lineBuffer, "%s%d%s", "select StrikeDate from product where ProductId='", productId, "'");
 	mydb.prepare((SQLCHAR *)lineBuffer,1);
-
-	//retcode = SQLPrepareA(hStmt3, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
-	//fsts = SQLExecute(hStmt3);                                     // Execute the SQL statement
-	//if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute get basic info ", hStmt3, SQL_HANDLE_STMT);	exit(1); }
-	// ** end SQL fetch block
-	//SQLBindCol(hStmt3, 1, SQL_C_CHAR, lineBuffer, bufSize, &cbModel); // bind columns
-	//mydb.bind(1, lineBuffer);
 	retcode = mydb.fetch(true);
-	//retcode = SQLFetch(hStmt3);
-	//if (retcode != SQL_SUCCESS && retcode != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", hStmt3, SQL_HANDLE_STMT);	exit(1); }
-	//productStartDateString = lineBuffer;
 	productStartDateString = szAllPrices[0];
 	boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
-	//SQLFreeStmt(hStmt3, SQL_DROP);
-	//retcode = SQLAllocStmt(hDBC, &hStmt3); 	 // Allocate memory for statement handle
 
 	// get underlyingids for this product from DB
 	vector<int> ulIds;
 	vector<int> ulIdNameMap(1000);
-	// ** SQL fetch block
 	sprintf(lineBuffer, "%s%d%s", "select distinct UnderlyingId from productbarrier join barrierrelation using (ProductBarrierId) where ProductId='", productId, "'");
-	//retcode = SQLPrepareA(hStmt3, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
-	//fsts = SQLExecute(hStmt3);                                     // Execute the SQL statement
-	//if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute get underlying ids ", hStmt3, SQL_HANDLE_STMT);	exit(1); }
-	// ** end SQL fetch block
-	//SQLBindCol(hStmt3, 1, SQL_C_CHAR, lineBuffer, bufSize, &cbModel); // bind columns
-
 	mydb.prepare((SQLCHAR *)lineBuffer,1);
 	retcode = mydb.fetch(true);
-	//mydb.bind(1, lineBuffer);
-	// retcode = SQLFetch(hStmt3);
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-		//uid = atoi(lineBuffer);
 		uid = atoi(szAllPrices[0]);
 		if (find(ulIds.begin(), ulIds.end(), uid) == ulIds.end()) {      // build list of uids
 			ulIds.push_back(uid);
 		}
 		ulIdNameMap[uid] = ulIds.size()-1;
 		// next record
-		// retcode = SQLFetch(hStmt3);
 		retcode = mydb.fetch(false);
 	}
 	numUl = ulIds.size();
@@ -166,22 +82,7 @@ int _tmain(int argc, TCHAR* argv[])
 	if (numUl > 1) { for (i=1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
 	if (numMcIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
 	strcat(ulSql," order by Date");
-
-
-	// bind DB prices to szAllPrices
-	//sprintf(lineBuffer, "%s", "select Date,Price from prices where UnderlyingId='1' ");
-	//if (numMcIterations) { strcat(lineBuffer, " and Date >='1992-12-31'"); }
-	//thisSQL = (SQLCHAR *)lineBuffer;
 	mydb.prepare((SQLCHAR *)ulSql, numUl+1);
-	
-	//thisSQL = (SQLCHAR *)ulSql;
-	//retcode = SQLPrepareA(hStmt, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
-	//fsts = SQLExecute(hStmt);                                       // Execute the SQL statement
-	//if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute", hStmt, SQL_HANDLE_STMT);	exit(1); }		
-	//SQLBindCol(hStmt, 1, SQL_C_CHAR, szDate,  bufSize, &cbModel); // bind columns
-	//SQLBindCol(hStmt, 2, SQL_C_CHAR, szAllPrices[0], bufSize, &cbModel); // bind columns
-	//if (numUl > 1) { for (i = 1; i < numUl; i++) { SQLBindCol(hStmt, 2+i, SQL_C_CHAR, szAllPrices[i], bufSize, &cbModel); } }
-
 	// Get row of data from the result set defined above in the statement
 	bool   firstTime(true);
 	double previousPrice[100];
@@ -213,13 +114,11 @@ int _tmain(int argc, TCHAR* argv[])
 				lastDate         = bDate;
 				previousPrice[i] = thisPrice;
 			}
-			// printf("%s\t%s\n",szDate,szPrice);  // Print row (model)
 			ulOriginalPrices.at(i).date.push_back(szAllPrices[0]);
 			ulOriginalPrices.at(i).price.push_back(thisPrice);
 		}
 
 		// Fetch next row from result set
-		// retcode = SQLFetch(hStmt);  
 		retcode = mydb.fetch(false);
 	}
 	totalNumDays    = ulOriginalPrices.at(0).price.size();
@@ -296,49 +195,11 @@ int _tmain(int argc, TCHAR* argv[])
 		colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
 		colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap
 	};
-	char szProductBarrierId[bufSize];
-	char szCapitalOrIncome[bufSize], szNature[bufSize], szPayoff[bufSize], szSettlementDate[bufSize], szDescription[bufSize];
-	char szPayoffId[bufSize], szParticipation[bufSize], szStrike[bufSize], szCap[bufSize];
 	// ** SQL fetch block
 	sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "'");
 	mydb.prepare((SQLCHAR *)lineBuffer, colCap+1);
 	retcode = mydb.fetch(true);
-
-	//thisSQL = (SQLCHAR *)lineBuffer;
-	//retcode = SQLPrepareA(hStmt, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
-	//fsts = SQLExecute(hStmt);                                     // Execute the SQL statement
-	//if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute", hStmt, SQL_HANDLE_STMT);	exit(1); }
-
-
-	// ** end SQL fetch block
-	/*
-	SQLBindCol(hStmt, colProductBarrierId, SQL_C_CHAR, szProductBarrierId, bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, colCapitalOrIncome,  SQL_C_CHAR, szCapitalOrIncome,  bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, colNature,           SQL_C_CHAR, szNature,           bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, colPayoff,           SQL_C_CHAR, szPayoff,           bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, colSettlementDate,   SQL_C_CHAR, szSettlementDate,   bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, colDescription,      SQL_C_CHAR, szDescription,      bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, colPayoffId,         SQL_C_CHAR, szPayoffId,         bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, colParticipation,    SQL_C_CHAR, szParticipation,    bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, colStrike,           SQL_C_CHAR, szStrike,           bufSize, &cbModel); // bind columns
-	SQLBindCol(hStmt, colCap,              SQL_C_CHAR, szCap,              bufSize, &cbModel); // bind columns
-	
-	// Get row of data from the result set defined above in the statement
-	retcode = SQLFetch(hStmt);
-	
-	*/
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-		/*
-		capitalOrIncome = atoi(szCapitalOrIncome) == 1;
-		nature = szNature;
-		payoff          = atof(szPayoff)/100.0;
-		settlementDate  = szSettlementDate;
-		description     = szDescription;
-		thisPayoffId    = atoi(szPayoffId); thisPayoffType = payoffType[thisPayoffId];// PayoffTypeId
-		participation   = atof(szParticipation);
-		strike          = atof(szStrike);
-		cap             = atof(szCap);
-		*/
 		capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
 		nature          = szAllPrices[colNature];
 		payoff          = atof(szAllPrices[colPayoff]) / 100.0;
@@ -366,37 +227,10 @@ int _tmain(int argc, TCHAR* argv[])
 		char szbrBarrierRelationId[bufSize], szbrProductBarrierId[bufSize], szbrUnderlyingId[bufSize], szbrBarrier[bufSize], szbrBarrierTypeId[bufSize], szbrAbove[bufSize];
 		char szbrAt[bufSize], szbrStartDate[bufSize], szbrEndDate[bufSize], szbrTrigered[bufSize], szbrIsAbsolute[bufSize], szbrUpperBarrier[bufSize], szbrWeight[bufSize];
 		// ** SQL fetch block
-		//sprintf(lineBuffer, "%s%s%s", "select * from barrierrelation where ProductBarrierId='", szProductBarrierId, "'");
 		sprintf(lineBuffer, "%s%s%s", "select * from barrierrelation where ProductBarrierId='", szAllPrices[colProductBarrierId], "'");
-		/*
-		thisSQL = (SQLCHAR *)lineBuffer;
-		retcode = SQLPrepareA(hStmt1, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
-		fsts = SQLExecute(hStmt1);                                     // Execute the SQL statement
-		if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute", hStmt1, SQL_HANDLE_STMT);	exit(1); }
-		// ** end SQL fetch block
-		SQLBindCol(hStmt1, brcolUnderlyingId, SQL_C_CHAR, szbrUnderlyingId, bufSize, &cbModel); // bind columns
-		SQLBindCol(hStmt1, brcolBarrier,      SQL_C_CHAR, szbrBarrier,      bufSize, &cbModel); // bind columns
-		SQLBindCol(hStmt1, brcolAbove,        SQL_C_CHAR, szbrAbove,        bufSize, &cbModel); // bind columns
-		SQLBindCol(hStmt1, brcolAt,           SQL_C_CHAR, szbrAt,           bufSize, &cbModel); // bind columns
-		SQLBindCol(hStmt1, brcolStartDate,    SQL_C_CHAR, szbrStartDate,    bufSize, &cbModel); // bind columns
-		SQLBindCol(hStmt1, brcolEndDate,      SQL_C_CHAR, szbrEndDate,      bufSize, &cbModel); // bind columns
-		SQLBindCol(hStmt1, brcolUpperBarrier, SQL_C_CHAR, szbrUpperBarrier, bufSize, &cbModel); // bind columns
-		
-		retcode = SQLFetch(hStmt1);
-		
-		*/
 		mydb1.prepare((SQLCHAR *)lineBuffer, brcolWeight+1);
 		retcode = mydb1.fetch(false);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-			/*
-			uid              = atoi(szbrUnderlyingId);
-			barrier          = atof(szbrBarrier);
-			above            = atoi(szbrAbove) == 1;
-			at               = atoi(szbrAt) == 1;
-			startDateString  = szbrStartDate;
-			endDateString    = szbrEndDate;
-			uBarrier         = atof(szbrUpperBarrier);
-			*/
 			uid              = atoi(szAllPrices[brcolUnderlyingId]);
 			barrier          = atof(szAllPrices[brcolBarrier]);
 			above            = atoi(szAllPrices[brcolAbove]) == 1;
@@ -409,11 +243,9 @@ int _tmain(int argc, TCHAR* argv[])
 			}
 
 			// next record
-			//retcode = SQLFetch(hStmt1);
 			retcode = mydb1.fetch(false);
 		}
 		// next record
-		//retcode = SQLFetch(hStmt);
 		retcode = mydb.fetch(false);
 	}
 	spr.productDays = *max_element(monDateIndx.begin(), monDateIndx.end());
@@ -493,10 +325,6 @@ int _tmain(int argc, TCHAR* argv[])
 
 
 	// tidy up
-	SQLFreeStmt(hStmt, SQL_DROP); 	SQLFreeStmt(hStmt1, SQL_DROP);  // Free the allocated statement handle
-	SQLDisconnect(hDBC);           // Disconnect from datasource
-	SQLFreeConnect(hDBC); // Free the allocated connection handle
-	SQLFreeEnv(hEnv);    // Free the allocated ODBC environment handle
 	return 0;
 }
 
