@@ -71,9 +71,10 @@ int _tmain(int argc, TCHAR* argv[])
 
 
 
-	// read underlying prices
+	//******* read underlying prices
 	char ulSql[1000];
-	sprintf(ulSql, "%s", "select p0.Date Date"); // form sql
+	// ...form sql joins
+	sprintf(ulSql, "%s", "select p0.Date Date"); 
 	for (i=0; i<numUl; i++) { sprintf(lineBuffer, "%s%d%s", ",p", i, ".price "); strcat(ulSql, lineBuffer); }
 	strcat(ulSql, " from prices p0 ");
 	if (numUl > 1) { for (i=1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s", " join prices p", i, " using (Date) "); strcat(ulSql, lineBuffer); } }
@@ -82,48 +83,42 @@ int _tmain(int argc, TCHAR* argv[])
 	if (numUl > 1) { for (i=1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
 	if (numMcIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
 	strcat(ulSql," order by Date");
+	// ...call DB
 	mydb.prepare((SQLCHAR *)ulSql, numUl+1);
-	// Get row of data from the result set defined above in the statement
 	bool   firstTime(true);
-	double previousPrice[100];
+	double previousPrice[maxUls];
 	boost::gregorian::date lastDate;
+	// .. get record <Date,price0,...,pricen>
 	retcode = mydb.fetch(true);
-	// retcode = SQLFetch(hStmt);
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+		int    numDayDiff;
+		boost::gregorian::date bDate(boost::gregorian::from_simple_string(szAllPrices[0]));
+		if (!firstTime) {
+			boost::gregorian::date_duration dateDiff(bDate - lastDate);
+			numDayDiff = dateDiff.days();
+		}
 		for (i = 0; i < numUl; i++) {
-			int    numDayDiff;
 			double thisPrice;
 			thisPrice = atof(szAllPrices[i+1]);
-			// pad non-trading days
-			{
-				using namespace boost::gregorian;
-				date bDate(from_simple_string(szAllPrices[0]));
-				if (!firstTime) {
-					double thisReturn = thisPrice / previousPrice[i];
-					ulReturns[i].push_back(thisReturn);
-					date_duration dateDiff(bDate - lastDate);
-					numDayDiff = dateDiff.days();
-					while (numDayDiff > 1){
-						ulOriginalPrices.at(0).date.push_back(word);
-						ulOriginalPrices.at(0).price.push_back(thisPrice);
-						ulReturns[0].push_back(1.0);
-						numDayDiff -= 1;
-					}
+			if (!firstTime) {
+				ulReturns[i].push_back(thisPrice / previousPrice[i]);
+				for (j = 1; j < numDayDiff;j++){    // pad non-trading days
+					ulOriginalPrices.at(i).date.push_back(szAllPrices[0]);
+					ulOriginalPrices.at(i).price.push_back(thisPrice);
+					ulReturns[i].push_back(1.0);
 				}
-				else{ firstTime = false; }
-				lastDate         = bDate;
-				previousPrice[i] = thisPrice;
 			}
+			else{ firstTime = false; }
+			previousPrice[i] = thisPrice;	
 			ulOriginalPrices.at(i).date.push_back(szAllPrices[0]);
 			ulOriginalPrices.at(i).price.push_back(thisPrice);
 		}
-
-		// Fetch next row from result set
-		retcode = mydb.fetch(false);
+		// next row
+		lastDate  = bDate;
+		retcode   = mydb.fetch(false);
 	}
 	totalNumDays    = ulOriginalPrices.at(0).price.size();
 	totalNumReturns = totalNumDays - 1;
-	numUl           = ulOriginalPrices.size();
 	ulPrices        = ulOriginalPrices; // copy constructor called
 	vector<double> thesePrices(numUl), startLevels(numUl);
 
@@ -265,21 +260,22 @@ int _tmain(int argc, TCHAR* argv[])
 			bool   matured(false);
 			vector<double> lookbackLevel;
 			// DOME
-			startLevels[0] = ulPrices.at(0).price.at(thisPoint);
+			for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
 			for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				SpBarrier &b(spr.barrier.at(thisBarrier));
 				for (uI = 0; uI < b.brel.size(); uI++){
 					SpBarrierRelation &thisBrel(b.brel.at(uI));
-					thisBrel.setLevels(startLevels[0]);
+					thisBrel.setLevels(startLevels[uI]);
 				}
 			}
 
 			// go through each monitoring date
 			for (thisMonIndx = 0; !matured && thisMonIndx < numMonPoints; thisMonIndx++){
-				thisMonDays = monDateIndx.at(thisMonIndx);
+				thisMonDays  = monDateIndx.at(thisMonIndx);
 				thisMonPoint = thisPoint + thisMonDays;
 				const string   thisDateString(ulPrices.at(0).date.at(thisMonPoint));
-				thesePrices[0] = ulPrices.at(0).price.at(thisMonPoint);
+				for (i = 0; i < numUl; i++) { thesePrices[i] = ulPrices.at(i).price.at(thisMonPoint); }
+				
 				// test each barrier
 				for (thisBarrier = 0; !matured && thisBarrier<numBarriers; thisBarrier++){
 					SpBarrier &b(spr.barrier.at(thisBarrier));
@@ -296,10 +292,12 @@ int _tmain(int argc, TCHAR* argv[])
 		}
 
 		// create new random sample for next iteration
-		for (i = 1; i < totalNumReturns; i++){
+		for (j = 1; j < totalNumReturns; j++){
 			int thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
-			double thisReturn = ulReturns[0][thisIndx];
-			ulPrices.at(0).price[i] = ulPrices.at(0).price[i - 1] * thisReturn;
+			for (i = 0; i < numUl; i++) {
+				double thisReturn = ulReturns[i][thisIndx];
+				ulPrices.at(i).price[j] = ulPrices.at(i).price[j - 1] * thisReturn;
+			}
 		}
 		cout << ".";
 	}
