@@ -111,12 +111,15 @@ int _tmain(int argc, TCHAR* argv[])
 				for (j = 1; j < numDayDiff;j++){    // pad non-trading days
 					ulOriginalPrices.at(i).date.push_back(szAllPrices[0]);
 					ulOriginalPrices.at(i).price.push_back(thisPrice);
+					ulOriginalPrices.at(i).nonTradingDay.push_back(true);
 					ulReturns[i].push_back(1.0);
 				}
 			}
 			previousPrice[i] = thisPrice;	
 			ulOriginalPrices.at(i).date.push_back(szAllPrices[0]);
 			ulOriginalPrices.at(i).price.push_back(thisPrice);
+			ulOriginalPrices.at(i).nonTradingDay.push_back(false);
+
 		}
 		// next row
 		if(firstTime){ firstTime = false; }
@@ -202,7 +205,20 @@ int _tmain(int argc, TCHAR* argv[])
 	sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "'");
 	mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
 	retcode = mydb.fetch(true);
+	map<char, int> avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
+	map<char,int>::iterator curr, end;
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+		int tenorPeriodDays;
+		int avgDays = 0; 
+		if (strlen(szAllPrices[colAvgTenor])){
+			char avgChar1 = szAllPrices[colAvgTenor][0];
+			char avgChar2 = szAllPrices[colAvgTenor][1];
+			bool foundTenor = false;
+			for (curr = avgTenor.begin(), end = avgTenor.end(); !foundTenor && curr != end; curr++)
+			if (curr->first == avgChar2){ foundTenor = true; tenorPeriodDays = curr->second; }
+			avgDays = (avgChar1 - '0') * tenorPeriodDays;
+		}
+		int avgType     = atoi(szAllPrices[colAvgType]); 
 		capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
 		nature          = szAllPrices[colNature];
 		payoff          = atof(szAllPrices[colPayoff]) / 100.0;
@@ -213,7 +229,7 @@ int _tmain(int argc, TCHAR* argv[])
 		strike          = atof(szAllPrices[colStrike]);
 		cap             = atof(szAllPrices[colCap]);
 		spr.barrier.push_back(SpBarrier(capitalOrIncome, nature, payoff, settlementDate, description,
-			thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap, bProductStartDate));
+			thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap,avgDays,avgType,tenorPeriodDays,bProductStartDate));
 		anyInt = spr.barrier.at(numBarriers).getEndDays();
 		if (find(monDateIndx.begin(), monDateIndx.end(), anyInt) == monDateIndx.end()) {
 			monDateIndx.push_back(anyInt);
@@ -270,7 +286,6 @@ int _tmain(int argc, TCHAR* argv[])
 			double couponValue;   couponValue = 0.0;
 			double thisPayoff; 
 	 		vector<double> lookbackLevel;
-			// DOME
 			for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
 			for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				SpBarrier &b(spr.barrier.at(thisBarrier));
@@ -295,6 +310,11 @@ int _tmain(int argc, TCHAR* argv[])
 					SpBarrier &b(spr.barrier.at(thisBarrier));
 					// is barrier alive
 					if (b.endDays == thisMonDays) {
+						// do any averaging/lookback
+						int proportionHits = 1;
+						// DOME - cater for extremum barriers, where typically averaging does not apply to barrier hit test
+						// maybe replace thesePrices with their averages
+						b.doAveraging(thesePrices, ulPrices,thisMonPoint);
 						// is barrier hit
 						if (b.isHit(thesePrices)){
 							thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices);
