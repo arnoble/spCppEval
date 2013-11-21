@@ -38,11 +38,12 @@ int _tmain(int argc, TCHAR* argv[])
 	vector<int>      monDateIndx;
 	vector<string>   payoffType = { "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall" };
 	vector<int>::iterator intIterator;
-	vector<UlTimeseries>  ulOriginalPrices(100), ulPrices(100); // underlying prices
-	
+	vector<UlTimeseries>  ulOriginalPrices(100), ulPrices(100); // underlying prices	
 	for (i = 0; i < maxUls; i++){
 		szAllPrices[i] = new char[bufSize];
 	}
+	// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
+
 
 	// open database, get productStartDate
 	MyDB  mydb((char **)szAllPrices), mydb1((char **)szAllPrices);
@@ -75,7 +76,7 @@ int _tmain(int argc, TCHAR* argv[])
 	char ulSql[1000];
 	// ...form sql joins
 	sprintf(ulSql, "%s", "select p0.Date Date"); 
-	for (i=0; i<numUl; i++) { sprintf(lineBuffer, "%s%d%s", ",p", i, ".price "); strcat(ulSql, lineBuffer); }
+	for (i=0; i<numUl; i++) { sprintf(lineBuffer, "%s%d%s%d", ",p", i, ".price Price",i); strcat(ulSql, lineBuffer); }
 	strcat(ulSql, " from prices p0 ");
 	if (numUl > 1) { for (i=1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s", " join prices p", i, " using (Date) "); strcat(ulSql, lineBuffer); } }
 	sprintf(lineBuffer, "%s%d%s", " where p0.underlyingId = '", ulIds.at(0), "'"); 
@@ -83,6 +84,7 @@ int _tmain(int argc, TCHAR* argv[])
 	if (numUl > 1) { for (i=1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
 	if (numMcIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
 	strcat(ulSql," order by Date");
+	cerr << "SQL:\t" << ulSql << endl;
 	// ...call DB
 	mydb.prepare((SQLCHAR *)ulSql, numUl+1);
 	bool   firstTime(true);
@@ -101,19 +103,20 @@ int _tmain(int argc, TCHAR* argv[])
 			double thisPrice;
 			thisPrice = atof(szAllPrices[i+1]);
 			if (!firstTime) {
-				ulReturns[i].push_back(thisPrice / previousPrice[i]);
+				ulReturns[i].push_back(thisPrice / previousPrice[i]);				
 				for (j = 1; j < numDayDiff;j++){    // pad non-trading days
 					ulOriginalPrices.at(i).date.push_back(szAllPrices[0]);
 					ulOriginalPrices.at(i).price.push_back(thisPrice);
 					ulReturns[i].push_back(1.0);
 				}
 			}
-			else{ firstTime = false; }
 			previousPrice[i] = thisPrice;	
 			ulOriginalPrices.at(i).date.push_back(szAllPrices[0]);
 			ulOriginalPrices.at(i).price.push_back(thisPrice);
 		}
 		// next row
+		if(firstTime){ firstTime = false; }
+
 		lastDate  = bDate;
 		retcode   = mydb.fetch(false);
 	}
@@ -121,6 +124,7 @@ int _tmain(int argc, TCHAR* argv[])
 	totalNumReturns = totalNumDays - 1;
 	ulPrices        = ulOriginalPrices; // copy constructor called
 	vector<double> thesePrices(numUl), startLevels(numUl);
+	cerr << "NumPrices:\t" << totalNumDays << "FirstDate:\t" << ulOriginalPrices.at(0).date[0] << endl;
 
 
 	// get product
@@ -257,7 +261,7 @@ int _tmain(int argc, TCHAR* argv[])
 		// start a product on each date
 		for (thisPoint = 0; thisPoint < lastPoint; thisPoint += historyStep) {
 			// initialise product
-			bool   matured(false);
+			bool   matured; matured=false;
 			vector<double> lookbackLevel;
 			// DOME
 			for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
@@ -274,7 +278,10 @@ int _tmain(int argc, TCHAR* argv[])
 				thisMonDays  = monDateIndx.at(thisMonIndx);
 				thisMonPoint = thisPoint + thisMonDays;
 				const string   thisDateString(ulPrices.at(0).date.at(thisMonPoint));
-				for (i = 0; i < numUl; i++) { thesePrices[i] = ulPrices.at(i).price.at(thisMonPoint); }
+				for (i = 0; i < numUl; i++) { 
+					thesePrices[i] = ulPrices.at(i).price.at(thisMonPoint); 
+					//cout << "Price" << i << " :" << thesePrices[i] << endl;  getline(cin, word);
+				}
 				
 				// test each barrier
 				for (thisBarrier = 0; !matured && thisBarrier<numBarriers; thisBarrier++){
@@ -285,6 +292,7 @@ int _tmain(int argc, TCHAR* argv[])
 						if (b.isHit(thesePrices)){
 							matured = b.capitalOrIncome;
 							b.storePayoff(thisDateString, b.getPayoff(startLevels, lookbackLevel, thesePrices));
+							//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 						}
 					}
 				}
@@ -293,9 +301,9 @@ int _tmain(int argc, TCHAR* argv[])
 
 		// create new random sample for next iteration
 		for (j = 1; j < totalNumReturns; j++){
-			int thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
+			int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
 			for (i = 0; i < numUl; i++) {
-				double thisReturn = ulReturns[i][thisIndx];
+				double thisReturn; thisReturn = ulReturns[i][thisIndx];
 				ulPrices.at(i).price[j] = ulPrices.at(i).price[j - 1] * thisReturn;
 			}
 		}
@@ -312,17 +320,13 @@ int _tmain(int argc, TCHAR* argv[])
 	cout << endl;
 	for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 		SpBarrier &b(spr.barrier.at(thisBarrier));
-		double mean = b.sumPayoffs / b.hit.size();
-		double prob = (100.0*b.hit.size()) / numAllIterations;
+		double mean; mean = b.sumPayoffs / b.hit.size();
+		double prob; prob = (100.0*b.hit.size()) / numAllIterations;
 		/*
 		printf("%20s\t%s\t%lf\t%s\t%lf\n", b.description,"Prob:", prob,"ExpectedPayoff",mean);
 		*/
 		cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << endl;
 	}
-
-
-
-
 
 
 	// tidy up
