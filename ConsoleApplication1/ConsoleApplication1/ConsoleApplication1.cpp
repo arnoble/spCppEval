@@ -10,10 +10,10 @@ using namespace std;
 int _tmain(int argc, TCHAR* argv[])
 {
 	const int maxUls(100);
-	const int bufSize(256);
+	const int bufSize(1000);
 	SQLHENV               hEnv       = NULL;		   // Env Handle from SQLAllocEnv()
 	SQLHDBC               hDBC       = NULL;           // Connection handle
-	char                  szDate[bufSize];	
+	char                  szDate[bufSize];
 	char                  szPrice[bufSize], **szAllPrices = new char*[maxUls];
 	SQLLEN                cbModel;		               // Model buffer bytes recieved
 	RETCODE               retcode;
@@ -30,8 +30,8 @@ int _tmain(int argc, TCHAR* argv[])
 	int              numBarriers = 0, thisIteration = 0;
 	int              anyInt, i, j, k, len, callOrPut, thisPoint, thisBarrier, thisMonIndx, thisMonPoint, numUl, numMonPoints, lastPoint, productDays, totalNumDays, totalNumReturns, uid;
 	int              thisPayoffId, thisMonDays;
-	double           anyDouble, barrier, uBarrier, payoff, strike, cap, participation;
-	string           productStartDateString,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
+	double           anyDouble, barrier, uBarrier, payoff, strike, cap, participation,fixedCoupon;
+	string           couponFrequency,productStartDateString, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
 	char             lineBuffer[1000], charBuffer[1000];
 	bool             capitalOrIncome, above, at;
 	vector<double>   ulReturns[50];
@@ -45,12 +45,17 @@ int _tmain(int argc, TCHAR* argv[])
 	// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
 
-	// open database, get productStartDate
+	// open database, get product table data
 	MyDB  mydb((char **)szAllPrices), mydb1((char **)szAllPrices);
-	sprintf(lineBuffer, "%s%d%s", "select StrikeDate from product where ProductId='", productId, "'");
-	mydb.prepare((SQLCHAR *)lineBuffer,1);
+	enum {
+		colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency,colProductBid,colProductLast
+	};
+	sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
+	mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 	retcode = mydb.fetch(true);
-	productStartDateString = szAllPrices[0];
+	productStartDateString =      szAllPrices[colProductStrikeDate];
+	fixedCoupon            = atof(szAllPrices[colProductFixedCoupon]);
+	if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency];	}
 	boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 
 	// get underlyingids for this product from DB
@@ -84,7 +89,6 @@ int _tmain(int argc, TCHAR* argv[])
 	if (numUl > 1) { for (i=1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
 	if (numMcIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
 	strcat(ulSql," order by Date");
-	cerr << "SQL:\t" << ulSql << endl;
 	// ...call DB
 	mydb.prepare((SQLCHAR *)ulSql, numUl+1);
 	bool   firstTime(true);
@@ -128,7 +132,7 @@ int _tmain(int argc, TCHAR* argv[])
 
 
 	// get product
-	SProduct spr;
+	SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency);
 	numBarriers = 0;
 	// get from flat file --KEEP in case of need
 	/*
@@ -192,11 +196,11 @@ int _tmain(int argc, TCHAR* argv[])
 	// table productbarrier
 	enum {colProductBarrierId=0,colProductId,
 		colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
-		colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap
+		colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap,colProductBarrierLast
 	};
 	// ** SQL fetch block
 	sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "'");
-	mydb.prepare((SQLCHAR *)lineBuffer, colCap+1);
+	mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
 	retcode = mydb.fetch(true);
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 		capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
@@ -204,7 +208,7 @@ int _tmain(int argc, TCHAR* argv[])
 		payoff          = atof(szAllPrices[colPayoff]) / 100.0;
 		settlementDate  = szAllPrices[colSettlementDate];
 		description     = szAllPrices[colDescription];
-		thisPayoffId    = atoi(szAllPrices[colPayoffId]); thisPayoffType = payoffType[thisPayoffId];// PayoffTypeId
+		thisPayoffId    = atoi(szAllPrices[colPayoffId]); thisPayoffType = payoffType[thisPayoffId];
 		participation   = atof(szAllPrices[colParticipation]);
 		strike          = atof(szAllPrices[colStrike]);
 		cap             = atof(szAllPrices[colCap]);
@@ -221,13 +225,13 @@ int _tmain(int argc, TCHAR* argv[])
 		enum {
 			brcolBarrierRelationId = 0, brcolProductBarrierId,
 			brcolUnderlyingId, brcolBarrier, brcolBarrierTypeId, brcolAbove, brcolAt, brcolStartDate, brcolEndDate,
-			brcolTriggered, brcolIsAbsolute, brcolUpperBarrier, brcolWeight
+			brcolTriggered, brcolIsAbsolute, brcolUpperBarrier, brcolWeight,colBarrierRelationLast
 		};
 		char szbrBarrierRelationId[bufSize], szbrProductBarrierId[bufSize], szbrUnderlyingId[bufSize], szbrBarrier[bufSize], szbrBarrierTypeId[bufSize], szbrAbove[bufSize];
 		char szbrAt[bufSize], szbrStartDate[bufSize], szbrEndDate[bufSize], szbrTrigered[bufSize], szbrIsAbsolute[bufSize], szbrUpperBarrier[bufSize], szbrWeight[bufSize];
 		// ** SQL fetch block
 		sprintf(lineBuffer, "%s%s%s", "select * from barrierrelation where ProductBarrierId='", szAllPrices[colProductBarrierId], "'");
-		mydb1.prepare((SQLCHAR *)lineBuffer, brcolWeight+1);
+		mydb1.prepare((SQLCHAR *)lineBuffer, colBarrierRelationLast);
 		retcode = mydb1.fetch(false);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 			uid              = atoi(szAllPrices[brcolUnderlyingId]);
@@ -261,8 +265,11 @@ int _tmain(int argc, TCHAR* argv[])
 		// start a product on each date
 		for (thisPoint = 0; thisPoint < lastPoint; thisPoint += historyStep) {
 			// initialise product
-			bool   matured; matured=false;
-			vector<double> lookbackLevel;
+			boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisPoint)));
+			bool   matured;       matured     = false;
+			double couponValue;   couponValue = 0.0;
+			double thisPayoff; 
+	 		vector<double> lookbackLevel;
 			// DOME
 			for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
 			for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
@@ -290,8 +297,21 @@ int _tmain(int argc, TCHAR* argv[])
 					if (b.endDays == thisMonDays) {
 						// is barrier hit
 						if (b.isHit(thesePrices)){
-							matured = b.capitalOrIncome;
-							b.storePayoff(thisDateString, b.getPayoff(startLevels, lookbackLevel, thesePrices));
+							thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices);
+							if (b.capitalOrIncome){ 
+								matured     = true; 
+								thisPayoff += couponValue; 
+								if (spr.couponFrequency.size()) {  // add fixed coupon
+									boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisMonPoint)));
+									double daysElapsed   =  (bThisDate - bStartDate).days();
+									char   freqChar      = toupper(spr.couponFrequency[1]);
+									double couponEvery   = spr.couponFrequency[0] - '0';
+									double daysPerEvery  = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 360;
+									thisPayoff          += spr.fixedCoupon*floor(daysElapsed / daysPerEvery / couponEvery);
+								}
+							}
+							else { couponValue += thisPayoff ; }
+							b.storePayoff(thisDateString, thisPayoff);
 							//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 						}
 					}
