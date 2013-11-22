@@ -199,7 +199,7 @@ int _tmain(int argc, TCHAR* argv[])
 	// table productbarrier
 	enum {colProductBarrierId=0,colProductId,
 		colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
-		colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap,colProductBarrierLast
+		colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap,colUnderlyingFunctionId,colParam1,colMemory,colIsAbsolute,colProductBarrierLast
 	};
 	// ** SQL fetch block
 	sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "'");
@@ -209,14 +209,17 @@ int _tmain(int argc, TCHAR* argv[])
 	map<char,int>::iterator curr, end;
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 		int tenorPeriodDays;
-		int avgDays = 0; 
+		int avgDays   = 0; 
+		int avgFreq   = 0;
+		bool isMemory = atoi(szAllPrices[colMemory]) == 1;;
 		if (strlen(szAllPrices[colAvgTenor])){
-			char avgChar1 = szAllPrices[colAvgTenor][0];
-			char avgChar2 = szAllPrices[colAvgTenor][1];
+			char avgChar1   = szAllPrices[colAvgTenor][0];
+			char avgChar2   = szAllPrices[colAvgTenor][1];
 			bool foundTenor = false;
+			avgFreq         = (avgChar1 - '0');
 			for (curr = avgTenor.begin(), end = avgTenor.end(); !foundTenor && curr != end; curr++)
 			if (curr->first == avgChar2){ foundTenor = true; tenorPeriodDays = curr->second; }
-			avgDays = (avgChar1 - '0') * tenorPeriodDays;
+			avgDays = avgFreq * tenorPeriodDays;
 		}
 		int avgType     = atoi(szAllPrices[colAvgType]); 
 		capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
@@ -229,7 +232,8 @@ int _tmain(int argc, TCHAR* argv[])
 		strike          = atof(szAllPrices[colStrike]);
 		cap             = atof(szAllPrices[colCap]);
 		spr.barrier.push_back(SpBarrier(capitalOrIncome, nature, payoff, settlementDate, description,
-			thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap,avgDays,avgType,tenorPeriodDays,bProductStartDate));
+			thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap,avgDays,avgType,
+			tenorPeriodDays,avgFreq,isMemory,bProductStartDate));
 		anyInt = spr.barrier.at(numBarriers).getEndDays();
 		if (find(monDateIndx.begin(), monDateIndx.end(), anyInt) == monDateIndx.end()) {
 			monDateIndx.push_back(anyInt);
@@ -278,9 +282,14 @@ int _tmain(int argc, TCHAR* argv[])
 	lastPoint = totalNumDays - productDays;
 	// main MC loop
 	for (thisIteration = 0; thisIteration < numMcIterations; thisIteration++) {
-		// start a product on each date
+		// start a product on each TRADING date
 		for (thisPoint = 0; thisPoint < lastPoint; thisPoint += historyStep) {
+			// wind forwards to next trading date
+			while (ulPrices.at(0).nonTradingDay.at(thisPoint) && thisPoint < lastPoint) {
+				thisPoint += 1;
+			}
 			// initialise product
+			vector<bool> barrierWasHit(numBarriers);
 			boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisPoint)));
 			bool   matured;       matured     = false;
 			double couponValue;   couponValue = 0.0;
@@ -317,6 +326,7 @@ int _tmain(int argc, TCHAR* argv[])
 						b.doAveraging(thesePrices, ulPrices,thisMonPoint);
 						// is barrier hit
 						if (b.isHit(thesePrices)){
+							barrierWasHit[thisBarrier] = true;
 							thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices);
 							if (b.capitalOrIncome){ 
 								matured     = true; 
@@ -330,9 +340,28 @@ int _tmain(int argc, TCHAR* argv[])
 									thisPayoff          += spr.fixedCoupon*floor(daysElapsed / daysPerEvery / couponEvery);
 								}
 							}
-							else { couponValue += thisPayoff ; }
-							b.storePayoff(thisDateString, thisPayoff);
+							else { 
+								couponValue               += thisPayoff ; 
+								barrierWasHit[thisBarrier] = true;
+								if (b.isMemory) {
+									for (k = 0; k<thisBarrier; k++) {
+										SpBarrier &bOther(spr.barrier.at(k));
+										if (!bOther.capitalOrIncome && !barrierWasHit[k]) {
+											double payoffOther = bOther.payoff;
+											barrierWasHit[k]   = true; 
+											couponValue       += payoffOther ;
+											bOther.storePayoff(thisDateString, proportionHits*payoffOther);
+										}
+									}
+								}
+
+							}
+							b.storePayoff(thisDateString, proportionHits*thisPayoff);
 							//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
+						}
+						else {
+							int jj = 1;
+							b.isHit(thesePrices);
 						}
 					}
 				}
