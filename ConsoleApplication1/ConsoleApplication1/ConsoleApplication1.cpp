@@ -9,24 +9,21 @@ using namespace std;
 
 int _tmain(int argc, TCHAR* argv[])
 {
-	const int maxUls(100);
-	const int bufSize(1000);
-	SQLHENV               hEnv       = NULL;		   // Env Handle from SQLAllocEnv()
-	SQLHDBC               hDBC       = NULL;           // Connection handle
-	char                  szDate[bufSize];
-	char                  szPrice[bufSize], **szAllPrices = new char*[maxUls];
-	SQLLEN                cbModel;		               // Model buffer bytes recieved
-	RETCODE               retcode;
-	SQLCHAR*              thisSQL;
-
 	// initialise
-	srand(time(0)); // reseed rand
-	int              productId = argc > 1 ? _ttoi(argv[1]) : 363;
+	int              historyStep     = 1000;
+	int              productId       = argc > 1 ? _ttoi(argv[1]) : 363;
 	int              numMcIterations = argc>2 ? _ttoi(argv[2]) : 100;
-	cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
+	const int        maxUls(100);
+	const int        bufSize(1000);
+	SQLHENV          hEnv       = NULL;		    // Env Handle from SQLAllocEnv()
+	SQLHDBC          hDBC       = NULL;         // Connection handle
+	SQLLEN           cbModel;		            // SQL buffer bytes recieved
+	RETCODE          retcode;
+	SQLCHAR*         thisSQL;
+	char             szDate[bufSize];
+	char             szPrice[bufSize], **szAllPrices = new char*[maxUls];
 	unsigned	     uI;
 	int              oldProductBarrierId = 0, productBarrierId = 0;
-	int              historyStep = 1;
 	int              numBarriers = 0, thisIteration = 0;
 	int              anyInt, i, j, k, len, callOrPut, thisPoint, thisBarrier, thisMonIndx, thisMonPoint, numUl, numMonPoints, lastPoint, productDays, totalNumDays, totalNumReturns, uid;
 	int              thisPayoffId, thisMonDays;
@@ -42,6 +39,8 @@ int _tmain(int argc, TCHAR* argv[])
 	for (i = 0; i < maxUls; i++){
 		szAllPrices[i] = new char[bufSize];
 	}
+	srand(time(0)); // reseed rand
+	cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
 	// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
 
@@ -221,6 +220,7 @@ int _tmain(int argc, TCHAR* argv[])
 			if (curr->first == avgChar2){ foundTenor = true; tenorPeriodDays = curr->second; }
 			avgDays = avgFreq * tenorPeriodDays;
 		}
+		int barrierId   = atoi(szAllPrices[colProductBarrierId]);
 		int avgType     = atoi(szAllPrices[colAvgType]); 
 		capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
 		nature          = szAllPrices[colNature];
@@ -231,7 +231,7 @@ int _tmain(int argc, TCHAR* argv[])
 		participation   = atof(szAllPrices[colParticipation]);
 		strike          = atof(szAllPrices[colStrike]);
 		cap             = atof(szAllPrices[colCap]);
-		spr.barrier.push_back(SpBarrier(capitalOrIncome, nature, payoff, settlementDate, description,
+		spr.barrier.push_back(SpBarrier(barrierId,capitalOrIncome, nature, payoff, settlementDate, description,
 			thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap,avgDays,avgType,
 			tenorPeriodDays,avgFreq,isMemory,bProductStartDate));
 		anyInt = spr.barrier.at(numBarriers).getEndDays();
@@ -360,8 +360,8 @@ int _tmain(int argc, TCHAR* argv[])
 							//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 						}
 						else {
-							int jj = 1;
-							b.isHit(thesePrices);
+							// in case you want to see why not hit
+							// b.isHit(thesePrices);
 						}
 					}
 				}
@@ -379,22 +379,45 @@ int _tmain(int argc, TCHAR* argv[])
 		cout << ".";
 	}
 
-	int numAllIterations(0);
+	int numAllEpisodes(0);
 	for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 		if (spr.barrier.at(thisBarrier).capitalOrIncome) {
-			numAllIterations += spr.barrier.at(thisBarrier).hit.size();
+			numAllEpisodes += spr.barrier.at(thisBarrier).hit.size();
 		}
 		
 	}
 	cout << endl;
+
+	// handle results
+	bool     applyCredit        = false;
+	double   projectedReturn    = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
+	string   lastSettlementDate = spr.barrier.at(numBarriers - 1).settlementDate;
+	bool     foundEarliest      = false;
+	double   probEarly(0.0),probEarliest(0.0);
+	double   midPrice(1.0);        // DOME
+
 	for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 		SpBarrier &b(spr.barrier.at(thisBarrier));
-		double mean; mean = b.sumPayoffs / b.hit.size();
-		double prob; prob = (100.0*b.hit.size()) / numAllIterations;
-		/*
-		printf("%20s\t%s\t%lf\t%s\t%lf\n", b.description,"Prob:", prob,"ExpectedPayoff",mean);
-		*/
+		int    numInstances = b.hit.size();
+		double mean         = b.sumPayoffs / numInstances;
+		double prob         = (1.0*numInstances) / numAllEpisodes;
+		double annReturn = numInstances ? (exp(log(((b.capitalOrIncome?0.0:1.0)+mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
+
+		if (b.capitalOrIncome) {
+			if (!foundEarliest){ foundEarliest = true; probEarliest = prob; }
+			if (b.settlementDate < lastSettlementDate) probEarly   += prob;
+		}
+
+
 		cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << endl;
+		// ** SQL to barrierProb
+		sprintf(lineBuffer, "%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update testbarrierprob set Prob='",prob,
+			"',AnnReturn='",annReturn,
+			"',CondPayoff='", mean,
+			"',NumInstances='", numInstances,
+			"' where ProductBarrierId='", spr.barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn,"'");
+		mydb.prepare((SQLCHAR *)lineBuffer, 1);
+		retcode = mydb.execute(true);
 	}
 
 
