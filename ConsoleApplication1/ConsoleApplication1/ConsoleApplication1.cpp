@@ -10,7 +10,7 @@ using namespace std;
 int _tmain(int argc, TCHAR* argv[])
 {
 	// initialise
-	int              historyStep     = 1000;
+	int              historyStep     = 1;
 	int              productId       = argc > 1 ? _ttoi(argv[1]) : 363;
 	int              numMcIterations = argc>2 ? _ttoi(argv[2]) : 100;
 	const int        maxUls(100);
@@ -27,7 +27,7 @@ int _tmain(int argc, TCHAR* argv[])
 	int              numBarriers = 0, thisIteration = 0;
 	int              anyInt, i, j, k, len, callOrPut, thisPoint, thisBarrier, thisMonIndx, thisMonPoint, numUl, numMonPoints, lastPoint, productDays, totalNumDays, totalNumReturns, uid;
 	int              thisPayoffId, thisMonDays;
-	double           anyDouble, barrier, uBarrier, payoff, strike, cap, participation,fixedCoupon;
+	double           anyDouble, barrier, uBarrier, payoff, strike, cap, participation,fixedCoupon,AMC;
 	string           couponFrequency,productStartDateString, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
 	char             lineBuffer[1000], charBuffer[1000];
 	bool             capitalOrIncome, above, at;
@@ -47,13 +47,14 @@ int _tmain(int argc, TCHAR* argv[])
 	// open database, get product table data
 	MyDB  mydb((char **)szAllPrices), mydb1((char **)szAllPrices);
 	enum {
-		colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency,colProductBid,colProductLast
+		colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency,colProductBid,colProductAMC=43,colProductLast
 	};
 	sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 	mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 	retcode = mydb.fetch(true);
 	productStartDateString =      szAllPrices[colProductStrikeDate];
 	fixedCoupon            = atof(szAllPrices[colProductFixedCoupon]);
+	AMC                    = atof(szAllPrices[colProductAMC]);
 	if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency];	}
 	boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 
@@ -134,7 +135,7 @@ int _tmain(int argc, TCHAR* argv[])
 
 
 	// get product
-	SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency);
+	SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency,AMC);
 	numBarriers = 0;
 	// get from flat file --KEEP in case of need
 	/*
@@ -254,6 +255,7 @@ int _tmain(int argc, TCHAR* argv[])
 		mydb1.prepare((SQLCHAR *)lineBuffer, colBarrierRelationLast);
 		retcode = mydb1.fetch(false);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+			double weight    = atof(szAllPrices[brcolWeight]);
 			uid              = atoi(szAllPrices[brcolUnderlyingId]);
 			barrier          = atof(szAllPrices[brcolBarrier]);
 			above            = atoi(szAllPrices[brcolAbove]) == 1;
@@ -262,7 +264,7 @@ int _tmain(int argc, TCHAR* argv[])
 			endDateString    = szAllPrices[brcolEndDate];
 			uBarrier         = atof(szAllPrices[brcolUpperBarrier]);
 			if (uid) {
-				spr.barrier.at(numBarriers - 1).brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, startDateString, endDateString, above, at, productStartDateString));
+				spr.barrier.at(numBarriers - 1).brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, startDateString, endDateString, above, at, weight,productStartDateString));
 			}
 
 			// next record
@@ -327,7 +329,7 @@ int _tmain(int argc, TCHAR* argv[])
 						// is barrier hit
 						if (b.isHit(thesePrices)){
 							barrierWasHit[thisBarrier] = true;
-							thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices);
+							thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices,spr.AMC);
 							if (b.capitalOrIncome){ 
 								matured     = true; 
 								thisPayoff += couponValue; 
@@ -388,14 +390,18 @@ int _tmain(int argc, TCHAR* argv[])
 	}
 	cout << endl;
 
-	// handle results
+	// *****************
+	// ** handle results
+	// *****************
 	bool     applyCredit        = false;
 	double   projectedReturn    = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
 	string   lastSettlementDate = spr.barrier.at(numBarriers - 1).settlementDate;
 	bool     foundEarliest      = false;
 	double   probEarly(0.0),probEarliest(0.0);
 	double   midPrice(1.0);        // DOME
-
+	// ** process barrier results
+	double ePayoff(0.0);
+	int    numCapitalInstances(0);
 	for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 		SpBarrier &b(spr.barrier.at(thisBarrier));
 		int    numInstances = b.hit.size();
@@ -406,11 +412,11 @@ int _tmain(int argc, TCHAR* argv[])
 		if (b.capitalOrIncome) {
 			if (!foundEarliest){ foundEarliest = true; probEarliest = prob; }
 			if (b.settlementDate < lastSettlementDate) probEarly   += prob;
+			numCapitalInstances += numInstances;
+			ePayoff             += b.sumPayoffs;
 		}
-
-
 		cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << endl;
-		// ** SQL to barrierProb
+		// ** SQL barrierProb
 		sprintf(lineBuffer, "%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update testbarrierprob set Prob='",prob,
 			"',AnnReturn='",annReturn,
 			"',CondPayoff='", mean,
@@ -419,7 +425,39 @@ int _tmain(int argc, TCHAR* argv[])
 		mydb.prepare((SQLCHAR *)lineBuffer, 1);
 		retcode = mydb.execute(true);
 	}
+	/*
+	// ** process product results
+	sprintf(lineBuffer, "%s%.5lf", "update testcashflows set ExpectedPayoff='", ePayoff / numCapitalInstances);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", eRet);
+	sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  ulOriginalPrices.at(0).date[0]);
+	sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   ulOriginalPrices.at(0).date[totalNumDays-1]);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='",   riskCategory);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='",        winLose);
+	sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',WhenEvaluated='",  whenEvaluated);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='",   probEarliest);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='",      probEarly);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='",            VaR);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='",          esVol);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='",       duration);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',NumResamples='",   numMcIterations);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='",         ecGain);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='",   ecStrictGain);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='",         ecLoss);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='",       probGain);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='", probStrictGain);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='",       probLoss);
+	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",     eShortfall);
+	sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumEpisodes='",    numAllEpisodes);
 
+
+	sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductBarrierId='", spr.barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
+	
+	mydb.prepare((SQLCHAR *)lineBuffer, 1);
+	retcode = mydb.execute(true);
+
+	*/
+	
 
 	// tidy up
 	return 0;
