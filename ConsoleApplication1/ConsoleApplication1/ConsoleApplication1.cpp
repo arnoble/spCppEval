@@ -48,16 +48,42 @@ int _tmain(int argc, TCHAR* argv[])
 	// open database, get product table data
 	MyDB  mydb((char **)szAllPrices), mydb1((char **)szAllPrices);
 	enum {
-		colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency,colProductBid,colProductAMC=43,colProductLast
+		colProductCounterpartyId=2,colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency,colProductBid,colProductAMC=43,colProductLast
 	};
 	sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 	mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 	retcode = mydb.fetch(true);
+	int counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]); 
 	productStartDateString =      szAllPrices[colProductStrikeDate];
 	fixedCoupon            = atof(szAllPrices[colProductFixedCoupon]);
 	AMC                    = atof(szAllPrices[colProductAMC]);
 	if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency];	}
 	boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
+
+	// get counterparty info
+	// ...mult-issuer product's have comma-separated issuers...ASSUMED equal weight
+	sprintf(lineBuffer, "%s%d%s", "select EntityName from institution where institutionid='",counterpartyId,"' ");
+	mydb.prepare((SQLCHAR *)lineBuffer, 1);
+	retcode = mydb.fetch(true);
+	string counterpartyName = szAllPrices[0];
+	vector<string> counterpartyNames;
+	splitCounterpartyName(counterpartyNames, counterpartyName);
+	sprintf(lineBuffer, "%s%s%s", "'", counterpartyNames.at(0).c_str(), "'");
+	for (i = 1; i < counterpartyNames.size(); i++){
+		sprintf(lineBuffer, "%s%s%s%s",lineBuffer, ",'", counterpartyNames.at(i).c_str(), "'");
+	}
+	sprintf(lineBuffer, "%s%s%s", "select Maturity,avg(Spread) Spread from cdsspread join institution using (institutionid) where EntityName in (",lineBuffer,
+		") and spread is not null group by Maturity order by Maturity");
+	mydb.prepare((SQLCHAR *)lineBuffer, 2);
+	retcode = mydb.fetch(false);
+	double probDefault(0.0);
+	vector<double> cdsTenor, cdsSpread;
+	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+		cdsTenor.push_back( atof(szAllPrices[0]));
+		cdsSpread.push_back(atof(szAllPrices[1]));
+		retcode = mydb.fetch(false);
+	}
+
 
 	// get underlyingids for this product from DB
 	vector<int> ulIds;
@@ -276,6 +302,17 @@ int _tmain(int argc, TCHAR* argv[])
 	spr.productDays = *max_element(monDateIndx.begin(), monDateIndx.end());
 	vector<int> numBarrierHits(numBarriers, 0);
 	numMonPoints = monDateIndx.size();
+	double maxYears = 0; for (i = 0; i<numBarriers; i++) { double t = spr.barrier.at(i).yearsToBarrier;   if (t > maxYears){ maxYears = t; } }
+	vector<double> fullCurve; // populate a full annual CDS curve
+	for (j = 0; j<maxYears + 1; j++) {
+		fullCurve.push_back(interpCurve(cdsTenor,cdsSpread, j + 1));
+	}
+	vector<double> dpCurve, hazardCurve; // annual default probability curve
+	const double recoveryRate(0.4);
+	bootstrapCDS(fullCurve, dpCurve, recoveryRate);
+	for (j = 0, len = fullCurve.size(); j<len; j++) {
+		hazardCurve.push_back(dpCurve[j]);
+	}
 
 
 
@@ -390,6 +427,11 @@ int _tmain(int argc, TCHAR* argv[])
 	}
 	cout << endl;
 
+
+
+
+
+
 	// *****************
 	// ** handle results
 	// *****************
@@ -443,6 +485,10 @@ int _tmain(int argc, TCHAR* argv[])
 		retcode = mydb.execute(true);
 	}
 	
+
+
+
+
 	// ** process product results
 	int numAnnRets(allAnnRets.size());
 	const double confLevel(0.1);
