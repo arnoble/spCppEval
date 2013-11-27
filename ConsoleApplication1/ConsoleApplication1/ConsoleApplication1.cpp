@@ -48,12 +48,13 @@ int _tmain(int argc, TCHAR* argv[])
 	// open database, get product table data
 	MyDB  mydb((char **)szAllPrices), mydb1((char **)szAllPrices);
 	enum {
-		colProductCounterpartyId=2,colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency,colProductBid,colProductAMC=43,colProductLast
+		colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAMC = 43, colProductDepositGtee = 56, colProductLast
 	};
 	sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 	mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 	retcode = mydb.fetch(true);
 	int counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]); 
+	bool depositGteed      = atoi(szAllPrices[colProductDepositGtee])  == 1;
 	productStartDateString =      szAllPrices[colProductStrikeDate];
 	fixedCoupon            = atof(szAllPrices[colProductFixedCoupon]);
 	AMC                    = atof(szAllPrices[colProductAMC]);
@@ -68,19 +69,19 @@ int _tmain(int argc, TCHAR* argv[])
 	string counterpartyName = szAllPrices[0];
 	vector<string> counterpartyNames;
 	splitCounterpartyName(counterpartyNames, counterpartyName);
-	sprintf(lineBuffer, "%s%s%s", "'", counterpartyNames.at(0).c_str(), "'");
+	sprintf(charBuffer, "%s%s%s", "'", counterpartyNames.at(0).c_str(), "'");
 	for (i = 1; i < counterpartyNames.size(); i++){
-		sprintf(lineBuffer, "%s%s%s%s",lineBuffer, ",'", counterpartyNames.at(i).c_str(), "'");
+		sprintf(charBuffer, "%s%s%s%s",charBuffer, ",'", counterpartyNames.at(i).c_str(), "'");
 	}
-	sprintf(lineBuffer, "%s%s%s", "select Maturity,avg(Spread) Spread from cdsspread join institution using (institutionid) where EntityName in (",lineBuffer,
+	sprintf(lineBuffer, "%s%s%s", "select Maturity,avg(Spread) Spread from cdsspread join institution using (institutionid) where EntityName in (",charBuffer,
 		") and spread is not null group by Maturity order by Maturity");
+
 	mydb.prepare((SQLCHAR *)lineBuffer, 2);
 	retcode = mydb.fetch(false);
-	double probDefault(0.0);
 	vector<double> cdsTenor, cdsSpread;
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 		cdsTenor.push_back( atof(szAllPrices[0]));
-		cdsSpread.push_back(atof(szAllPrices[1]));
+		cdsSpread.push_back(atof(szAllPrices[1])/10000.0);
 		retcode = mydb.fetch(false);
 	}
 
@@ -162,7 +163,7 @@ int _tmain(int argc, TCHAR* argv[])
 
 
 	// get product
-	SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency,AMC);
+	SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency, AMC, depositGteed);
 	numBarriers = 0;
 	// get from flat file --KEEP in case of need
 	/*
@@ -316,6 +317,9 @@ int _tmain(int argc, TCHAR* argv[])
 
 
 
+
+
+
 	// evaluate product
 	productDays = spr.productDays;
 	lastPoint = totalNumDays - productDays;
@@ -435,131 +439,143 @@ int _tmain(int argc, TCHAR* argv[])
 	// *****************
 	// ** handle results
 	// *****************
-	bool     applyCredit        = false;
-	double   projectedReturn    = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
 	string   lastSettlementDate = spr.barrier.at(numBarriers - 1).settlementDate;
-	bool     foundEarliest      = false;
-	double   probEarly(0.0),probEarliest(0.0);
-	double   midPrice(1.0);        // DOME
-	vector<double> allPayoffs,allAnnRets;
-	int    numPosPayoffs(0),   numStrPosPayoffs(0),   numNegPayoffs(0);
-	double sumPosPayoffs(0),   sumStrPosPayoffs(0),   sumNegPayoffs(0);
-	double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0);
+	double   actualRecoveryRate = spr.depositGteed ? 0.9 : recoveryRate;
+	for (int analyseCase = 0; analyseCase < 2; analyseCase++) {
+		bool     applyCredit     = analyseCase == 1;
+		double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
+		bool     foundEarliest   = false;
+		double   probEarly(0.0), probEarliest(0.0);
+		double   midPrice(1.0);        // DOME
+		vector<double> allPayoffs, allAnnRets;
+		int    numPosPayoffs(0),   numStrPosPayoffs(0),   numNegPayoffs(0);
+		double sumPosPayoffs(0),   sumStrPosPayoffs(0),   sumNegPayoffs(0);
+		double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0);
 
-	// ** process barrier results
-	double sumPayoffs(0.0), sumAnnRets(0.0), sumDuration(0.0);
-	int    numCapitalInstances(0);
-	for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-		SpBarrier &b(spr.barrier.at(thisBarrier));
-		int    numInstances = b.hit.size();
-		double thisYears    = b.yearsToBarrier;
-		double mean         = b.sumPayoffs / numInstances;
-		double prob         = (1.0*numInstances) / numAllEpisodes;
-		double annReturn    = numInstances ? (exp(log(((b.capitalOrIncome?0.0:1.0)+mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
-		sumDuration        += numInstances*b.yearsToBarrier;
-
-		if (b.capitalOrIncome) {
-			if (!foundEarliest){ foundEarliest = true; probEarliest = prob; }
-			if (b.settlementDate < lastSettlementDate) probEarly   += prob;
-			numCapitalInstances += numInstances;
-			sumPayoffs          += b.sumPayoffs;
-			for (i = 0; i < b.hit.size();i++){
-				double thisAmount = b.hit.at(i).amount;
-				double thisAnnRet = exp(log(thisAmount / midPrice) / thisYears) - 1.0;
-				allPayoffs.push_back(thisAmount);	
-				allAnnRets.push_back(thisAnnRet);
-				sumAnnRets += thisAnnRet;
-				if (thisAmount >  1.0) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
-				if (thisAmount >= 1.0) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
-				else                   { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
+		// ** process barrier results
+		double sumPayoffs(0.0), sumAnnRets(0.0), sumDuration(0.0);
+		int    numCapitalInstances(0);
+		for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+			SpBarrier &b(spr.barrier.at(thisBarrier));
+			double thisBarrierSumPayoffs(0.0);
+			vector<double> thisBarrierPayoffs;
+			int    numInstances     = b.hit.size();
+			double thisYears        = b.yearsToBarrier;
+			double prob             = (1.0*numInstances) / numAllEpisodes;
+			double thisProbDefault  = probDefault(hazardCurve, thisYears);
+			sumDuration            += numInstances*b.yearsToBarrier;
+			for (i = 0; i < b.hit.size(); i++){
+				double thisAmount  = b.hit.at(i).amount;
+				// possibly apply credit adjustment
+				if (applyCredit) { thisAmount *= ((double)rand() / (RAND_MAX)) < thisProbDefault ? actualRecoveryRate : 1; }
+				thisBarrierPayoffs.push_back(thisAmount);
+				thisBarrierSumPayoffs += thisAmount;
 			}
+
+			if (b.capitalOrIncome) {
+				if (!foundEarliest){ foundEarliest = true; probEarliest = prob; }
+				if (b.settlementDate < lastSettlementDate) probEarly += prob;
+				numCapitalInstances += numInstances;
+				sumPayoffs += b.sumPayoffs;
+				for (i = 0; i < b.hit.size(); i++){
+					double thisAmount = thisBarrierPayoffs.at(i);
+					double thisAnnRet = exp(log(thisAmount / midPrice) / thisYears) - 1.0;
+					allPayoffs.push_back(thisAmount);
+					allAnnRets.push_back(thisAnnRet);
+					sumAnnRets += thisAnnRet;
+					if (thisAmount >  1.0) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
+					if (thisAmount >= 1.0) { sumPosPayoffs += thisAmount; numPosPayoffs++;       sumPosDurations += thisYears; }
+					else                   { sumNegPayoffs += thisAmount; numNegPayoffs++;       sumNegDurations += thisYears; }
+				}
+			}
+			double mean      = thisBarrierSumPayoffs / numInstances;
+			double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
+			cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << endl;
+			// ** SQL barrierProb
+			sprintf(lineBuffer, "%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update testbarrierprob set Prob='", prob,
+				"',AnnReturn='", annReturn,
+				"',CondPayoff='", mean,
+				"',NumInstances='", numInstances,
+				"' where ProductBarrierId='", spr.barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			retcode = mydb.execute(true);
 		}
-		cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << endl;
-		// ** SQL barrierProb
-		sprintf(lineBuffer, "%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update testbarrierprob set Prob='",prob,
-			"',AnnReturn='",annReturn,
-			"',CondPayoff='", mean,
-			"',NumInstances='", numInstances,
-			"' where ProductBarrierId='", spr.barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn,"'");
+
+
+
+
+
+		// ** process product results
+		int numAnnRets(allAnnRets.size());
+		const double confLevel(0.1);
+		sort(allPayoffs.begin(), allPayoffs.end());
+		sort(allAnnRets.begin(), allAnnRets.end());
+		double averageReturn = sumAnnRets / numAnnRets;
+		double vaR95 = 100.0*allPayoffs[floor(numAnnRets*0.05)];
+
+		// eShortfall, esVol
+		int numShortfall(floor(confLevel*allAnnRets.size()));
+		double eShortfall(0.0);	for (i = 0; i < numShortfall; i++){ eShortfall += allAnnRets[i]; }	eShortfall /= numShortfall;
+		double duration = sumDuration / numAnnRets;
+		double esVol = (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(.1);
+		double scaledVol = esVol * sqrt(duration);
+		double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ geomReturn += log(allPayoffs[i]); }
+		geomReturn = exp(geomReturn / sumDuration) - 1;
+		double sharpeRatio = scaledVol > 0.0 ? (geomReturn / scaledVol>1000.0 ? 1000.0 : geomReturn / scaledVol) : 1000.0;
+		vector<double> cesrBuckets = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
+		double riskCategory(1.0);  for (i = 1, len = cesrBuckets.size(); i<len && scaledVol>cesrBuckets[i]; i++) { riskCategory += 1.0; }
+		if (i != len) riskCategory += (scaledVol - cesrBuckets[i - 1]) / (cesrBuckets[i] - cesrBuckets[i - 1]);
+		// WinLose
+		double sumNegRet(0.0), sumPosRet(0.0), sumStrPosRet(0.0);
+		int    numNegRet(0), numPosRet(0), numStrPosRet(0);
+		for (j = 0; j<numAnnRets; j++) {
+			double ret = allAnnRets[j];
+			if (ret>0){ sumStrPosRet += ret; numStrPosRet++; }
+			if (ret<0){ sumNegRet += ret; numNegRet++; }
+			else { sumPosRet += ret; numPosRet++; }
+		}
+		double strPosDuration(sumStrPosDurations / numStrPosPayoffs), posDuration(sumPosDurations / numPosPayoffs), negDuration(sumNegDurations / numNegPayoffs);
+		double ecGain = 100.0*(numPosPayoffs ? exp(log(sumPosPayoffs / midPrice / numPosPayoffs) / posDuration) - 1.0 : 0.0);
+		double ecStrictGain = 100.0*(numStrPosPayoffs ? exp(log(sumStrPosPayoffs / midPrice / numStrPosPayoffs) / strPosDuration) - 1.0 : 0.0);
+		double ecLoss = -100.0*(numNegPayoffs ? exp(log(sumNegPayoffs / midPrice / numNegPayoffs) / negDuration) - 1.0 : 0.0);
+		double probGain = numPosRet ? ((double)numPosRet) / numAnnRets : 0;
+		double probStrictGain = numStrPosRet ? ((double)numStrPosRet) / numAnnRets : 0;
+		double probLoss = 1 - probGain;
+		double eGainRet = ecGain * probGain;
+		double eLossRet = ecLoss * probLoss;
+		double winLose = sumNegRet ? (eGainRet / eLossRet>1000.0 ? 1000.0 : eGainRet / eLossRet) : 1000.0;
+
+		sprintf(lineBuffer, "%s%.5lf", "update testcashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
+		sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FirstDataDate='", ulOriginalPrices.at(0).date[0].c_str());
+		sprintf(lineBuffer, "%s%s%s", lineBuffer, "',LastDataDate='", ulOriginalPrices.at(0).date[totalNumDays - 1].c_str());
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='", sharpeRatio);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='", winLose);
+		time_t rawtime;	struct tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
+		strftime(charBuffer, 80, "%Y-%m-%d", timeinfo);
+		sprintf(lineBuffer, "%s%s%s", lineBuffer, "',WhenEvaluated='", charBuffer);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='", probEarliest);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='", probEarly);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR95);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='", esVol);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='", duration);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',NumResamples='", numMcIterations);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='", ecGain);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='", ecStrictGain);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='", ecLoss);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='", probGain);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='", probStrictGain);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='", probLoss);
+		sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='", eShortfall*100.0);
+		sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
+
+		sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
+
 		mydb.prepare((SQLCHAR *)lineBuffer, 1);
-		retcode = mydb.execute(true);
+		retcode = mydb.execute(true);	
 	}
-	
 
-
-
-
-	// ** process product results
-	int numAnnRets(allAnnRets.size());
-	const double confLevel(0.1);
-	sort(allPayoffs.begin(), allPayoffs.end());
-	sort(allAnnRets.begin(), allAnnRets.end()); 
-	double averageReturn = sumAnnRets / numAnnRets;
-	double vaR95         = 100.0*allPayoffs[floor(numAnnRets*0.05)];
-
-	// eShortfall, esVol
-	int numShortfall(floor(confLevel*allAnnRets.size()));
-	double eShortfall(0.0);	for (i = 0; i < numShortfall; i++){ eShortfall += allAnnRets[i]; }	eShortfall  /= numShortfall;
-	double duration  = sumDuration / numAnnRets;
-	double esVol     =  (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(.1);
-	double scaledVol = esVol * sqrt(duration);
-	double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ geomReturn += log(allPayoffs[i]); }
-	geomReturn = exp(geomReturn / sumDuration) - 1;
-	double sharpeRatio = scaledVol > 0.0 ? (geomReturn / scaledVol>1000.0 ? 1000.0 : geomReturn / scaledVol) : 1000.0;
-	vector<double> cesrBuckets = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
-	double riskCategory(1.0);  for (i = 1, len = cesrBuckets.size(); i<len && scaledVol>cesrBuckets[i]; i++) { riskCategory += 1.0; }
-	if (i != len) riskCategory += (scaledVol - cesrBuckets[i - 1]) / (cesrBuckets[i] - cesrBuckets[i - 1]);
-	// WinLose
-	double sumNegRet(0.0), sumPosRet(0.0), sumStrPosRet(0.0);
-	int    numNegRet(0),   numPosRet(0),   numStrPosRet(0);
-	for (j = 0; j<numAnnRets; j++) {
-		double ret = allAnnRets[j];
-		if (ret>0){ sumStrPosRet += ret; numStrPosRet++; }
-		if (ret<0){ sumNegRet    += ret; numNegRet++; }
-		else {      sumPosRet    += ret; numPosRet++; }
-	}
-	double strPosDuration(sumStrPosDurations / numStrPosPayoffs), posDuration(sumPosDurations / numPosPayoffs), negDuration(sumNegDurations / numNegPayoffs);
-	double ecGain         =  100.0*(numPosPayoffs    ? exp(log(sumPosPayoffs    / midPrice / numPosPayoffs    ) / posDuration   ) - 1.0 : 0.0);
-	double ecStrictGain   =  100.0*(numStrPosPayoffs ? exp(log(sumStrPosPayoffs / midPrice / numStrPosPayoffs) / strPosDuration) - 1.0 : 0.0);
-	double ecLoss         = -100.0*(numNegPayoffs ? exp(log(sumNegPayoffs / midPrice / numNegPayoffs) / negDuration) - 1.0 : 0.0);
-	double probGain       = numPosRet    ? ((double)numPosRet)    / numAnnRets : 0;
-	double probStrictGain = numStrPosRet ? ((double)numStrPosRet) / numAnnRets : 0;
-	double probLoss       = 1 - probGain;
-	double eGainRet       = ecGain * probGain;
-	double eLossRet       = ecLoss * probLoss;
-	double winLose        = sumNegRet ? (eGainRet / eLossRet>1000.0 ? 1000.0 : eGainRet / eLossRet) : 1000.0;
-
-	sprintf(lineBuffer, "%s%.5lf", "update testcashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
-	sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  ulOriginalPrices.at(0).date[0].c_str());
-	sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   ulOriginalPrices.at(0).date[totalNumDays-1].c_str());
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='",   riskCategory);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='",        winLose);
-	time_t rawtime;	struct tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
-	strftime(charBuffer, 80, "%Y-%m-%d", timeinfo);
-	sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',WhenEvaluated='",  charBuffer);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='",   probEarliest);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='",      probEarly);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='",            vaR95);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='",          esVol);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='",       duration);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',NumResamples='",   numMcIterations);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='",         ecGain);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='",   ecStrictGain);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='",         ecLoss);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='",       probGain);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='", probStrictGain);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='",       probLoss);
-	sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",     eShortfall*100.0);
-	sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumEpisodes='",    numAllEpisodes);
-
-	sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
-	
-	mydb.prepare((SQLCHAR *)lineBuffer, 1);
-	retcode = mydb.execute(true);
-	
-	
 	
 
 	// tidy up
