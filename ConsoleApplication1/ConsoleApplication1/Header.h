@@ -259,10 +259,12 @@ public:
 		bool          at,
 		const double  weight,
 		const int     daysExtant,
+		const double  strikeAdjForMoneyness,
+		const double  moneyness,
 		std::string   productStartDateString)
 		: underlying(underlying), barrier(barrier), uBarrier(uBarrier),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		strikeAdjForMoneyness(1.0), moneyness(1.0)
+		strikeAdjForMoneyness(strikeAdjForMoneyness), moneyness(strikeAdjForMoneyness)
 	{
 		using namespace boost::gregorian;
 		date bStartDate(from_simple_string(startDate));
@@ -579,9 +581,9 @@ public:
 									thisPayoff += couponValue;
 									if (couponFrequency.size()) {  // add fixed coupon
 										boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisMonPoint)));
-										double daysElapsed = (bThisDate - bStartDate).days();
-										char   freqChar = toupper(couponFrequency[1]);
-										double couponEvery = couponFrequency[0] - '0';
+										double daysElapsed  = (bThisDate - bStartDate).days() + daysExtant;
+										char   freqChar     = toupper(couponFrequency[1]);
+										double couponEvery  = couponFrequency[0] - '0';
 										double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 360;
 										thisPayoff += fixedCoupon*floor(daysElapsed / daysPerEvery / couponEvery);
 									}

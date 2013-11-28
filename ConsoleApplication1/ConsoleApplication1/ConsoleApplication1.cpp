@@ -316,8 +316,16 @@ int _tmain(int argc, TCHAR* argv[])
 			if (found && barrierTypes.at(i-1).name != "continuous") { thisBarrier.isContinuous = false; }
 
 			if (uid) {
+				double strikeAdjForMoneyness(strike),moneyness(1.0);
+				// compute moneyness
+				if (daysExtant){
+					vector<double> &p(ulPrices.at(ulIds[ulIdNameMap[uid]]).price);
+					moneyness              = p[totalNumDays - 1]/p[totalNumDays - 1 - daysExtant];
+					strikeAdjForMoneyness /= moneyness;
+				}
+				// create barrierRelation
 				thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, startDateString, endDateString, 
-					above, at, weight, daysExtant, productStartDateString));
+					above, at, weight, daysExtant, strikeAdjForMoneyness, moneyness, productStartDateString));
 			}
 			// next barrierRelation record
 			retcode = mydb1.fetch(false);
@@ -355,7 +363,7 @@ int _tmain(int argc, TCHAR* argv[])
 		hazardCurve.push_back(dpCurve[j]);
 	}
 
-	// deal with any accruals/moneyness/averaging
+	// deal with any accruals/averaging
 	if (daysExtant){
 	
 	}
