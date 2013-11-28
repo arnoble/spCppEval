@@ -26,12 +26,12 @@ int _tmain(int argc, TCHAR* argv[])
 	unsigned	     uI;
 	int              oldProductBarrierId = 0, productBarrierId = 0;
 	int              numBarriers = 0, thisIteration = 0;
-	int              anyInt, i, j, k, len, callOrPut, thisPoint, thisBarrier, thisMonIndx, thisMonPoint, numUl, numMonPoints, lastPoint, productDays, totalNumDays, totalNumReturns, uid;
-	int              thisPayoffId, thisMonDays;
+	int              anyInt, i, j, k, len, callOrPut, thisPoint, thisBarrier, thisMonIndx, thisMonPoint, numUl, numMonPoints, lastPoint, productDays, totalNumDays, totalNumReturns, uid,numBrel;
+	int              anyTypeId,thisPayoffId, thisMonDays;
 	double           anyDouble, barrier, uBarrier, payoff, strike, cap, participation,fixedCoupon,AMC;
 	string           couponFrequency,productStartDateString, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
 	char             lineBuffer[1000], charBuffer[1000];
-	bool             capitalOrIncome, above, at;
+	bool             found,capitalOrIncome, above, at;
 	vector<double>   ulReturns[50];
 	vector<int>      monDateIndx;
 	vector<string>   payoffType = { "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall" };
@@ -45,8 +45,27 @@ int _tmain(int argc, TCHAR* argv[])
 	// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
 
-	// open database, get product table data
+	// open database
 	MyDB  mydb((char **)szAllPrices), mydb1((char **)szAllPrices);
+
+	// get general info
+	// ...productType
+	vector<MapType> productTypes;
+	sprintf(lineBuffer, "%s", "select * from producttype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
+	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+		MapType x(atoi(szAllPrices[0]),szAllPrices[1]); productTypes.push_back(x);
+		retcode = mydb.fetch(false);
+	}
+	// ...barrierType
+	vector<MapType> barrierTypes;
+	sprintf(lineBuffer, "%s", "select * from barriertype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
+	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+		MapType x(atoi(szAllPrices[0]), szAllPrices[1]); barrierTypes.push_back(x);
+		retcode = mydb.fetch(false);
+	}
+
+
+	// get product table data
 	enum {
 		colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAMC = 43, colProductDepositGtee = 56, colProductLast
 	};
@@ -262,11 +281,13 @@ int _tmain(int argc, TCHAR* argv[])
 		spr.barrier.push_back(SpBarrier(barrierId,capitalOrIncome, nature, payoff, settlementDate, description,
 			thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap,avgDays,avgType,
 			tenorPeriodDays,avgFreq,isMemory,bProductStartDate));
-		anyInt = spr.barrier.at(numBarriers).getEndDays();
+		SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
+		// update monitoring dates
+		// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
+		anyInt = thisBarrier.getEndDays();
 		if (find(monDateIndx.begin(), monDateIndx.end(), anyInt) == monDateIndx.end()) {
 			monDateIndx.push_back(anyInt);
 		}
-		numBarriers += 1;		
 
 		// barrier relations
 		// table barrierrelation
@@ -275,10 +296,8 @@ int _tmain(int argc, TCHAR* argv[])
 			brcolUnderlyingId, brcolBarrier, brcolBarrierTypeId, brcolAbove, brcolAt, brcolStartDate, brcolEndDate,
 			brcolTriggered, brcolIsAbsolute, brcolUpperBarrier, brcolWeight,colBarrierRelationLast
 		};
-		char szbrBarrierRelationId[bufSize], szbrProductBarrierId[bufSize], szbrUnderlyingId[bufSize], szbrBarrier[bufSize], szbrBarrierTypeId[bufSize], szbrAbove[bufSize];
-		char szbrAt[bufSize], szbrStartDate[bufSize], szbrEndDate[bufSize], szbrTrigered[bufSize], szbrIsAbsolute[bufSize], szbrUpperBarrier[bufSize], szbrWeight[bufSize];
 		// ** SQL fetch block
-		sprintf(lineBuffer, "%s%s%s", "select * from barrierrelation where ProductBarrierId='", szAllPrices[colProductBarrierId], "'");
+		sprintf(lineBuffer, "%s%d%s", "select * from barrierrelation where ProductBarrierId='", barrierId, "'");
 		mydb1.prepare((SQLCHAR *)lineBuffer, colBarrierRelationLast);
 		retcode = mydb1.fetch(false);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
@@ -290,14 +309,33 @@ int _tmain(int argc, TCHAR* argv[])
 			startDateString  = szAllPrices[brcolStartDate];
 			endDateString    = szAllPrices[brcolEndDate];
 			uBarrier         = atof(szAllPrices[brcolUpperBarrier]);
-			if (uid) {
-				spr.barrier.at(numBarriers - 1).brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, startDateString, endDateString, above, at, weight,productStartDateString));
-			}
+			anyTypeId        = atoi(szAllPrices[brcolBarrierTypeId]);
+			// get barrierType name
+			for (found = false,i = 0; !found && i < barrierTypes.size(); i++){ if (anyTypeId == barrierTypes[i].id) { found = true; } }
+			if (found && barrierTypes.at(i-1).name != "continuous") { thisBarrier.isContinuous = false; }
 
-			// next record
+			if (uid) {
+				thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, startDateString, endDateString, above, at, weight, productStartDateString));
+			}
+			// next barrierRelation record
 			retcode = mydb1.fetch(false);
 		}
-		// next record
+
+		// detect extremumBarriers
+		// DOME: for now ANY barrier with a brel which has different Start/End dates
+		// NOTE: different brels can have different start dates
+		// DOME:  need to check all brels have the same endDate
+		bool isExtremumBarrier = false;
+		for (i = 0; i < thisBarrier.brel.size(); i++) {
+			if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate) {
+				isExtremumBarrier = true;
+			}
+		}
+		thisBarrier.isExtremum = isExtremumBarrier;
+
+
+		// next barrier record
+		numBarriers += 1;
 		retcode = mydb.fetch(false);
 	}
 	spr.productDays = *max_element(monDateIndx.begin(), monDateIndx.end());
@@ -341,10 +379,35 @@ int _tmain(int argc, TCHAR* argv[])
 			for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
 			for (thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				SpBarrier &b(spr.barrier.at(thisBarrier));
+				vector<double>	theseExtrema;
 				for (uI = 0; uI < b.brel.size(); uI++){
 					SpBarrierRelation &thisBrel(b.brel.at(uI));
 					thisBrel.setLevels(startLevels[uI]);
+					// cater for extremum barriers, where typically averaging does not apply to barrier hit test
+					// ...so set barrierWasHit[thisBarrier] if the extremum condition is met
+					int thisName = ulIdNameMap[thisBrel.underlying];
+					// check to see if extremumBarriers hit
+					if (b.isExtremum) {
+						double thisExtremum;
+						vector<double>	thisPriceSlice;
+						for (j = thisPoint + thisBrel.startDays; j < thisPoint + thisBrel.endDays + 1; j++){
+							thisPriceSlice.push_back(ulPrices.at(thisName).price[j]);
+						}
+
+						if (thisBrel.above) {
+							for (k = 0, thisExtremum = -1.0e20, len = thisPriceSlice.size(); k<len; k++) {
+								if (thisPriceSlice[k]>thisExtremum){ thisExtremum = thisPriceSlice[k]; }
+							}
+						}
+						else {
+							for (k = 0, thisExtremum = 1.0e20, len = thisPriceSlice.size(); k < len; k++) {
+								if (thisPriceSlice[k] < thisExtremum){ thisExtremum = thisPriceSlice[k]; }
+							}
+						}
+						theseExtrema.push_back(thisExtremum);
+					}
 				}
+				if (b.isExtremum) { barrierWasHit[thisBarrier] = b.isHit(theseExtrema); }
 			}
 
 			// go through each monitoring date
@@ -354,7 +417,6 @@ int _tmain(int argc, TCHAR* argv[])
 				const string   thisDateString(ulPrices.at(0).date.at(thisMonPoint));
 				for (i = 0; i < numUl; i++) { 
 					thesePrices[i] = ulPrices.at(i).price.at(thisMonPoint); 
-					//cout << "Price" << i << " :" << thesePrices[i] << endl;  getline(cin, word);
 				}
 				
 				// test each barrier
@@ -364,11 +426,10 @@ int _tmain(int argc, TCHAR* argv[])
 					if (b.endDays == thisMonDays) {
 						// do any averaging/lookback
 						int proportionHits = 1;
-						// DOME - cater for extremum barriers, where typically averaging does not apply to barrier hit test
-						// maybe replace thesePrices with their averages
+						// averaging - will replace thesePrices with their averages
 						b.doAveraging(thesePrices, ulPrices,thisMonPoint);
 						// is barrier hit
-						if (b.isHit(thesePrices)){
+						if (barrierWasHit[thisBarrier] || b.isHit(thesePrices)){
 							barrierWasHit[thisBarrier] = true;
 							thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices,spr.AMC);
 							if (b.capitalOrIncome){ 
