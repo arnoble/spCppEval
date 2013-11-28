@@ -511,6 +511,8 @@ public:
 				while (ulPrices.at(0).nonTradingDay.at(thisPoint) && thisPoint < lastPoint) {
 					thisPoint += 1;
 				}
+				if (thisPoint >= lastPoint){ continue; }
+
 				// initialise product
 				std::vector<bool> barrierWasHit(numBarriers);
 				boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisPoint)));

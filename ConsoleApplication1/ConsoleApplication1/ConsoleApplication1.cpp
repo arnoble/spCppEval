@@ -26,7 +26,7 @@ int _tmain(int argc, TCHAR* argv[])
 	unsigned	     uI;
 	int              oldProductBarrierId = 0, productBarrierId = 0;
 	int              numBarriers = 0, thisIteration = 0;
-	int              anyInt, i, j, k, len, callOrPut, thisPoint, thisBarrier, thisMonIndx, thisMonPoint, numUl, numMonPoints, lastPoint, productDays, totalNumDays, totalNumReturns, uid,numBrel;
+	int              anyInt, i, j, k, len, callOrPut, thisPoint, thisBarrier, thisMonPoint, numUl, numMonPoints, lastPoint, productDays, totalNumDays, totalNumReturns, uid,numBrel;
 	int              anyTypeId,thisPayoffId, thisMonDays;
 	double           anyDouble, barrier, uBarrier, payoff, strike, cap, participation,fixedCoupon,AMC;
 	string           couponFrequency,productStartDateString, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
@@ -181,6 +181,10 @@ int _tmain(int argc, TCHAR* argv[])
 	boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(ulOriginalPrices.at(0).date[totalNumDays-1]));
 	cerr << "NumPrices:\t" << totalNumDays << "FirstDataDate:\t" << ulOriginalPrices.at(0).date[0] << endl;
 	int daysExtant = (bLastDataDate - bProductStartDate).days(); if (daysExtant < 0){ daysExtant = 0; }
+	int tradingDaysExtant(0); 
+	for (i = 0; ulOriginalPrices.at(0).date[totalNumDays - 1 - i] > productStartDateString;i++){
+		tradingDaysExtant += 1;
+	}
 
 	// create product
 	SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency, AMC, depositGteed, daysExtant);
@@ -319,7 +323,7 @@ int _tmain(int argc, TCHAR* argv[])
 				double strikeAdjForMoneyness(strike),moneyness(1.0);
 				// compute moneyness
 				if (daysExtant){
-					vector<double> &p(ulPrices.at(ulIds[ulIdNameMap[uid]]).price);
+					vector<double> &p(ulPrices.at(ulIdNameMap[uid]).price);
 					moneyness              = p[totalNumDays - 1]/p[totalNumDays - 1 - daysExtant];
 					strikeAdjForMoneyness /= moneyness;
 				}
