@@ -264,7 +264,7 @@ public:
 		std::string   productStartDateString)
 		: underlying(underlying), barrier(barrier), uBarrier(uBarrier),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		strikeAdjForMoneyness(strikeAdjForMoneyness), moneyness(strikeAdjForMoneyness)
+		strikeAdjForMoneyness(strikeAdjForMoneyness), moneyness(moneyness)
 	{
 		using namespace boost::gregorian;
 		date bStartDate(from_simple_string(startDate));
@@ -283,8 +283,8 @@ public:
 	double            barrierLevel, uBarrierLevel;
 
 	void setLevels(const double ulPrice) {
-		barrierLevel  = barrier  * ulPrice;
-		uBarrierLevel = uBarrier * ulPrice;
+		barrierLevel  = barrier  * ulPrice / moneyness;
+		uBarrierLevel = uBarrier * ulPrice / moneyness;
 	}
 
 };
