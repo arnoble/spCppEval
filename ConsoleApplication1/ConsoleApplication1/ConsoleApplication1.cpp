@@ -44,11 +44,10 @@ int _tmain(int argc, TCHAR* argv[])
 	cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
 	// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
-
 	// open database
 	MyDB  mydb((char **)szAllPrices), mydb1((char **)szAllPrices);
 
-	// get general info
+	// get general info:  productType, barrierType
 	// ...productType
 	vector<MapType> productTypes;
 	sprintf(lineBuffer, "%s", "select * from producttype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
@@ -63,7 +62,6 @@ int _tmain(int argc, TCHAR* argv[])
 		MapType x(atoi(szAllPrices[0]), szAllPrices[1]); barrierTypes.push_back(x);
 		retcode = mydb.fetch(false);
 	}
-
 
 	// get product table data
 	enum {
@@ -104,7 +102,6 @@ int _tmain(int argc, TCHAR* argv[])
 		retcode = mydb.fetch(false);
 	}
 
-
 	// get underlyingids for this product from DB
 	vector<int> ulIds;
 	vector<int> ulIdNameMap(1000);
@@ -122,9 +119,7 @@ int _tmain(int argc, TCHAR* argv[])
 	}
 	numUl = ulIds.size();
 
-
-
-	//******* read underlying prices
+	// read underlying prices
 	char ulSql[1000];
 	// ...form sql joins
 	sprintf(ulSql, "%s", "select p0.Date Date"); 
@@ -141,7 +136,7 @@ int _tmain(int argc, TCHAR* argv[])
 	bool   firstTime(true);
 	double previousPrice[maxUls];
 	boost::gregorian::date lastDate;
-	// .. get record <Date,price0,...,pricen>
+	// .. parse each record <Date,price0,...,pricen>
 	retcode = mydb.fetch(true);
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 		int    numDayDiff;
@@ -166,11 +161,9 @@ int _tmain(int argc, TCHAR* argv[])
 			ulOriginalPrices.at(i).date.push_back(szAllPrices[0]);
 			ulOriginalPrices.at(i).price.push_back(thisPrice);
 			ulOriginalPrices.at(i).nonTradingDay.push_back(false);
-
 		}
 		// next row
 		if(firstTime){ firstTime = false; }
-
 		lastDate  = bDate;
 		retcode   = mydb.fetch(false);
 	}
@@ -189,88 +182,37 @@ int _tmain(int argc, TCHAR* argv[])
 	// create product
 	SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency, AMC, depositGteed, daysExtant);
 	numBarriers = 0;
-	// get from flat file --KEEP in case of need
-	/*
-	ifstream pbFile;
-	pbFile.open("c:/sites/sppdf/flatfiles/363.txt");
-	while (!pbFile.eof()) {
-		pbFile.getline(lineBuffer, 1000);
-		productBarrierId = atoi(lineBuffer);
-		if (productBarrierId != 0) {
-			if (productBarrierId != oldProductBarrierId) {
-				oldProductBarrierId = productBarrierId;
-				pbFile.getline(lineBuffer, 1000);  // productId
-				pbFile.getline(lineBuffer, 1000);  capitalOrIncome = atoi(lineBuffer) == 1;
-				pbFile.getline(lineBuffer, 1000);  nature = lineBuffer;
-				pbFile.getline(lineBuffer, 1000);  payoff = atof(lineBuffer);
-				pbFile.getline(lineBuffer, 1000);  // Triggered
-				pbFile.getline(lineBuffer, 1000);  settlementDate = lineBuffer;
-				pbFile.getline(lineBuffer, 1000);  description    = lineBuffer;
-				pbFile.getline(lineBuffer, 1000);  thisPayoffId   = atoi(lineBuffer); thisPayoffType = payoffType[thisPayoffId];// PayoffTypeId
-				pbFile.getline(lineBuffer, 1000);  participation = atof(lineBuffer); // Participation
-				pbFile.getline(lineBuffer, 1000);  strike        = atof(lineBuffer);  // PayoffStrike
-				pbFile.getline(lineBuffer, 1000);  // AvgTenor
-				pbFile.getline(lineBuffer, 1000);  // AvgFreq
-				pbFile.getline(lineBuffer, 1000);  // AvgType
-				pbFile.getline(lineBuffer, 1000);  cap = atof(lineBuffer);  // Cap
-				pbFile.getline(lineBuffer, 1000);  // UnderlyingFunctionId
-				pbFile.getline(lineBuffer, 1000);  // Param1
-				pbFile.getline(lineBuffer, 1000);  // Memory
-				pbFile.getline(lineBuffer, 1000);  // IsAbsolute
-				spr.barrier.push_back(SpBarrier(capitalOrIncome, nature, payoff, settlementDate, description,
-					thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap, bProductStartDate));
-				anyInt = spr.barrier.at(numBarriers).getEndDays();
-				if (find(monDateIndx.begin(), monDateIndx.end(), anyInt) == monDateIndx.end()) {
-					monDateIndx.push_back(anyInt);
-				}
-				numBarriers += 1;
-			}
-			// barrier relations
-			pbFile.getline(lineBuffer, 1000);  // BarrierRelationId
-			pbFile.getline(lineBuffer, 1000);  uid = atoi(lineBuffer);     // UnderlyingId
-			pbFile.getline(lineBuffer, 1000);  barrier = atof(lineBuffer); // Barrier
-			pbFile.getline(lineBuffer, 1000);  // BarrierTypeId
-			pbFile.getline(lineBuffer, 1000);  above = atoi(lineBuffer) == 1; // Above
-			pbFile.getline(lineBuffer, 1000);  at = atoi(lineBuffer) == 1; // At
-			pbFile.getline(lineBuffer, 1000);  startDateString = lineBuffer;   // StartDate
-			pbFile.getline(lineBuffer, 1000);  endDateString = lineBuffer;   // EndDate
-			pbFile.getline(lineBuffer, 1000);  // Triggered.1
-			pbFile.getline(lineBuffer, 1000);  // IsAbsolute.1
-			pbFile.getline(lineBuffer, 1000);  uBarrier = atof(lineBuffer); // UpperBarrier
-			pbFile.getline(lineBuffer, 1000);  // Weight
-			if (uid) {
-				spr.barrier.at(numBarriers - 1).brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, startDateString, endDateString, above, at, productStartDateString));
-			}
-		}
-	}
-	pbFile.close();
-	*/
-
 
 	// get barriers from DB
 	enum {colProductBarrierId=0,colProductId,
 		colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
 		colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap,colUnderlyingFunctionId,colParam1,colMemory,colIsAbsolute,colProductBarrierLast
 	};
-	// ** SQL fetch block
 	sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "'");
 	mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
 	retcode = mydb.fetch(true);
 	map<char, int> avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
 	map<char,int>::iterator curr, end;
+	// ...parse each productbarrier row
 	while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-		int tenorPeriodDays;
-		int avgDays   = 0; 
-		int avgFreq   = 0;
-		bool isMemory = atoi(szAllPrices[colMemory]) == 1;;
-		if (strlen(szAllPrices[colAvgTenor])){
+		int tenorPeriodDays = 0;
+		int avgDays         = 0; 
+		int numTenor        = 0;
+		int avgFreq         = 0;
+		bool isMemory       = atoi(szAllPrices[colMemory]) == 1;;
+		if (strlen(szAllPrices[colAvgTenor]) && strlen(szAllPrices[colAvgFreq])){
 			char avgChar1   = szAllPrices[colAvgTenor][0];
 			char avgChar2   = szAllPrices[colAvgTenor][1];
 			bool foundTenor = false;
-			avgFreq         = (avgChar1 - '0');
-			for (curr = avgTenor.begin(), end = avgTenor.end(); !foundTenor && curr != end; curr++)
-			if (curr->first == avgChar2){ foundTenor = true; tenorPeriodDays = curr->second; }
-			avgDays = avgFreq * tenorPeriodDays;
+			numTenor        = (avgChar1 - '0');
+			for (curr = avgTenor.begin(), end = avgTenor.end(); !foundTenor && curr != end; curr++) {
+				if (curr->first == avgChar2){ foundTenor = true; tenorPeriodDays = curr->second; }
+			}
+			avgDays  = numTenor * tenorPeriodDays;
+			avgChar2 = szAllPrices[colAvgFreq][0];
+			for (curr = avgTenor.begin(), end = avgTenor.end(); !foundTenor && curr != end; curr++) {
+				if (curr->first == avgChar2){ foundTenor = true; avgFreq = curr->second; }
+			}
 		}
 		int barrierId   = atoi(szAllPrices[colProductBarrierId]);
 		int avgType     = atoi(szAllPrices[colAvgType]); 
@@ -285,26 +227,26 @@ int _tmain(int argc, TCHAR* argv[])
 		cap             = atof(szAllPrices[colCap]);
 		spr.barrier.push_back(SpBarrier(barrierId,capitalOrIncome, nature, payoff, settlementDate, description,
 			thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap,avgDays,avgType,
-			tenorPeriodDays, avgFreq, isMemory, daysExtant, bProductStartDate));
+			avgFreq, isMemory, daysExtant, bProductStartDate));
 		SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
-		// update monitoring dates
+		// update vector of monitoring dates
 		// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
 		anyInt = thisBarrier.getEndDays();
 		if (find(monDateIndx.begin(), monDateIndx.end(), anyInt) == monDateIndx.end()) {
 			monDateIndx.push_back(anyInt);
 		}
 
-		// barrier relations
-		// table barrierrelation
+		// get barrier relations from DB
 		enum {
 			brcolBarrierRelationId = 0, brcolProductBarrierId,
 			brcolUnderlyingId, brcolBarrier, brcolBarrierTypeId, brcolAbove, brcolAt, brcolStartDate, brcolEndDate,
-			brcolTriggered, brcolIsAbsolute, brcolUpperBarrier, brcolWeight,colBarrierRelationLast
+			brcolTriggered, brcolIsAbsolute, brcolUpperBarrier, brcolWeight, colBarrierRelationLast
 		};
 		// ** SQL fetch block
 		sprintf(lineBuffer, "%s%d%s", "select * from barrierrelation where ProductBarrierId='", barrierId, "'");
 		mydb1.prepare((SQLCHAR *)lineBuffer, colBarrierRelationLast);
 		retcode = mydb1.fetch(false);
+		// ...parse each barrierrelation row
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 			double weight    = atof(szAllPrices[brcolWeight]);
 			uid              = atoi(szAllPrices[brcolUnderlyingId]);
@@ -320,16 +262,9 @@ int _tmain(int argc, TCHAR* argv[])
 			if (found && barrierTypes.at(i-1).name != "continuous") { thisBarrier.isContinuous = false; }
 
 			if (uid) {
-				double strikeAdjForMoneyness(strike),moneyness(1.0);
-				// compute moneyness
-				if (daysExtant){
-					vector<double> &p(ulPrices.at(ulIdNameMap[uid]).price);
-					moneyness              = p[totalNumDays - 1]/p[totalNumDays - 1 - daysExtant];
-					strikeAdjForMoneyness /= moneyness;
-				}
 				// create barrierRelation
 				thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, startDateString, endDateString, 
-					above, at, weight, daysExtant, strikeAdjForMoneyness, moneyness, productStartDateString));
+					above, at, weight, daysExtant, strike, ulPrices.at(ulIdNameMap[uid]), avgType,avgDays, avgFreq,productStartDateString));
 			}
 			// next barrierRelation record
 			retcode = mydb1.fetch(false);
@@ -346,32 +281,26 @@ int _tmain(int argc, TCHAR* argv[])
 			}
 		}
 		thisBarrier.isExtremum = isExtremumBarrier;
-
-
 		// next barrier record
 		numBarriers += 1;
 		retcode = mydb.fetch(false);
 	}
+
+	// further initialisation, given product info
 	spr.productDays = *max_element(monDateIndx.begin(), monDateIndx.end());
-	vector<int> numBarrierHits(numBarriers, 0);
-	numMonPoints = monDateIndx.size();
+	numMonPoints    = monDateIndx.size();
 	double maxYears = 0; for (i = 0; i<numBarriers; i++) { double t = spr.barrier.at(i).yearsToBarrier;   if (t > maxYears){ maxYears = t; } }
-	vector<double> fullCurve; // populate a full annual CDS curve
+	vector<double> fullCurve;             // populate a full annual CDS curve
 	for (j = 0; j<maxYears + 1; j++) {
 		fullCurve.push_back(interpCurve(cdsTenor,cdsSpread, j + 1));
 	}
-	vector<double> dpCurve, hazardCurve; // annual default probability curve
+	vector<double> dpCurve, hazardCurve;  // annual default probability curve
 	const double recoveryRate(0.4);
 	bootstrapCDS(fullCurve, dpCurve, recoveryRate);
 	for (j = 0, len = fullCurve.size(); j<len; j++) {
 		hazardCurve.push_back(dpCurve[j]);
 	}
-
-	// deal with any accruals/averaging
-	if (daysExtant){
 	
-	}
-
 	// finally evaluate the product
 	spr.evaluate(totalNumDays, numMcIterations, historyStep, ulPrices, ulReturns, 
 	numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve,mydb);

@@ -259,12 +259,15 @@ public:
 		bool          at,
 		const double  weight,
 		const int     daysExtant,
-		const double  strikeAdjForMoneyness,
-		const double  moneyness,
+		const double  strike,
+		const UlTimeseries  &ulTimeseries,
+		const int     avgType, 
+		const int     avgDays,
+		const int     avgFreq,
 		std::string   productStartDateString)
 		: underlying(underlying), barrier(barrier), uBarrier(uBarrier),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		strikeAdjForMoneyness(strikeAdjForMoneyness), moneyness(moneyness)
+		strikeAdjForMoneyness(strike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq)
 	{
 		using namespace boost::gregorian;
 		date bStartDate(from_simple_string(startDate));
@@ -273,15 +276,47 @@ public:
 
 		startDays = (bStartDate - bProductStartDate).days() - daysExtant;
 		endDays   = (bEndDate   - bProductStartDate).days() - daysExtant;
+		// post-strike initialisation
+		if (daysExtant){
+			// ...compute moneyness
+			int lastIndx(ulTimeseries.price.size() - 1);
+			moneyness               = ulTimeseries.price.at(lastIndx) / ulTimeseries.price.at(lastIndx - daysExtant);
+			strikeAdjForMoneyness  /= moneyness;
+			// ...compute running averages
+			if (avgDays > endDays){
+				setLevels(ulTimeseries.price.at(lastIndx));
+				for (int i = 0; endDays + i < avgDays;i++){
+					if (!ulTimeseries.nonTradingDay.at(lastIndx - i)  && runningAvgObs%avgFreq == 0){
+						switch(avgType){
+						case 0: // level
+							runningAverage += ulTimeseries.price.at(lastIndx - i);
+							break;
+						case 1: // proportional
+							double p = ulTimeseries.price.at(lastIndx - i);
+							avgWasHit.push_back( above ? (p>barrierLevel && p<uBarrierLevel ? true : false) : (p<barrierLevel && p>uBarrierLevel ? true : false));
+							break;
+						}
+						runningAvgObs  += 1;
+					}
+					runningAvgDays += 1;
+				}
+			}
+		}
+		else {
+			moneyness      = 1.0;
+			runningAverage = 0.0;
+			runningAvgObs  = 0;
+			runningAvgDays = 0;
+		}
 	};
 	const bool        above, at;
-	const int         underlying;
-	const double      barrier, uBarrier, strikeAdjForMoneyness, moneyness,weight;
+	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
+	const double      barrier, uBarrier,weight;
 	const std::string startDate, endDate;
-	const int         daysExtant;
-	int               startDays, endDays;
-	double            barrierLevel, uBarrierLevel;
-
+	int               startDays, endDays, runningAvgObs,runningAvgDays;
+	double            barrierLevel, uBarrierLevel,strikeAdjForMoneyness, moneyness;
+	double            runningAverage;
+	std::vector<bool> avgWasHit;
 	void setLevels(const double ulPrice) {
 		barrierLevel  = barrier  * ulPrice / moneyness;
 		uBarrierLevel = uBarrier * ulPrice / moneyness;
@@ -305,7 +340,6 @@ public:
 		std::vector<int> ulIdNameMap,
 		int              avgDays,
 		int              avgType,
-		int              tenorPeriodDays,
 		int	             avgFreq,
 		bool             isMemory,
 		const int        daysExtant,
@@ -313,8 +347,8 @@ public:
 		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike), cap(cap), participation(participation), ulIdNameMap(ulIdNameMap),
-		underlyingFunctionId(0), isAnd(nature == "and"), avgDays(avgDays), avgType(avgType), tenorPeriodDays(tenorPeriodDays), 
-		avgFreq(avgFreq), isMemory(isMemory)
+		underlyingFunctionId(0), isAnd(nature == "and"), avgDays(avgDays), avgType(avgType),
+		avgFreq(avgFreq), isMemory(isMemory), daysExtant(daysExtant)
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
@@ -323,15 +357,16 @@ public:
 		sumPayoffs     = 0.0;
 		isExtremum     = false;
 		isContinuous   = false;
+		proportionHits = 1.0;
 	};
-	const int                       barrierId,payoffTypeId, underlyingFunctionId, avgDays, avgType, tenorPeriodDays, avgFreq;
+	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq,daysExtant;
 	const bool                      capitalOrIncome, isAnd,isMemory;
 	const double                    payoff, strike, cap, participation;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
 	bool                            isExtremum,isContinuous;
 	int                             endDays;
-	double                          yearsToBarrier,sumPayoffs;
+	double                          yearsToBarrier,sumPayoffs,proportionHits;
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
 	
@@ -438,7 +473,8 @@ public:
 		hit.push_back(SpPayoff(thisDateString, amount));
 	}
 	// do any averaging
-	void doAveraging(std::vector<double> &thesePrices, std::vector<UlTimeseries> &ulPrices, int thisMonPoint) {
+	void doAveraging(std::vector<double> &thesePrices, std::vector<UlTimeseries> &ulPrices, int thisPoint,int thisMonPoint) {
+		int k;
 		if (avgDays && brel.size()) {
 			switch (avgType) {
 			case 0: //averageLevels
@@ -446,7 +482,11 @@ public:
 					SpBarrierRelation thisBrel = brel[j];
 					int n = ulIdNameMap[thisBrel.underlying];
 					std::vector<double> avgObs;
-					for (int k = 0; k < avgDays && k < thisMonPoint; k++) {
+					// create vector of observations
+					for (k = 0; k < thisBrel.runningAvgObs; k++) {
+						avgObs.push_back(thisBrel.runningAverage/thisBrel.runningAvgObs);
+					}
+					for (k = daysExtant; k < avgDays && k < thisMonPoint; k++) {
 						if (k%avgFreq == 0){
 							while (k < thisMonPoint && (ulPrices.at(n).nonTradingDay.at(thisMonPoint - k))){ k++; };
 							avgObs.push_back(ulPrices.at(n).price.at(thisMonPoint - k));
@@ -455,17 +495,32 @@ public:
 					// calculate some value for these observations
 					if (payoffType == "lookbackCall"){
 						double anyValue(0.0);
+						anyValue = *max_element(avgObs.begin(), avgObs.end());
+						// DOME remove for loop if it gives the same value
 						for (int k = 0, len1 = avgObs.size(); k<len1; k++) { double anyValue1 = avgObs[k]; if (anyValue1>anyValue){ anyValue = anyValue1; } }
 						// lookbackLevel[n] = anyValue;
 					}
 					else {
 						double anyValue(0.0);
-						for (int k = 0, len1 = avgObs.size(); k < len1; k++) {
-							anyValue += avgObs[k];
-						}
+						for (int k = 0, len1 = avgObs.size(); k < len1; k++) {	anyValue += avgObs[k];	}
 						thesePrices[n] = anyValue/ avgObs.size();
 					}
 				}
+				break;
+			case 1: // proportion
+				double numHits(0.0), numPossibleHits(0.0);
+				if (daysExtant){
+					for (int i = 0, numObs = brel[0].avgWasHit.size(); i < numObs; i++) {
+						bool wasHit = false;
+						for (int j = 0, len = brel.size(); j < len; j++) {
+							wasHit &= brel[j].avgWasHit[i];
+						}
+						numHits         += wasHit ? 1 : 0;
+						numPossibleHits += 1;
+					}
+				}
+				proportionHits = numHits/numPossibleHits;
+				break;
 			}
 		}
 	}
@@ -573,7 +628,7 @@ public:
 							// do any averaging/lookback
 							int proportionHits = 1;
 							// averaging - will replace thesePrices with their averages
-							b.doAveraging(thesePrices, ulPrices, thisMonPoint);
+							b.doAveraging(thesePrices, ulPrices, thisPoint, thisMonPoint);
 							// is barrier hit
 							if (barrierWasHit[thisBarrier] || b.isHit(thesePrices)){
 								barrierWasHit[thisBarrier] = true;
