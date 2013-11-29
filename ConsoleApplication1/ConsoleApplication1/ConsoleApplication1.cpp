@@ -28,7 +28,7 @@ int _tmain(int argc, TCHAR* argv[])
 	int              numBarriers = 0, thisIteration = 0;
 	int              anyInt, i, j, k, len, callOrPut, thisPoint, thisBarrier, thisMonPoint, numUl, numMonPoints, lastPoint, productDays, totalNumDays, totalNumReturns, uid,numBrel;
 	int              anyTypeId,thisPayoffId, thisMonDays;
-	double           anyDouble, barrier, uBarrier, payoff, strike, cap, participation,fixedCoupon,AMC;
+	double           anyDouble, barrier, uBarrier, payoff, strike, cap, participation,fixedCoupon,AMC,issuePrice,bidPrice,askPrice,midPrice;
 	string           couponFrequency,productStartDateString, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
 	char             lineBuffer[1000], charBuffer[1000];
 	bool             found,capitalOrIncome, above, at;
@@ -65,7 +65,8 @@ int _tmain(int argc, TCHAR* argv[])
 
 	// get product table data
 	enum {
-		colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAMC = 43, colProductDepositGtee = 56, colProductLast
+		colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, 
+		colProductAMC = 43, colProductDepositGtee = 56, colProductDealCheckerId,colProductAssetTypeId,colProductIssuePrice,colProductLast
 	};
 	sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 	mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -74,7 +75,11 @@ int _tmain(int argc, TCHAR* argv[])
 	bool depositGteed      = atoi(szAllPrices[colProductDepositGtee])  == 1;
 	productStartDateString =      szAllPrices[colProductStrikeDate];
 	fixedCoupon            = atof(szAllPrices[colProductFixedCoupon]);
+	bidPrice               = atof(szAllPrices[colProductBid]);
+	askPrice               = atof(szAllPrices[colProductAsk]);
 	AMC                    = atof(szAllPrices[colProductAMC]);
+	issuePrice             = atof(szAllPrices[colProductIssuePrice]);
+	midPrice = (bidPrice + askPrice) / (2.0*issuePrice);
 	if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency];	}
 	boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 
@@ -180,7 +185,7 @@ int _tmain(int argc, TCHAR* argv[])
 	}
 
 	// create product
-	SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency, AMC, depositGteed, daysExtant);
+	SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency, AMC, depositGteed, daysExtant,midPrice);
 	numBarriers = 0;
 
 	// get barriers from DB

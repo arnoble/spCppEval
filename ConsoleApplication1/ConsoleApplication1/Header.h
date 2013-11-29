@@ -550,12 +550,12 @@ public:
 	SProduct(const int productId,
 		const boost::gregorian::date bProductStartDate,
 		const double fixedCoupon,
-		const std::string couponFrequency, const double AMC, const bool depositGteed, const int daysExtant)
+		const std::string couponFrequency, const double AMC, const bool depositGteed, const int daysExtant,const double midPrice)
 		: productId(productId), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon), 
-		couponFrequency(couponFrequency), AMC(AMC), depositGteed(depositGteed), daysExtant(daysExtant) {};
+		couponFrequency(couponFrequency), AMC(AMC), depositGteed(depositGteed), daysExtant(daysExtant), midPrice(midPrice) {};
 	const boost::gregorian::date   bProductStartDate;
 	const int                      daysExtant;
-	const double                   fixedCoupon,AMC;
+	const double                   fixedCoupon,AMC,midPrice;
 	const std::string              couponFrequency;
 	const bool                     depositGteed;
 	int                            productDays;
@@ -720,7 +720,6 @@ public:
 			double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
 			bool     foundEarliest = false;
 			double   probEarly(0.0), probEarliest(0.0);
-			double   midPrice(1.0);        // DOME
 			std::vector<double> allPayoffs, allAnnRets;
 			int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 			double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
@@ -795,7 +794,7 @@ public:
 			double duration = sumDuration / numAnnRets;
 			double esVol = (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(.1);
 			double scaledVol = esVol * sqrt(duration);
-			double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ geomReturn += log(allPayoffs[i]); }
+			double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ geomReturn += log(allPayoffs[i]/midPrice); }
 			geomReturn = exp(geomReturn / sumDuration) - 1;
 			double sharpeRatio = scaledVol > 0.0 ? (geomReturn / scaledVol>1000.0 ? 1000.0 : geomReturn / scaledVol) : 1000.0;
 			std::vector<double> cesrBuckets = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
