@@ -202,16 +202,15 @@ int _tmain(int argc, TCHAR* argv[])
 		bool isMemory       = atoi(szAllPrices[colMemory]) == 1;;
 		if (strlen(szAllPrices[colAvgTenor]) && strlen(szAllPrices[colAvgFreq])){
 			char avgChar1   = szAllPrices[colAvgTenor][0];
-			char avgChar2   = szAllPrices[colAvgTenor][1];
-			bool foundTenor = false;
 			numTenor        = (avgChar1 - '0');
-			for (curr = avgTenor.begin(), end = avgTenor.end(); !foundTenor && curr != end; curr++) {
-				if (curr->first == avgChar2){ foundTenor = true; tenorPeriodDays = curr->second; }
+			char avgChar2   = tolower(szAllPrices[colAvgTenor][1]);
+			for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
+				if (curr->first == avgChar2){ found = true; tenorPeriodDays = curr->second; }
 			}
-			avgDays  = numTenor * tenorPeriodDays;
-			avgChar2 = szAllPrices[colAvgFreq][0];
-			for (curr = avgTenor.begin(), end = avgTenor.end(); !foundTenor && curr != end; curr++) {
-				if (curr->first == avgChar2){ foundTenor = true; avgFreq = curr->second; }
+			avgDays  = numTenor * tenorPeriodDays + 1;  // add 1 since averaging invariably includes both end dates
+			avgChar2 = tolower(szAllPrices[colAvgFreq][0]);
+			for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
+				if (curr->first == avgChar2){ found = true; avgFreq = curr->second; }
 			}
 		}
 		int barrierId   = atoi(szAllPrices[colProductBarrierId]);

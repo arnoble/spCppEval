@@ -273,9 +273,11 @@ public:
 		date bStartDate(from_simple_string(startDate));
 		date bEndDate(from_simple_string(endDate));
 		date bProductStartDate(from_simple_string(productStartDateString));
-
-		startDays = (bStartDate - bProductStartDate).days() - daysExtant;
-		endDays   = (bEndDate   - bProductStartDate).days() - daysExtant;
+		runningAverage = 0.0;
+		runningAvgObs  = 0;
+		runningAvgDays = 0;
+		startDays      = (bStartDate - bProductStartDate).days() - daysExtant;
+		endDays        = (bEndDate   - bProductStartDate).days() - daysExtant;
 		// post-strike initialisation
 		if (daysExtant){
 			// ...compute moneyness
@@ -304,9 +306,6 @@ public:
 		}
 		else {
 			moneyness      = 1.0;
-			runningAverage = 0.0;
-			runningAvgObs  = 0;
-			runningAvgDays = 0;
 		}
 	};
 	const bool        above, at;
@@ -353,20 +352,22 @@ public:
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
 		endDays = (bEndDate - bProductStartDate).days() - daysExtant;
-		yearsToBarrier = endDays / 365.25;
-		sumPayoffs     = 0.0;
-		isExtremum     = false;
-		isContinuous   = false;
-		proportionHits = 1.0;
+		yearsToBarrier         = endDays / 365.25;
+		sumPayoffs             = 0.0;
+		isExtremum             = false;
+		isContinuous           = false;
+		proportionHits         = 1.0;
+		sumProportion          = 0.0;
+		proportionalAveraging  = avgDays > 0 && avgType == 1;
 	};
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq,daysExtant;
 	const bool                      capitalOrIncome, isAnd,isMemory;
 	const double                    payoff, strike, cap, participation;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
-	bool                            isExtremum,isContinuous;
+	bool                            isExtremum, isContinuous, proportionalAveraging;
 	int                             endDays;
-	double                          yearsToBarrier,sumPayoffs,proportionHits;
+	double                          yearsToBarrier, sumPayoffs, proportionHits, sumProportion;
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
 	
@@ -468,8 +469,9 @@ public:
 
 		return(thisPayoff);
 	}
-	void storePayoff(const std::string thisDateString, const double amount){
-		sumPayoffs += amount;
+	void storePayoff(const std::string thisDateString, const double amount,const double proportion){
+		sumPayoffs     += amount;
+		sumProportion += proportion;
 		hit.push_back(SpPayoff(thisDateString, amount));
 	}
 	// do any averaging
@@ -486,7 +488,7 @@ public:
 					for (k = 0; k < thisBrel.runningAvgObs; k++) {
 						avgObs.push_back(thisBrel.runningAverage/thisBrel.runningAvgObs);
 					}
-					for (k = daysExtant; k < avgDays && k < thisMonPoint; k++) {
+					for (k = 0; k < (avgDays - thisBrel.runningAvgDays) && k < thisMonPoint; k++) {
 						if (k%avgFreq == 0){
 							while (k < thisMonPoint && (ulPrices.at(n).nonTradingDay.at(thisMonPoint - k))){ k++; };
 							avgObs.push_back(ulPrices.at(n).price.at(thisMonPoint - k));
@@ -511,15 +513,28 @@ public:
 				double numHits(0.0), numPossibleHits(0.0);
 				if (daysExtant){
 					for (int i = 0, numObs = brel[0].avgWasHit.size(); i < numObs; i++) {
-						bool wasHit = false;
+						bool wasHit = true;
 						for (int j = 0, len = brel.size(); j < len; j++) {
-							wasHit &= brel[j].avgWasHit[i];
+							wasHit = wasHit && brel[j].avgWasHit[i];
 						}
 						numHits         += wasHit ? 1 : 0;
 						numPossibleHits += 1;
 					}
 				}
-				proportionHits = numHits/numPossibleHits;
+				for (k = 0; k < (avgDays - brel[0].runningAvgDays) && k < thisMonPoint; k++) {
+					if (k%avgFreq == 0){
+						while (k < thisMonPoint && (ulPrices.at(0).nonTradingDay.at(thisMonPoint - k))){ k++; };
+						std::vector<double> testPrices;
+						for (int j = 0, len = brel.size(); j < len; j++) {
+							SpBarrierRelation thisBrel = brel[j];
+							int n = ulIdNameMap[thisBrel.underlying];
+							testPrices.push_back(ulPrices.at(n).price.at(thisMonPoint - k));
+						}
+						numHits += isHit(testPrices) ? 1 : 0;
+						numPossibleHits += 1;
+					}
+				}
+				proportionHits = numHits / numPossibleHits;
 				break;
 			}
 		}
@@ -625,12 +640,10 @@ public:
 						SpBarrier &b(barrier.at(thisBarrier));
 						// is barrier alive
 						if (b.endDays == thisMonDays) {
-							// do any averaging/lookback
-							int proportionHits = 1;
-							// averaging - will replace thesePrices with their averages
+							// averaging/lookback - will replace thesePrices with their averages
 							b.doAveraging(thesePrices, ulPrices, thisPoint, thisMonPoint);
 							// is barrier hit
-							if (barrierWasHit[thisBarrier] || b.isHit(thesePrices)){
+							if (barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices)){
 								barrierWasHit[thisBarrier] = true;
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC);
 								if (b.capitalOrIncome){
@@ -646,7 +659,7 @@ public:
 									}
 								}
 								else {
-									couponValue += thisPayoff;
+									couponValue += b.proportionHits*thisPayoff;
 									barrierWasHit[thisBarrier] = true;
 									if (b.isMemory) {
 										for (k = 0; k<thisBarrier; k++) {
@@ -655,13 +668,13 @@ public:
 												double payoffOther = bOther.payoff;
 												barrierWasHit[k] = true;
 												couponValue += payoffOther;
-												bOther.storePayoff(thisDateString, proportionHits*payoffOther);
+												bOther.storePayoff(thisDateString, payoffOther,1.0);
 											}
 										}
 									}
 
 								}
-								b.storePayoff(thisDateString, proportionHits*thisPayoff);
+								b.storePayoff(thisDateString, b.proportionHits*thisPayoff, b.proportionHits);
 								//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 							}
 							else {
@@ -720,11 +733,13 @@ public:
 				SpBarrier &b(barrier.at(thisBarrier));
 				double thisBarrierSumPayoffs(0.0);
 				std::vector<double> thisBarrierPayoffs;
-				int    numInstances = b.hit.size();
-				double thisYears = b.yearsToBarrier;
-				double prob = (1.0*numInstances) / numAllEpisodes;
-				double thisProbDefault = probDefault(hazardCurve, thisYears);
-				sumDuration += numInstances*b.yearsToBarrier;
+				int    numInstances     = b.hit.size();
+				double sumProportion    = b.sumProportion;
+				double thisYears        = b.yearsToBarrier;
+				//double prob             = (1.0*numInstances) / numAllEpisodes;
+				double prob             = sumProportion / numAllEpisodes;
+				double thisProbDefault  = probDefault(hazardCurve, thisYears);
+				sumDuration            += numInstances*b.yearsToBarrier;
 				for (i = 0; i < b.hit.size(); i++){
 					double thisAmount = b.hit.at(i).amount;
 					// possibly apply credit adjustment
@@ -766,7 +781,7 @@ public:
 
 
 
-			// ** process product results
+			// ** process overall product results
 			int numAnnRets(allAnnRets.size());
 			const double confLevel(0.1);
 			sort(allPayoffs.begin(), allPayoffs.end());
