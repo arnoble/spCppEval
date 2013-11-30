@@ -277,6 +277,7 @@ public:
 		runningAverage = 0.0;
 		runningAvgObs  = 0;
 		runningAvgDays = 0;
+		uBarrierLevel  = NULL;
 		startDays      = (bStartDate - bProductStartDate).days() - daysExtant;
 		endDays        = (bEndDate   - bProductStartDate).days() - daysExtant;
 		// post-strike initialisation
@@ -296,7 +297,7 @@ public:
 							break;
 						case 1: // proportional
 							double p = ulTimeseries.price.at(lastIndx - i);
-							avgWasHit.push_back( above ? (p>barrierLevel && p<uBarrierLevel ? true : false) : (p<barrierLevel && p>uBarrierLevel ? true : false));
+							avgWasHit.push_back( above ? (p>barrierLevel && (uBarrierLevel == NULL || p<uBarrierLevel) ? true : false) : (p<barrierLevel && (uBarrierLevel == NULL || p>uBarrierLevel) ? true : false));
 							break;
 						}
 						runningAvgObs  += 1;
@@ -319,7 +320,7 @@ public:
 	std::vector<bool> avgWasHit;
 	void setLevels(const double ulPrice) {
 		barrierLevel  = barrier  * ulPrice / moneyness;
-		uBarrierLevel = uBarrier * ulPrice / moneyness;
+		if (uBarrier != NULL) {	uBarrierLevel = uBarrier * ulPrice / moneyness;	}
 	}
 
 };
@@ -391,7 +392,7 @@ public:
 			double diff;           diff        = thisUlPrice - thisBrel.barrierLevel;
 			bool   thisTest;       thisTest    = above ? diff>0 : diff < 0;
 			//std::cout << j << "Diff:" << diff << "Price:" << thisUlPrice << "Barrier:" << thisBrel.barrierLevel << std::endl;
-			if (thisBrel.uBarrier != 1000000.0){
+			if (thisBrel.uBarrier != NULL){
 				diff     = thisUlPrice - thisBrel.uBarrierLevel;
 				thisTest &= above ? diff<0 : diff>0;
 			}

@@ -258,6 +258,7 @@ int _tmain(int argc, TCHAR* argv[])
 			uid = atoi(szAllPrices[brcolUnderlyingId]);
 			barrier          = atof(szAllPrices[brcolBarrier]);
 			uBarrier         = atof(szAllPrices[brcolUpperBarrier]);
+			if (uBarrier > 999999 && uBarrier < 1000001.0) { uBarrier = NULL; } // using 1000000 as a quasiNULL, since C++ SQLFetch ignores NULL columns
 			above            = atoi(szAllPrices[brcolAbove]) == 1;
 			at               = atoi(szAllPrices[brcolAt]) == 1;
 			startDateString  = szAllPrices[brcolStartDate];
@@ -272,7 +273,7 @@ int _tmain(int argc, TCHAR* argv[])
 			}
 			if (isAbsolute){
 				barrier  /= thisStrikeDatePrice;
-				uBarrier /= thisStrikeDatePrice;
+				if (uBarrier != NULL) { uBarrier /= thisStrikeDatePrice; }
 			}
 
 
