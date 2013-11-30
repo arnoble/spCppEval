@@ -286,7 +286,7 @@ public:
 			moneyness               = ulTimeseries.price.at(lastIndx) / ulTimeseries.price.at(lastIndx - daysExtant);
 			strikeAdjForMoneyness  /= moneyness;
 			// ...compute running averages
-			if (avgDays > endDays){
+			if (avgDays && avgDays > endDays){
 				setLevels(ulTimeseries.price.at(lastIndx));
 				for (int i = 0; endDays + i < avgDays;i++){
 					if (!ulTimeseries.nonTradingDay.at(lastIndx - i)  && runningAvgObs%avgFreq == 0){
