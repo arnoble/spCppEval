@@ -478,7 +478,7 @@ public:
 		hit.push_back(SpPayoff(thisDateString, amount));
 	}
 	// do any averaging
-	void doAveraging(std::vector<double> &thesePrices, std::vector<UlTimeseries> &ulPrices, int thisPoint,int thisMonPoint) {
+	void doAveraging(std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, std::vector<UlTimeseries> &ulPrices, int thisPoint, int thisMonPoint) {
 		int k;
 		if (avgDays && brel.size()) {
 			switch (avgType) {
@@ -503,7 +503,7 @@ public:
 						anyValue = *max_element(avgObs.begin(), avgObs.end());
 						// DOME remove for loop if it gives the same value
 						for (int k = 0, len1 = avgObs.size(); k<len1; k++) { double anyValue1 = avgObs[k]; if (anyValue1>anyValue){ anyValue = anyValue1; } }
-						// lookbackLevel[n] = anyValue;
+						lookbackLevel[n] = anyValue;
 					}
 					else {
 						double anyValue(0.0);
@@ -592,8 +592,7 @@ public:
 				bool   matured;       matured = false;
 				double couponValue;   couponValue = 0.0;
 				double thisPayoff;
-				std::vector<double> lookbackLevel;
-				std::vector<double> thesePrices(numUl), startLevels(numUl);
+				std::vector<double> thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl);
 
 				for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
@@ -644,7 +643,7 @@ public:
 						// is barrier alive
 						if (b.endDays == thisMonDays) {
 							// averaging/lookback - will replace thesePrices with their averages
-							b.doAveraging(thesePrices, ulPrices, thisPoint, thisMonPoint);
+							b.doAveraging(thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint);
 							// is barrier hit
 							if (barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices)){
 								barrierWasHit[thisBarrier] = true;
