@@ -253,6 +253,7 @@ public:
 	SpBarrierRelation(int underlying,
 		double        barrier,
 		double        uBarrier,
+		const bool    isAbsolute,
 		std::string   startDate,
 		std::string   endDate,
 		bool          above,
@@ -265,7 +266,7 @@ public:
 		const int     avgDays,
 		const int     avgFreq,
 		std::string   productStartDateString)
-		: underlying(underlying), barrier(barrier), uBarrier(uBarrier),
+		: underlying(underlying), barrier(barrier), uBarrier(uBarrier), isAbsolute(isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
 		strikeAdjForMoneyness(strike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq)
 	{
@@ -308,7 +309,7 @@ public:
 			moneyness      = 1.0;
 		}
 	};
-	const bool        above, at;
+	const bool        above, at,isAbsolute;
 	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
 	const double      barrier, uBarrier,weight;
 	const std::string startDate, endDate;
@@ -326,7 +327,7 @@ public:
 class SpBarrier {
 public:
 	SpBarrier(const int barrierId,
-		bool            capitalOrIncome,
+		const bool      capitalOrIncome,
 		std::string      nature,
 		double           payoff,
 		std::string      settlementDate,
@@ -340,14 +341,15 @@ public:
 		int              avgDays,
 		int              avgType,
 		int	             avgFreq,
-		bool             isMemory,
+		const bool       isMemory,
+		const bool       isAbsolute,
 		const int        daysExtant,
 		boost::gregorian::date bProductStartDate)
 		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike), cap(cap), participation(participation), ulIdNameMap(ulIdNameMap),
 		underlyingFunctionId(0), isAnd(nature == "and"), avgDays(avgDays), avgType(avgType),
-		avgFreq(avgFreq), isMemory(isMemory), daysExtant(daysExtant)
+		avgFreq(avgFreq), isMemory(isMemory), isAbsolute(isAbsolute),daysExtant(daysExtant)
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
@@ -361,13 +363,13 @@ public:
 		proportionalAveraging  = avgDays > 0 && avgType == 1;
 	};
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq,daysExtant;
-	const bool                      capitalOrIncome, isAnd,isMemory;
-	const double                    payoff, strike, cap, participation;
+	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute;
+	const double                    payoff, participation;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
 	bool                            isExtremum, isContinuous, proportionalAveraging;
 	int                             endDays;
-	double                          yearsToBarrier, sumPayoffs, proportionHits, sumProportion;
+	double                          strike, cap, yearsToBarrier, sumPayoffs, proportionHits, sumProportion;
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
 	
@@ -399,6 +401,7 @@ public:
 		//std::cout << "isHit:" << isHit << "Press a key to continue..." << std::endl;  std::getline(std::cin, word);
 		return isHit;
 	};
+	// get payoff
 	double getPayoff(std::vector<double> &startLevels,
 		std::vector<double> &lookbackLevel,
 		std::vector<double> &thesePrices,

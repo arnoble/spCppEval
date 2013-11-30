@@ -109,7 +109,7 @@ int _tmain(int argc, TCHAR* argv[])
 
 	// get underlyingids for this product from DB
 	vector<int> ulIds;
-	vector<int> ulIdNameMap(1000);
+	vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
 	sprintf(lineBuffer, "%s%d%s", "select distinct UnderlyingId from productbarrier join barrierrelation using (ProductBarrierId) where ProductId='", productId, "'");
 	mydb.prepare((SQLCHAR *)lineBuffer,1);
 	retcode = mydb.fetch(true);
@@ -193,7 +193,7 @@ int _tmain(int argc, TCHAR* argv[])
 		colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
 		colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap,colUnderlyingFunctionId,colParam1,colMemory,colIsAbsolute,colProductBarrierLast
 	};
-	sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "'");
+	sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 	mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
 	retcode = mydb.fetch(true);
 	map<char, int> avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
@@ -220,6 +220,7 @@ int _tmain(int argc, TCHAR* argv[])
 		}
 		int barrierId   = atoi(szAllPrices[colProductBarrierId]);
 		int avgType     = atoi(szAllPrices[colAvgType]); 
+		bool isAbsolute = atoi(szAllPrices[colIsAbsolute])      == 1;
 		capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
 		nature          = szAllPrices[colNature];
 		payoff          = atof(szAllPrices[colPayoff]) / 100.0;
@@ -231,7 +232,7 @@ int _tmain(int argc, TCHAR* argv[])
 		cap             = atof(szAllPrices[colCap]);
 		spr.barrier.push_back(SpBarrier(barrierId,capitalOrIncome, nature, payoff, settlementDate, description,
 			thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap,avgDays,avgType,
-			avgFreq, isMemory, daysExtant, bProductStartDate));
+			avgFreq, isMemory, isAbsolute,daysExtant, bProductStartDate));
 		SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 		// update vector of monitoring dates
 		// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
@@ -253,21 +254,35 @@ int _tmain(int argc, TCHAR* argv[])
 		// ...parse each barrierrelation row
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 			double weight    = atof(szAllPrices[brcolWeight]);
-			uid              = atoi(szAllPrices[brcolUnderlyingId]);
+			bool isAbsolute  = atoi(szAllPrices[brcolIsAbsolute]) == 1;
+			uid = atoi(szAllPrices[brcolUnderlyingId]);
 			barrier          = atof(szAllPrices[brcolBarrier]);
+			uBarrier         = atof(szAllPrices[brcolUpperBarrier]);
 			above            = atoi(szAllPrices[brcolAbove]) == 1;
 			at               = atoi(szAllPrices[brcolAt]) == 1;
 			startDateString  = szAllPrices[brcolStartDate];
 			endDateString    = szAllPrices[brcolEndDate];
-			uBarrier         = atof(szAllPrices[brcolUpperBarrier]);
 			anyTypeId        = atoi(szAllPrices[brcolBarrierTypeId]);
+			// express absolute levels as %ofSpot
+			double thisStrikeDatePrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays-1-daysExtant];
+			// ...DOME only works with single underlying, for now...the issue is whether to add FixedStrike fields to each brel
+			if (thisBarrier.isAbsolute)	{ 		// change fixed strike levels to percentages of spot
+				thisBarrier.cap     = thisBarrier.cap / thisStrikeDatePrice - 1.0;
+				thisBarrier.strike /= thisStrikeDatePrice;
+			}
+			if (isAbsolute){
+				barrier  /= thisStrikeDatePrice;
+				uBarrier /= thisStrikeDatePrice;
+			}
+
+
 			// get barrierType name
 			for (found = false,i = 0; !found && i < barrierTypes.size(); i++){ if (anyTypeId == barrierTypes[i].id) { found = true; } }
 			if (found && barrierTypes.at(i-1).name != "continuous") { thisBarrier.isContinuous = false; }
 
 			if (uid) {
 				// create barrierRelation
-				thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, startDateString, endDateString, 
+				thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString, 
 					above, at, weight, daysExtant, strike, ulPrices.at(ulIdNameMap[uid]), avgType,avgDays, avgFreq,productStartDateString));
 			}
 			// next barrierRelation record
