@@ -260,7 +260,7 @@ public:
 		bool          at,
 		const double  weight,
 		const int     daysExtant,
-		const double  strike,
+		double        strike,
 		const UlTimeseries  &ulTimeseries,
 		const int     avgType, 
 		const int     avgDays,
@@ -268,7 +268,7 @@ public:
 		std::string   productStartDateString)
 		: underlying(underlying), barrier(barrier), uBarrier(uBarrier), isAbsolute(isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		strikeAdjForMoneyness(strike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq)
+		strike(strike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq)
 	{
 		using namespace boost::gregorian;
 		date bStartDate(from_simple_string(startDate));
@@ -284,8 +284,8 @@ public:
 		if (daysExtant){
 			// ...compute moneyness
 			int lastIndx(ulTimeseries.price.size() - 1);
-			moneyness               = ulTimeseries.price.at(lastIndx) / ulTimeseries.price.at(lastIndx - daysExtant);
-			strikeAdjForMoneyness  /= moneyness;
+			moneyness    = ulTimeseries.price.at(lastIndx) / ulTimeseries.price.at(lastIndx - daysExtant);
+			strike      /= moneyness;
 			// ...compute running averages
 			if (avgDays && avgDays > endDays){
 				setLevels(ulTimeseries.price.at(lastIndx));
@@ -315,7 +315,7 @@ public:
 	const double      barrier, uBarrier,weight;
 	const std::string startDate, endDate;
 	int               startDays, endDays, runningAvgObs,runningAvgDays;
-	double            barrierLevel, uBarrierLevel,strikeAdjForMoneyness, moneyness;
+	double            barrierLevel, uBarrierLevel,strike, moneyness;
 	double            runningAverage;
 	std::vector<bool> avgWasHit;
 	void setLevels(const double ulPrice) {
@@ -423,7 +423,7 @@ public:
 			for (j = 0, len = brel.size(); j<len; j++) {
 				SpBarrierRelation &thisBrel(brel[j]);
 				n      = ulIdNameMap[thisBrel.underlying];
-				thisStrike = thisBrel.strikeAdjForMoneyness * startLevels[n];
+				thisStrike = thisBrel.strike * startLevels[n] / thisBrel.moneyness;
 				thisRefLevel = startLevels[n] / thisBrel.moneyness;
 				if (payoffTypeId == lookbackCallPayoff) {
 					thisAssetReturn = lookbackLevel[n] / thisRefLevel;
@@ -556,14 +556,17 @@ public:
 	SProduct(const int productId,
 		const boost::gregorian::date bProductStartDate,
 		const double fixedCoupon,
-		const std::string couponFrequency, const double AMC, const bool depositGteed, const int daysExtant,const double midPrice)
+		const std::string couponFrequency, 
+		const bool couponPaidOut,
+		const double AMC, const bool depositGteed, const int daysExtant, const double midPrice)
 		: productId(productId), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon), 
-		couponFrequency(couponFrequency), AMC(AMC), depositGteed(depositGteed), daysExtant(daysExtant), midPrice(midPrice) {};
+		couponFrequency(couponFrequency), 
+		couponPaidOut(couponPaidOut),AMC(AMC), depositGteed(depositGteed), daysExtant(daysExtant), midPrice(midPrice) {};
 	const boost::gregorian::date   bProductStartDate;
 	const int                      daysExtant;
 	const double                   fixedCoupon,AMC,midPrice;
 	const std::string              couponFrequency;
-	const bool                     depositGteed;
+	const bool                     depositGteed,couponPaidOut;
 	int                            productDays;
 	std::vector <SpBarrier>        barrier;
 
@@ -652,35 +655,41 @@ public:
 								barrierWasHit[thisBarrier] = true;
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC);
 								if (b.capitalOrIncome){
-									matured = true;
-									thisPayoff += couponValue;
-									if (couponFrequency.size()) {  // add fixed coupon
-										boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisMonPoint)));
-										double daysElapsed  = (bThisDate - bStartDate).days() + daysExtant;
-										char   freqChar     = toupper(couponFrequency[1]);
-										double couponEvery  = couponFrequency[0] - '0';
-										double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 360;
-										thisPayoff += fixedCoupon*floor(daysElapsed / daysPerEvery / couponEvery);
+									if (thisMonDays>0){
+										matured = true;
+										thisPayoff += couponValue;
+										if (couponFrequency.size()) {  // add fixed coupon
+											boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisMonPoint)));
+											double daysElapsed = (bThisDate - bStartDate).days() + daysExtant;
+											char   freqChar = toupper(couponFrequency[1]);
+											double couponEvery = couponFrequency[0] - '0';
+											double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 360;
+											thisPayoff += fixedCoupon*floor(daysElapsed / daysPerEvery / couponEvery);
+										}
 									}
 								}
 								else {
-									couponValue += b.proportionHits*thisPayoff;
 									barrierWasHit[thisBarrier] = true;
-									if (b.isMemory) {
-										for (k = 0; k<thisBarrier; k++) {
-											SpBarrier &bOther(barrier.at(k));
-											if (!bOther.capitalOrIncome && !barrierWasHit[k]) {
-												double payoffOther = bOther.payoff;
-												barrierWasHit[k] = true;
-												couponValue += payoffOther;
-												bOther.storePayoff(thisDateString, payoffOther,1.0);
+									if (!couponPaidOut || b.endDays >= 0) {
+										couponValue += b.proportionHits*thisPayoff;
+										if (b.isMemory) {
+											for (k = 0; k<thisBarrier; k++) {
+												SpBarrier &bOther(barrier.at(k));
+												if (!bOther.capitalOrIncome && !barrierWasHit[k]) {
+													double payoffOther = bOther.payoff;
+													barrierWasHit[k] = true;
+													couponValue += payoffOther;
+													bOther.storePayoff(thisDateString, payoffOther, 1.0);
+												}
 											}
 										}
 									}
-
 								}
-								b.storePayoff(thisDateString, b.proportionHits*thisPayoff, b.proportionHits);
-								//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
+								// only store a hit if this barrier is in the future
+								if (thisMonDays>0){
+									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, b.proportionHits);
+									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
+								}
 							}
 							else {
 								// in case you want to see why not hit

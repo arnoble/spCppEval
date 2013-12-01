@@ -82,20 +82,21 @@ int _tmain(int argc, TCHAR* argv[])
 		// get product table data
 		enum {
 			colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
-			colProductAMC = 43, colProductDepositGtee = 56, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductLast
+			colProductAMC = 43, colProductDepositGtee = 56, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut,colProductLast
 		};
 		sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 		mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 		retcode = mydb.fetch(true);
 		int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
-		bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]) == 1;
-		productStartDateString  = szAllPrices[colProductStrikeDate];
+		bool depositGteed       = atoi(szAllPrices[colProductDepositGtee])   == 1;
+		bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut]) == 1;
+		productStartDateString = szAllPrices[colProductStrikeDate];
 		fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
 		bidPrice                = atof(szAllPrices[colProductBid]);
 		askPrice                = atof(szAllPrices[colProductAsk]);
 		AMC                     = atof(szAllPrices[colProductAMC]);
 		issuePrice              = atof(szAllPrices[colProductIssuePrice]);
-		midPrice                = (bidPrice + askPrice) / (2.0*issuePrice);
+		midPrice = ((bidPrice > 99.999) && (askPrice > 99.999) && (bidPrice < 100.001) && (askPrice < 100.001)) ? 1.0 : (bidPrice + askPrice) / (2.0*issuePrice);
 		if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
 		boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 
@@ -201,7 +202,7 @@ int _tmain(int argc, TCHAR* argv[])
 		}
 
 		// create product
-		SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency, AMC, depositGteed, daysExtant, midPrice);
+		SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, depositGteed, daysExtant, midPrice);
 		numBarriers = 0;
 
 		// get barriers from DB
@@ -303,7 +304,7 @@ int _tmain(int argc, TCHAR* argv[])
 				if (uid) {
 					// create barrierRelation
 					thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
-						above, at, weight, daysExtant, strike, ulPrices.at(ulIdNameMap[uid]), avgType, avgDays, avgFreq, productStartDateString));
+						above, at, weight, daysExtant, thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), avgType, avgDays, avgFreq, productStartDateString));
 				}
 				// next barrierRelation record
 				retcode = mydb1.fetch(false);
