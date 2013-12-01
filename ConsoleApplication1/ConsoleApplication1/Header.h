@@ -113,7 +113,7 @@ double ESnorm(double prob) { return Dnorm(NormSInv(prob)) / prob; }
 
 
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff };
-enum { uFnLargest, uFnLargestN };
+enum { uFnLargest = 1, uFnLargestN };
 
 
 
@@ -337,6 +337,8 @@ public:
 		int              payoffTypeId,
 		double           strike,
 		double           cap,
+		const int        underlyingFunctionId,
+		const double     param1,
 		double           participation,
 		std::vector<int> ulIdNameMap,
 		int              avgDays,
@@ -348,8 +350,9 @@ public:
 		boost::gregorian::date bProductStartDate)
 		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
-		payoffTypeId(payoffTypeId), strike(strike), cap(cap), participation(participation), ulIdNameMap(ulIdNameMap),
-		underlyingFunctionId(0), isAnd(nature == "and"), avgDays(avgDays), avgType(avgType),
+		payoffTypeId(payoffTypeId), strike(strike), cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
+		participation(participation), ulIdNameMap(ulIdNameMap),
+		isAnd(nature == "and"), avgDays(avgDays), avgType(avgType),
 		avgFreq(avgFreq), isMemory(isMemory), isAbsolute(isAbsolute),daysExtant(daysExtant)
 	{
 		using namespace boost::gregorian;
@@ -365,7 +368,7 @@ public:
 	};
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq,daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute;
-	const double                    payoff, participation;
+	const double                    payoff, participation,param1;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
 	bool                            isExtremum, isContinuous, proportionalAveraging;
@@ -441,11 +444,10 @@ public:
 				}
 				break;
 			case uFnLargestN:
-				/* DOME
-				optionPayoffs.sort(function(a, b){ return b - a; }); // sort DESCENDING
-				for (optionPayoff = 0, j = 0, len = thisBarrier.Param1; j<len; j++) { optionPayoff += optionPayoffs[j]; }
-				optionPayoff = Math.max(0, optionPayoff / j);
-				*/
+				double avgNpayoff(0.0);
+				sort(optionPayoffs.begin(), optionPayoffs.end()); // sort ASCENDING
+				for (len=optionPayoffs.size(),j = len-param1; j<len; j++) { avgNpayoff += optionPayoffs[j]; }
+				optionPayoff = avgNpayoff > 0.0 ? avgNpayoff / param1 : 0.0;		
 				break;
 			}
 			thisPayoff += participation*optionPayoff;
@@ -741,7 +743,6 @@ public:
 				//double prob             = (1.0*numInstances) / numAllEpisodes;
 				double prob             = sumProportion / numAllEpisodes;
 				double thisProbDefault  = probDefault(hazardCurve, thisYears);
-				sumDuration            += numInstances*b.yearsToBarrier;
 				for (i = 0; i < b.hit.size(); i++){
 					double thisAmount = b.hit.at(i).amount;
 					// possibly apply credit adjustment
@@ -753,8 +754,9 @@ public:
 				if (b.capitalOrIncome) {
 					if (!foundEarliest){ foundEarliest = true; probEarliest = prob; }
 					if (b.settlementDate < lastSettlementDate) probEarly += prob;
-					numCapitalInstances += numInstances;
-					sumPayoffs += b.sumPayoffs;
+					sumDuration          += numInstances*thisYears;
+					numCapitalInstances  += numInstances;
+					sumPayoffs           += b.sumPayoffs;
 					for (i = 0; i < b.hit.size(); i++){
 						double thisAmount = thisBarrierPayoffs.at(i);
 						double thisAnnRet = exp(log(thisAmount / midPrice) / thisYears) - 1.0;
@@ -762,8 +764,8 @@ public:
 						allAnnRets.push_back(thisAnnRet);
 						sumAnnRets += thisAnnRet;
 						if (thisAmount >  1.0) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
-						if (thisAmount >= 1.0) { sumPosPayoffs += thisAmount; numPosPayoffs++;       sumPosDurations += thisYears; }
-						else                   { sumNegPayoffs += thisAmount; numNegPayoffs++;       sumNegDurations += thisYears; }
+						if (thisAmount >= 1.0) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
+						else                   { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
 					}
 				}
 				double mean = thisBarrierSumPayoffs / numInstances;
@@ -794,11 +796,11 @@ public:
 			// eShortfall, esVol
 			int numShortfall(floor(confLevel*allAnnRets.size()));
 			double eShortfall(0.0);	for (i = 0; i < numShortfall; i++){ eShortfall += allAnnRets[i]; }	eShortfall /= numShortfall;
-			double duration = sumDuration / numAnnRets;
-			double esVol = (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(.1);
-			double scaledVol = esVol * sqrt(duration);
+			double duration    = sumDuration / numAnnRets;
+			double esVol       = (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(.1);
+			double scaledVol   = esVol * sqrt(duration);
 			double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ geomReturn += log(allPayoffs[i]/midPrice); }
-			geomReturn = exp(geomReturn / sumDuration) - 1;
+			geomReturn         = exp(geomReturn / sumDuration) - 1;
 			double sharpeRatio = scaledVol > 0.0 ? (geomReturn / scaledVol>1000.0 ? 1000.0 : geomReturn / scaledVol) : 1000.0;
 			std::vector<double> cesrBuckets = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
 			double riskCategory(1.0);  for (i = 1, len = cesrBuckets.size(); i<len && scaledVol>cesrBuckets[i]; i++) { riskCategory += 1.0; }

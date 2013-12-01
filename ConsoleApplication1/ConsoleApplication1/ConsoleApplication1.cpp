@@ -87,15 +87,15 @@ int _tmain(int argc, TCHAR* argv[])
 		sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 		mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 		retcode = mydb.fetch(true);
-		int counterpartyId = atoi(szAllPrices[colProductCounterpartyId]);
-		bool depositGteed = atoi(szAllPrices[colProductDepositGtee]) == 1;
-		productStartDateString = szAllPrices[colProductStrikeDate];
-		fixedCoupon = atof(szAllPrices[colProductFixedCoupon]);
-		bidPrice = atof(szAllPrices[colProductBid]);
-		askPrice = atof(szAllPrices[colProductAsk]);
-		AMC = atof(szAllPrices[colProductAMC]);
-		issuePrice = atof(szAllPrices[colProductIssuePrice]);
-		midPrice = (bidPrice + askPrice) / (2.0*issuePrice);
+		int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
+		bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]) == 1;
+		productStartDateString  = szAllPrices[colProductStrikeDate];
+		fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
+		bidPrice                = atof(szAllPrices[colProductBid]);
+		askPrice                = atof(szAllPrices[colProductAsk]);
+		AMC                     = atof(szAllPrices[colProductAMC]);
+		issuePrice              = atof(szAllPrices[colProductIssuePrice]);
+		midPrice                = (bidPrice + askPrice) / (2.0*issuePrice);
 		if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
 		boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 
@@ -141,7 +141,7 @@ int _tmain(int argc, TCHAR* argv[])
 		numUl = ulIds.size();
 
 		// read underlying prices
-		char ulSql[1000];
+		char ulSql[5000];
 		// ...form sql joins
 		sprintf(ulSql, "%s", "select p0.Date Date");
 		for (i = 0; i<numUl; i++) { sprintf(lineBuffer, "%s%d%s%d", ",p", i, ".price Price", i); strcat(ulSql, lineBuffer); }
@@ -218,9 +218,9 @@ int _tmain(int argc, TCHAR* argv[])
 		// ...parse each productbarrier row
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 			int tenorPeriodDays = 0;
-			int avgDays = 0;
-			int numTenor = 0;
-			int avgFreq = 0;
+			int avgDays         = 0;
+			int numTenor        = 0;
+			int avgFreq         = 0;
 			bool isMemory = atoi(szAllPrices[colMemory]) == 1;;
 			if (strlen(szAllPrices[colAvgTenor]) && strlen(szAllPrices[colAvgFreq])){
 				char avgChar1 = szAllPrices[colAvgTenor][0];
@@ -235,8 +235,8 @@ int _tmain(int argc, TCHAR* argv[])
 					if (curr->first == avgChar2){ found = true; avgFreq = curr->second; }
 				}
 			}
-			int barrierId = atoi(szAllPrices[colProductBarrierId]);
-			int avgType = atoi(szAllPrices[colAvgType]);
+			int barrierId   = atoi(szAllPrices[colProductBarrierId]);
+			int avgType     = atoi(szAllPrices[colAvgType]);
 			bool isAbsolute = atoi(szAllPrices[colIsAbsolute]) == 1;
 			capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
 			nature = szAllPrices[colNature];
@@ -247,8 +247,10 @@ int _tmain(int argc, TCHAR* argv[])
 			participation = atof(szAllPrices[colParticipation]);
 			strike = atof(szAllPrices[colStrike]);
 			cap = atof(szAllPrices[colCap]);
+			int     underlyingFunctionId  = atoi(szAllPrices[colUnderlyingFunctionId]);
+			double  param1                = atof(szAllPrices[colParam1]);
 			spr.barrier.push_back(SpBarrier(barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
-				thisPayoffType, thisPayoffId, strike, cap, participation, ulIdNameMap, avgDays, avgType,
+				thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId,param1,participation, ulIdNameMap, avgDays, avgType,
 				avgFreq, isMemory, isAbsolute, daysExtant, bProductStartDate));
 			SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 			// update vector of monitoring dates
