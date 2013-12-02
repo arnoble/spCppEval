@@ -28,7 +28,7 @@ int _tmain(int argc, TCHAR* argv[])
 	char             szPrice[bufSize], **szAllPrices = new char*[maxUls];
 	vector<int>      allProductIds; 
 	vector<string>   payoffType = { "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall" };
-	vector<int>::iterator intIterator;
+	vector<int>::iterator intIterator, intIterator1;
 	for (int i = 0; i < maxUls; i++){
 		szAllPrices[i] = new char[bufSize];
 	}
@@ -56,7 +56,7 @@ int _tmain(int argc, TCHAR* argv[])
 		string           couponFrequency, productStartDateString, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
 		bool             found, capitalOrIncome, above, at;
 		vector<double>   ulReturns[50];
-		vector<int>      monDateIndx;
+		vector<int>      monDateIndx,accrualMonDateIndx;
 		vector<UlTimeseries>  ulOriginalPrices(100), ulPrices(100); // underlying prices	
 
 		productId = allProductIds.at(productIndx);
@@ -256,11 +256,18 @@ int _tmain(int argc, TCHAR* argv[])
 			SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 			// update vector of monitoring dates
 			// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
-			anyInt = thisBarrier.getEndDays();
-			if (find(monDateIndx.begin(), monDateIndx.end(), anyInt) == monDateIndx.end()) {
-				monDateIndx.push_back(anyInt);
+			double thisEndDays = thisBarrier.getEndDays();
+			if (thisEndDays <0){
+				if (find(accrualMonDateIndx.begin(), accrualMonDateIndx.end(), thisEndDays) == accrualMonDateIndx.end()) {
+					accrualMonDateIndx.push_back(thisEndDays);
+				}
 			}
-
+			else {
+				if (find(monDateIndx.begin(), monDateIndx.end(), thisEndDays) == monDateIndx.end()) {
+					monDateIndx.push_back(thisEndDays);
+				}
+			}
+			
 			// get barrier relations from DB
 			enum {
 				brcolBarrierRelationId = 0, brcolProductBarrierId,
@@ -341,11 +348,16 @@ int _tmain(int argc, TCHAR* argv[])
 			hazardCurve.push_back(dpCurve[j]);
 		}
 
+		// get accrued coupons
+		double accruedCoupon(-1.0);
+		spr.evaluate(totalNumDays, totalNumDays-1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
+			numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon);
+
 		// finally evaluate the product
-		spr.evaluate(totalNumDays, numMcIterations, historyStep, ulPrices, ulReturns,
-			numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb);
+		spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, numMcIterations, historyStep, ulPrices, ulReturns,
+			numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon);
 		// tidy up
-		int jj = 1;
+
 	}
 	// tidy up
 	return 0;
