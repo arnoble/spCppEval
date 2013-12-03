@@ -142,7 +142,7 @@ int _tmain(int argc, TCHAR* argv[])
 		numUl = ulIds.size();
 
 		// read underlying prices
-		char ulSql[5000];
+		char ulSql[10000]; // enough for around 100 underlyings...
 		// ...form sql joins
 		sprintf(ulSql, "%s", "select p0.Date Date");
 		for (i = 0; i<numUl; i++) { sprintf(lineBuffer, "%s%d%s%d", ",p", i, ".price Price", i); strcat(ulSql, lineBuffer); }
@@ -349,13 +349,13 @@ int _tmain(int argc, TCHAR* argv[])
 		}
 
 		// get accrued coupons
-		double accruedCoupon(-1.0);
+		double accruedCoupon(0.0);
 		spr.evaluate(totalNumDays, totalNumDays-1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-			numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon);
+			numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon,true);
 
 		// finally evaluate the product
 		spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, numMcIterations, historyStep, ulPrices, ulReturns,
-			numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon);
+			numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon,false);
 		// tidy up
 
 	}

@@ -362,6 +362,7 @@ public:
 		sumPayoffs             = 0.0;
 		isExtremum             = false;
 		isContinuous           = false;
+		hasBeenHit             = false;
 		proportionHits         = 1.0;
 		sumProportion          = 0.0;
 		proportionalAveraging  = avgDays > 0 && avgType == 1;
@@ -371,7 +372,7 @@ public:
 	const double                    payoff, participation,param1;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
-	bool                            isExtremum, isContinuous, proportionalAveraging;
+	bool                            hasBeenHit,isExtremum, isContinuous, proportionalAveraging;
 	int                             endDays;
 	double                          strike, cap, yearsToBarrier, sumPayoffs, proportionHits, sumProportion;
 	std::vector <SpBarrierRelation> brel;
@@ -574,7 +575,7 @@ public:
 	void evaluate(const int totalNumDays, const int startPoint, const int lastPoint, const int numMcIterations, const int historyStep,
 		std::vector<UlTimeseries> &ulPrices, const std::vector<double> ulReturns[],
 		const int numBarriers, const int numUl, const std::vector<int> ulIdNameMap, const std::vector<int> monDateIndx,
-		const double recoveryRate, const std::vector<double> hazardCurve,MyDB &mydb,double &accruedCoupon){
+		const double recoveryRate, const std::vector<double> hazardCurve,MyDB &mydb,double &accruedCoupon,const bool doAccruals){
 		int totalNumReturns  = totalNumDays - 1;
 		char             lineBuffer[1000], charBuffer[1000];
 		int              i, j, k, len;
@@ -613,14 +614,16 @@ public:
 						// check to see if extremumBarriers hit
 						if (b.isExtremum) {
 							double thisExtremum;
+							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0           ){ firstPoint  = 0; }
+							int lastPoint  = thisPoint + thisBrel.endDays;   if (lastPoint  > totalNumDays){ lastPoint   = totalNumDays; }
 							std::vector<double>	&thisTimeseries = ulPrices.at(thisName).price;
 							if (thisBrel.above) {
-								for (k = thisPoint + thisBrel.startDays, thisExtremum = -1.0e20, len = thisPoint + thisBrel.endDays + 1; k<len; k++) {
+								for (k = firstPoint, thisExtremum = -1.0e20; k<lastPoint; k++) {
 									if (thisTimeseries[k]>thisExtremum){ thisExtremum = thisTimeseries[k]; }
 								}
 							}
 							else {
-								for (k = thisPoint + thisBrel.startDays, thisExtremum = 1.0e20, len = thisPoint + thisBrel.endDays + 1; k < len; k++) {
+								for (k = firstPoint, thisExtremum = 1.0e20; k < lastPoint; k++) {
 									if (thisTimeseries[k] < thisExtremum){ thisExtremum = thisTimeseries[k]; }
 								}
 							}
@@ -628,7 +631,10 @@ public:
 							theseExtrema.push_back(thisExtremum);
 						}
 					}
-					if (b.isExtremum) { barrierWasHit[thisBarrier] = b.isHit(theseExtrema); }
+					if (b.isExtremum) {
+						barrierWasHit[thisBarrier] = b.hasBeenHit || b.isHit(theseExtrema);
+						if (doAccruals){ b.hasBeenHit = barrierWasHit[thisBarrier]; }  // for post-strike deals, record if barriers have already been hit
+					}
 				}
 
 				// go through each monitoring date
@@ -648,11 +654,15 @@ public:
 							// averaging/lookback - will replace thesePrices with their averages
 							b.doAveraging(thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint);
 							// is barrier hit
-							if (barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices)){
+							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices)){
 								barrierWasHit[thisBarrier] = true;
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC);
 								if (b.capitalOrIncome){
 									if (thisMonDays>0){
+										// DOME: just because a KIP barrier is hit does not mean the put option is ITM
+										// ...currently all payoffs for this barrier are measured...so we currently do not report when KIP is hit AND option is ITM
+										// ...could just use this predicate around the next block: 
+										// if(!(thisBarrier.payoffType === 'put' && thisBarrier.Participation<0 && optionPayoff === 0) ){
 										matured = true;
 										thisPayoff += couponValue + accruedCoupon;
 										if (couponFrequency.size()) {  // add fixed coupon
@@ -719,7 +729,7 @@ public:
 		// *****************
 		// ** handle results
 		// *****************
-		if (accruedCoupon < 0.0){                       // store accrued coupon
+		if (doAccruals){                       // store accrued coupon
 			accruedCoupon = couponValue;
 		}
 		else {
