@@ -367,21 +367,21 @@ public:
 		sumProportion          = 0.0;
 		proportionalAveraging  = avgDays > 0 && avgType == 1;
 	};
-	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq,daysExtant;
+	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute;
-	const double                    payoff, participation,param1;
+	const double                    payoff, participation, param1;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
-	bool                            hasBeenHit,isExtremum, isContinuous, proportionalAveraging;
+	bool                            hasBeenHit, isExtremum, isContinuous, proportionalAveraging;
 	int                             endDays;
 	double                          strike, cap, yearsToBarrier, sumPayoffs, proportionHits, sumProportion;
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
-	
+
 	// number of days until barrier end date
-	int getEndDays(){ return endDays; };
+	int getEndDays() const { return endDays; }
 	// test if barrier is hit
-	bool isHit(std::vector<double> &thesePrices) {  
+	bool isHit (std::vector<double> &thesePrices) const {  
 		int j;
 		bool isHit  = isAnd;
 		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
@@ -389,7 +389,7 @@ public:
 		std::string word;
 
 		for (j = 0; j<numBrel; j++) {
-			SpBarrierRelation &thisBrel(brel[j]);
+			const SpBarrierRelation &thisBrel(brel[j]);
 			int    thisIndx;       thisIndx    = ulIdNameMap[thisBrel.underlying];
 			bool   above;          above       = thisBrel.above;
 			double thisUlPrice;    thisUlPrice = thesePrices[thisIndx];
@@ -581,7 +581,6 @@ public:
 		int              i, j, k, len;
 		double           couponValue;
 		RETCODE          retcode;
-		SQLCHAR*         thisSQL;
 
 		// main MC loop
 		for (int thisIteration = 0; thisIteration < numMcIterations; thisIteration++) {
@@ -595,6 +594,7 @@ public:
 
 				// initialise product
 				std::vector<bool> barrierWasHit(numBarriers);
+				std::string startDateString = ulPrices.at(0).date.at(thisPoint);
 				boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisPoint)));
 				bool   matured = false;
 				couponValue    = 0.0;
@@ -850,7 +850,7 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='", winLose);
 				std::time_t rawtime;	struct std::tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
-				strftime(charBuffer, 80, "%Y-%m-%d", timeinfo);
+				strftime(charBuffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
 				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',WhenEvaluated='", charBuffer);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='", probEarliest);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='", probEarly);

@@ -21,12 +21,9 @@ int _tmain(int argc, TCHAR* argv[])
 		const int        bufSize(1000);
 		SQLHENV          hEnv = NULL;		    // Env Handle from SQLAllocEnv()
 		SQLHDBC          hDBC = NULL;         // Connection handle
-		SQLLEN           cbModel;		            // SQL buffer bytes recieved
 		RETCODE          retcode;
-		SQLCHAR*         thisSQL;
 		char             lineBuffer[1000], charBuffer[1000];
-		char             szDate[bufSize];
-		char             szPrice[bufSize], **szAllPrices = new char*[maxUls];
+		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds;
 		vector<string>   payoffType = { "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall" };
 		vector<int>::iterator intIterator, intIterator1;
@@ -50,12 +47,11 @@ int _tmain(int argc, TCHAR* argv[])
 		for (int productIndx = 0; productIndx < allProductIds.size(); productIndx++) {
 			int              oldProductBarrierId = 0, productBarrierId = 0;
 			int              numBarriers = 0, thisIteration = 0;
-			int              anyInt, i, j, k, len, callOrPut, thisPoint, thisBarrier, thisMonPoint, numUl, numMonPoints, lastPoint, productDays, totalNumDays, totalNumReturns, uid, numBrel;
-			int              productId, anyTypeId, thisPayoffId, thisMonDays;
-			unsigned	     uI;
-			double           anyDouble, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
+			int              i, j, len, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
+			int              productId, anyTypeId, thisPayoffId;
+			double           barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
 			string           couponFrequency, productStartDateString, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
-			bool             found, capitalOrIncome, above, at;
+			bool             capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
 
@@ -65,17 +61,19 @@ int _tmain(int argc, TCHAR* argv[])
 
 			// get general info:  productType, barrierType
 			// ...productType
-			vector<MapType> productTypes;
+			map<int, string> productTypeMap;
 			sprintf(lineBuffer, "%s", "select * from producttype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				MapType x(atoi(szAllPrices[0]), szAllPrices[1]); productTypes.push_back(x);
+				productTypeMap[atoi(szAllPrices[0])] = szAllPrices[1];
 				retcode = mydb.fetch(false);
 			}
+
+
 			// ...barrierType
-			vector<MapType> barrierTypes;
+			map<int, string> barrierTypeMap;
 			sprintf(lineBuffer, "%s", "select * from barriertype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				MapType x(atoi(szAllPrices[0]), szAllPrices[1]); barrierTypes.push_back(x);
+				barrierTypeMap[atoi(szAllPrices[0])] = szAllPrices[1];
 				retcode = mydb.fetch(false);
 			}
 
@@ -228,14 +226,20 @@ int _tmain(int argc, TCHAR* argv[])
 					char avgChar1 = szAllPrices[colAvgTenor][0];
 					numTenor = (avgChar1 - '0');
 					char avgChar2 = tolower(szAllPrices[colAvgTenor][1]);
+					/*
 					for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
 						if (curr->first == avgChar2){ found = true; tenorPeriodDays = curr->second; }
-					}
+					}*/
+					tenorPeriodDays = avgTenor[avgChar2];
+
 					avgDays = numTenor * tenorPeriodDays + 1;  // add 1 since averaging invariably includes both end dates
 					avgChar2 = tolower(szAllPrices[colAvgFreq][0]);
+					/*
 					for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
 						if (curr->first == avgChar2){ found = true; avgFreq = curr->second; }
-					}
+					}*/
+					avgFreq = avgTenor[avgChar2];
+
 				}
 				int barrierId = atoi(szAllPrices[colProductBarrierId]);
 				int avgType = atoi(szAllPrices[colAvgType]);
@@ -292,6 +296,7 @@ int _tmain(int argc, TCHAR* argv[])
 					startDateString = szAllPrices[brcolStartDate];
 					endDateString = szAllPrices[brcolEndDate];
 					anyTypeId = atoi(szAllPrices[brcolBarrierTypeId]);
+					thisBarrier.isContinuous = barrierTypeMap[anyTypeId] == "continuous";
 					// express absolute levels as %ofSpot
 					double thisStrikeDatePrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
 					// ...DOME only works with single underlying, for now...the issue is whether to add FixedStrike fields to each brel
@@ -305,9 +310,6 @@ int _tmain(int argc, TCHAR* argv[])
 					}
 
 
-					// get barrierType name
-					for (found = false, i = 0; !found && i < barrierTypes.size(); i++){ if (anyTypeId == barrierTypes[i].id) { found = true; } }
-					if (found && barrierTypes.at(i - 1).name != "continuous") { thisBarrier.isContinuous = false; }
 
 					if (uid) {
 						// create barrierRelation
