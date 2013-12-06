@@ -241,8 +241,11 @@ public:
 class SpPayoff {
 
 public:
-	SpPayoff(std::string date, double amount) : date(date), amount(amount){};
-	std::string date;
+	SpPayoff(std::string date, double amount) :
+		// use this for debug only...in production it uses too much memory eg 1000 iterations of a 6000point timeseries with 72(monthly) barriers
+		// date(date), 
+		amount(amount){};
+	// std::string date;
 	double amount;
 };
 
@@ -250,30 +253,30 @@ public:
 class SpBarrierRelation {
 
 public:
-	SpBarrierRelation(int underlying,
-		double        barrier,
-		double        uBarrier,
-		const bool    isAbsolute,
-		std::string   startDate,
-		std::string   endDate,
-		bool          above,
-		bool          at,
-		const double  weight,
-		const int     daysExtant,
-		double        strike,
+	SpBarrierRelation(const int underlying,
+		double              barrier,
+		double              uBarrier,
+		const bool          isAbsolute,
+		const std::string   startDate,
+		const std::string   endDate,
+		const bool          above,
+		const bool          at,
+		const double        weight,
+		const int           daysExtant,
+		double              strike,
 		const UlTimeseries  &ulTimeseries,
-		const int     avgType, 
-		const int     avgDays,
-		const int     avgFreq,
-		std::string   productStartDateString)
+		const int           avgType, 
+		const int           avgDays,
+		const int           avgFreq,
+		const std::string   productStartDateString)
 		: underlying(underlying), barrier(barrier), uBarrier(uBarrier), isAbsolute(isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
 		strike(strike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq)
 	{
 		using namespace boost::gregorian;
-		date bStartDate(from_simple_string(startDate));
-		date bEndDate(from_simple_string(endDate));
-		date bProductStartDate(from_simple_string(productStartDateString));
+		const date bStartDate(from_simple_string(startDate));
+		const date bEndDate(from_simple_string(endDate));
+		const date bProductStartDate(from_simple_string(productStartDateString));
 		runningAverage = 0.0;
 		runningAvgObs  = 0;
 		runningAvgDays = 0;
@@ -327,27 +330,27 @@ public:
 
 class SpBarrier {
 public:
-	SpBarrier(const int barrierId,
-		const bool      capitalOrIncome,
-		std::string      nature,
-		double           payoff,
-		std::string      settlementDate,
-		std::string      description,
-		std::string      payoffType,
-		int              payoffTypeId,
-		double           strike,
-		double           cap,
-		const int        underlyingFunctionId,
-		const double     param1,
-		double           participation,
-		std::vector<int> ulIdNameMap,
-		int              avgDays,
-		int              avgType,
-		int	             avgFreq,
-		const bool       isMemory,
-		const bool       isAbsolute,
-		const int        daysExtant,
-		boost::gregorian::date bProductStartDate)
+	SpBarrier(const int         barrierId,
+		const bool              capitalOrIncome,
+		const std::string       nature,
+		double                  payoff,
+		const std::string       settlementDate,
+		const std::string       description,
+		const std::string       payoffType,
+		const int               payoffTypeId,
+		double                  strike,
+		double                  cap,
+		const int               underlyingFunctionId,
+		const double            param1,
+		const double            participation,
+		const std::vector<int>  ulIdNameMap,
+		const int               avgDays,
+		const int               avgType,
+		const int	            avgFreq,
+		const bool              isMemory,
+		const bool              isAbsolute,
+		const int               daysExtant,
+		const boost::gregorian::date bProductStartDate)
 		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike), cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
@@ -407,13 +410,13 @@ public:
 		return isHit;
 	};
 	// get payoff
-	double getPayoff(std::vector<double> &startLevels,
+	double getPayoff(const std::vector<double> &startLevels,
 		std::vector<double> &lookbackLevel,
-		std::vector<double> &thesePrices,
+		const std::vector<double> &thesePrices,
 		const double amc) {
-		double         thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisAssetReturn,thisStrike;
+		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisAssetReturn,thisStrike;
 		std::vector<double> optionPayoffs;
-		int            callOrPut = -1, j, len,n;     				// default option is a put
+		int                 callOrPut = -1, j, len,n;     				// default option is a put
 
 		switch (payoffTypeId) {
 		case callPayoff:
@@ -482,7 +485,8 @@ public:
 		hit.push_back(SpPayoff(thisDateString, amount));
 	}
 	// do any averaging
-	void doAveraging(std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, std::vector<UlTimeseries> &ulPrices, int thisPoint, int thisMonPoint) {
+	void doAveraging(std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, const std::vector<UlTimeseries> &ulPrices, 
+		const int thisPoint, const int thisMonPoint) {
 		int k;
 		if (avgDays && brel.size()) {
 			switch (avgType) {
@@ -554,29 +558,37 @@ private:
 	int productId;
 
 public:
-	SProduct(const int productId,
-		const boost::gregorian::date bProductStartDate,
-		const double fixedCoupon,
-		const std::string couponFrequency, 
-		const bool couponPaidOut,
-		const double AMC, const bool depositGteed, const int daysExtant, const double midPrice)
-		: productId(productId), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon), 
+	SProduct(const int                  productId,
+		const UlTimeseries              &baseTimeseies,
+		const boost::gregorian::date    bProductStartDate,
+		const double                    fixedCoupon,
+		const std::string               couponFrequency, 
+		const bool                      couponPaidOut,
+		const double                    AMC, 
+		const bool                      depositGteed, 
+		const int                       daysExtant, 
+		const double                    midPrice)
+		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
-		couponPaidOut(couponPaidOut),AMC(AMC), depositGteed(depositGteed), daysExtant(daysExtant), midPrice(midPrice) {};
-	const boost::gregorian::date   bProductStartDate;
-	const int                      daysExtant;
-	const double                   fixedCoupon,AMC,midPrice;
-	const std::string              couponFrequency;
-	const bool                     depositGteed,couponPaidOut;
-	int                            productDays;
-	std::vector <SpBarrier>        barrier;
+		couponPaidOut(couponPaidOut),AMC(AMC), depositGteed(depositGteed), daysExtant(daysExtant), midPrice(midPrice) {
+		
+	};
+	const std::vector <bool>        &allNonTradingDays;
+	const std::vector <std::string> &allDates;
+	const boost::gregorian::date    bProductStartDate;
+	const int                       daysExtant;
+	const double                    fixedCoupon,AMC,midPrice;
+	const std::string               couponFrequency;
+	const bool                      depositGteed,couponPaidOut;
+	int                             productDays;
+	std::vector <SpBarrier>         barrier;
 
 	// evaluate product at this point in time
 	void evaluate(const int totalNumDays, const int startPoint, const int lastPoint, const int numMcIterations, const int historyStep,
-		std::vector<UlTimeseries> &ulPrices, const std::vector<double> ulReturns[],
+		std::vector<UlTimeseries>   &ulPrices, const std::vector<double> ulReturns[],
 		const int numBarriers, const int numUl, const std::vector<int> ulIdNameMap, const std::vector<int> monDateIndx,
 		const double recoveryRate, const std::vector<double> hazardCurve,MyDB &mydb,double &accruedCoupon,const bool doAccruals){
-		int totalNumReturns  = totalNumDays - 1;
+		int              totalNumReturns  = totalNumDays - 1;
 		char             lineBuffer[1000], charBuffer[1000];
 		int              i, j, k, len;
 		double           couponValue;
@@ -587,15 +599,15 @@ public:
 			// start a product on each TRADING date
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
 				// wind forwards to next trading date
-				while (ulPrices.at(0).nonTradingDay.at(thisPoint) && thisPoint < lastPoint) {
+				while (allNonTradingDays.at(thisPoint) && thisPoint < lastPoint) {
 					thisPoint += 1;
 				}
 				if (thisPoint >= lastPoint){ continue; }
 
 				// initialise product
 				std::vector<bool> barrierWasHit(numBarriers);
-				std::string startDateString = ulPrices.at(0).date.at(thisPoint);
-				boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisPoint)));
+				std::string startDateString = allDates.at(thisPoint);
+				boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(allDates.at(thisPoint)));
 				bool   matured = false;
 				couponValue    = 0.0;
 				double thisPayoff;
@@ -616,7 +628,7 @@ public:
 							double thisExtremum;
 							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0           ){ firstPoint  = 0; }
 							int lastPoint  = thisPoint + thisBrel.endDays;   if (lastPoint  > totalNumDays){ lastPoint   = totalNumDays; }
-							std::vector<double>	&thisTimeseries = ulPrices.at(thisName).price;
+							const std::vector<double>	&thisTimeseries = ulPrices.at(thisName).price;
 							if (thisBrel.above) {
 								for (k = firstPoint, thisExtremum = -1.0e20; k<lastPoint; k++) {
 									if (thisTimeseries[k]>thisExtremum){ thisExtremum = thisTimeseries[k]; }
@@ -641,7 +653,7 @@ public:
 				for (int thisMonIndx = 0; !matured && thisMonIndx < monDateIndx.size(); thisMonIndx++){
 					int thisMonDays  = monDateIndx.at(thisMonIndx);
 					int thisMonPoint = thisPoint + thisMonDays;
-					const std::string   thisDateString(ulPrices.at(0).date.at(thisMonPoint));
+					const std::string   thisDateString(allDates.at(thisMonPoint));
 					for (i = 0; i < numUl; i++) {
 						thesePrices[i] = ulPrices.at(i).price.at(thisMonPoint);
 					}
@@ -666,7 +678,7 @@ public:
 										matured = true;
 										thisPayoff += couponValue + accruedCoupon;
 										if (couponFrequency.size()) {  // add fixed coupon
-											boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(ulPrices.at(0).date.at(thisMonPoint)));
+											boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(allDates.at(thisMonPoint)));
 											double daysElapsed = (bThisDate - bStartDate).days() + daysExtant;
 											char   freqChar = toupper(couponFrequency[1]);
 											double couponEvery = couponFrequency[0] - '0';
@@ -844,8 +856,8 @@ public:
 
 				sprintf(lineBuffer, "%s%.5lf", "update testcashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
-				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FirstDataDate='", ulPrices.at(0).date[0].c_str());
-				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',LastDataDate='", ulPrices.at(0).date[totalNumDays - 1].c_str());
+				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FirstDataDate='", allDates[0].c_str());
+				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',LastDataDate='", allDates[totalNumDays - 1].c_str());
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='", sharpeRatio);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='", winLose);

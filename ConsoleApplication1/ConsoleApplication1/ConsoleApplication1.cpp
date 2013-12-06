@@ -56,9 +56,7 @@ int _tmain(int argc, TCHAR* argv[])
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
 
 			productId = allProductIds.at(productIndx);
-			cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
-			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
-
+		
 			// get general info:  productType, barrierType
 			// ...productType
 			map<int, string> productTypeMap;
@@ -80,23 +78,27 @@ int _tmain(int argc, TCHAR* argv[])
 			// get product table data
 			enum {
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
-				colProductAMC = 43, colProductDepositGtee = 56, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductLast
+				colProductAMC = 43, colProductMaxIterations=55,colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 			retcode = mydb.fetch(true);
-			int  counterpartyId = atoi(szAllPrices[colProductCounterpartyId]);
-			bool depositGteed = atoi(szAllPrices[colProductDepositGtee]) == 1;
-			bool couponPaidOut = atoi(szAllPrices[colProductCouponPaidOut]) == 1;
-			productStartDateString = szAllPrices[colProductStrikeDate];
-			fixedCoupon = atof(szAllPrices[colProductFixedCoupon]);
-			bidPrice = atof(szAllPrices[colProductBid]);
-			askPrice = atof(szAllPrices[colProductAsk]);
-			AMC = atof(szAllPrices[colProductAMC]);
-			issuePrice = atof(szAllPrices[colProductIssuePrice]);
-			midPrice = ((bidPrice > 99.999) && (askPrice > 99.999) && (bidPrice < 100.001) && (askPrice < 100.001)) ? 1.0 : (bidPrice + askPrice) / (2.0*issuePrice);
+			int  thisNumIterations  = atoi(szAllPrices[colProductMaxIterations]); if (numMcIterations < thisNumIterations){ thisNumIterations = numMcIterations; }
+			int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
+			bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]) == 1;
+			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut]) == 1;
+			productStartDateString  = szAllPrices[colProductStrikeDate];
+			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
+			bidPrice                = atof(szAllPrices[colProductBid]);
+			askPrice                = atof(szAllPrices[colProductAsk]);
+			AMC                     = atof(szAllPrices[colProductAMC]);
+			issuePrice              = atof(szAllPrices[colProductIssuePrice]);
+			midPrice                = ((bidPrice > 99.999) && (askPrice > 99.999) && (bidPrice < 100.001) && (askPrice < 100.001)) ? 1.0 : (bidPrice + askPrice) / (2.0*issuePrice);
 			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
+			cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
+			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
+
 
 			// get counterparty info
 			// ...mult-issuer product's have comma-separated issuers...ASSUMED equal weight
@@ -150,7 +152,7 @@ int _tmain(int argc, TCHAR* argv[])
 			sprintf(lineBuffer, "%s%d%s", " where p0.underlyingId = '", ulIds.at(0), "'");
 			strcat(ulSql, lineBuffer);
 			if (numUl > 1) { for (i = 1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
-			if (numMcIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
+			if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
 			strcat(ulSql, " order by Date");
 			// ...call DB
 			mydb.prepare((SQLCHAR *)ulSql, numUl + 1);
@@ -188,9 +190,9 @@ int _tmain(int argc, TCHAR* argv[])
 				lastDate = bDate;
 				retcode = mydb.fetch(false);
 			}
-			totalNumDays = ulOriginalPrices.at(0).price.size();
+			totalNumDays    = ulOriginalPrices.at(0).price.size();
 			totalNumReturns = totalNumDays - 1;
-			ulPrices = ulOriginalPrices; // copy constructor called
+			ulPrices        = ulOriginalPrices; // copy constructor called
 			vector<double> thesePrices(numUl), startLevels(numUl);
 			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(ulOriginalPrices.at(0).date[totalNumDays - 1]));
 			cerr << "NumPrices:\t" << totalNumDays << "FirstDataDate:\t" << ulOriginalPrices.at(0).date[0] << endl;
@@ -201,7 +203,7 @@ int _tmain(int argc, TCHAR* argv[])
 			}
 
 			// create product
-			SProduct spr(productId, bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, depositGteed, daysExtant, midPrice);
+			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, depositGteed, daysExtant, midPrice);
 			numBarriers = 0;
 
 			// get barriers from DB
@@ -357,7 +359,7 @@ int _tmain(int argc, TCHAR* argv[])
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true);
 
 			// finally evaluate the product
-			spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, numMcIterations, historyStep, ulPrices, ulReturns,
+			spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, thisNumIterations, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false);
 			// tidy up
 
