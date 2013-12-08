@@ -880,6 +880,7 @@ public:
 				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
 
 				sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
+				std::cout << lineBuffer <<  std::endl;
 
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				retcode = mydb.execute(true);
