@@ -24,7 +24,7 @@ int _tmain(int argc, TCHAR* argv[])
 		RETCODE          retcode;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             **szAllPrices = new char*[maxUls];
-		vector<int>      allProductIds;
+		vector<int>      allProductIds; allProductIds.reserve(1000);
 		vector<string>   payoffType = { "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall" };
 		vector<int>::iterator intIterator, intIterator1;
 		for (int i = 0; i < maxUls; i++){
@@ -145,6 +145,12 @@ int _tmain(int argc, TCHAR* argv[])
 
 			// read underlying prices
 			vector<double>   ulReturns[maxUls];
+			for (i = 0; i < numUl; i++) {
+				ulReturns[i].reserve(10000); 
+				ulOriginalPrices[i].date.reserve(10000);
+				ulOriginalPrices[i].price.reserve(10000);
+				ulOriginalPrices[i].nonTradingDay.reserve(10000);
+			}
 			char ulSql[10000]; // enough for around 100 underlyings...
 			// ...form sql joins
 			sprintf(ulSql, "%s", "select p0.Date Date");
@@ -371,6 +377,9 @@ int _tmain(int argc, TCHAR* argv[])
 	// tidy up
 	catch (out_of_range){
 		cerr << "Out of Range error \n";
+	}
+	catch (bad_alloc){
+		cerr << "Out of Memory error \n";
 	}
 	catch (...){
 		cerr << "unknown error \n";

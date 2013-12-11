@@ -277,6 +277,7 @@ public:
 		const date bStartDate(from_simple_string(startDate));
 		const date bEndDate(from_simple_string(endDate));
 		const date bProductStartDate(from_simple_string(productStartDateString));
+		avgWasHit.reserve(2000);
 		runningAverage = 0.0;
 		runningAvgObs  = 0;
 		runningAvgDays = 0;
@@ -286,20 +287,20 @@ public:
 		// post-strike initialisation
 		if (daysExtant){
 			// ...compute moneyness
-			int lastIndx(ulTimeseries.price.size() - 1);
-			moneyness    = ulTimeseries.price.at(lastIndx) / ulTimeseries.price.at(lastIndx - daysExtant);
+			int lastIndx(ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
+			moneyness    = ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
 			strike      /= moneyness;
 			// ...compute running averages
 			if (avgDays && avgDays > endDays){
-				setLevels(ulTimeseries.price.at(lastIndx));
+				setLevels(ulTimeseries.price[lastIndx]);
 				for (int i = 0; endDays + i < avgDays;i++){
-					if (!ulTimeseries.nonTradingDay.at(lastIndx - i)  && runningAvgObs%avgFreq == 0){
-						switch(avgType){
+					if (!ulTimeseries.nonTradingDay[lastIndx - i]  && runningAvgObs%avgFreq == 0){
+						double p = ulTimeseries.price[lastIndx - i];
+						switch (avgType){
 						case 0: // level
-							runningAverage += ulTimeseries.price.at(lastIndx - i);
+							runningAverage += p;
 							break;
 						case 1: // proportional
-							double p = ulTimeseries.price.at(lastIndx - i);
 							avgWasHit.push_back( above ? (p>barrierLevel && (uBarrierLevel == NULL || p<uBarrierLevel) ? true : false) : (p<barrierLevel && (uBarrierLevel == NULL || p>uBarrierLevel) ? true : false));
 							break;
 						}
@@ -369,6 +370,8 @@ public:
 		proportionHits         = 1.0;
 		sumProportion          = 0.0;
 		proportionalAveraging  = avgDays > 0 && avgType == 1;
+		brel.reserve(10);
+		hit.reserve(100000);
 	};
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute;
@@ -415,7 +418,7 @@ public:
 		const std::vector<double> &thesePrices,
 		const double amc) {
 		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisAssetReturn,thisStrike;
-		std::vector<double> optionPayoffs;
+		std::vector<double> optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
 
 		switch (payoffTypeId) {
@@ -572,6 +575,7 @@ public:
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut),AMC(AMC), depositGteed(depositGteed), daysExtant(daysExtant), midPrice(midPrice) {
 		
+		barrier.reserve(100); // for more efficient push_back
 	};
 	const std::vector <bool>        &allNonTradingDays;
 	const std::vector <std::string> &allDates;
@@ -615,10 +619,10 @@ public:
 
 				for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-					SpBarrier &b(barrier.at(thisBarrier));
-					std::vector<double>	theseExtrema;
+					SpBarrier &b(barrier[thisBarrier]);
+					std::vector<double>	theseExtrema; theseExtrema.reserve(10);
 					for (unsigned int uI = 0; uI < b.brel.size(); uI++){
-						SpBarrierRelation &thisBrel(b.brel.at(uI));
+						SpBarrierRelation &thisBrel(b.brel[uI]);
 						thisBrel.setLevels(startLevels[uI]);
 						// cater for extremum barriers, where typically averaging does not apply to barrier hit test
 						// ...so set barrierWasHit[thisBarrier] if the extremum condition is met
@@ -651,16 +655,16 @@ public:
 
 				// go through each monitoring date
 				for (int thisMonIndx = 0; !matured && thisMonIndx < monDateIndx.size(); thisMonIndx++){
-					int thisMonDays  = monDateIndx.at(thisMonIndx);
+					int thisMonDays  = monDateIndx[thisMonIndx];
 					int thisMonPoint = thisPoint + thisMonDays;
 					const std::string   thisDateString(allDates.at(thisMonPoint));
 					for (i = 0; i < numUl; i++) {
-						thesePrices[i] = ulPrices.at(i).price.at(thisMonPoint);
+						thesePrices[i] = ulPrices[i].price.at(thisMonPoint);
 					}
 
 					// test each barrier
 					for (int thisBarrier = 0; !matured && thisBarrier<numBarriers; thisBarrier++){
-						SpBarrier &b(barrier.at(thisBarrier));
+						SpBarrier &b(barrier[thisBarrier]);
 						// is barrier alive
 						if (b.endDays == thisMonDays) {
 							// averaging/lookback - will replace thesePrices with their averages
@@ -728,7 +732,7 @@ public:
 					int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
 					for (i = 0; i < numUl; i++) {
 						double thisReturn; thisReturn = ulReturns[i][thisIndx];
-						ulPrices.at(i).price[j] = ulPrices.at(i).price[j - 1] * thisReturn;
+						ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
 					}
 				}
 			}
@@ -769,7 +773,7 @@ public:
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					SpBarrier &b(barrier.at(thisBarrier));
 					double thisBarrierSumPayoffs(0.0);
-					std::vector<double> thisBarrierPayoffs;
+					std::vector<double> thisBarrierPayoffs; thisBarrierPayoffs.reserve(100000);
 					int    numInstances = b.hit.size();
 					double sumProportion = b.sumProportion;
 					double thisYears = b.yearsToBarrier;
@@ -863,21 +867,21 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='", winLose);
 				std::time_t rawtime;	struct std::tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
 				strftime(charBuffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
-				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',WhenEvaluated='", charBuffer);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='", probEarliest);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='", probEarly);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR95);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='", esVol);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='", duration);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',NumResamples='", numMcIterations);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='", ecGain);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='", ecStrictGain);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='", ecLoss);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='", probGain);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='", probStrictGain);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='", probLoss);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='", eShortfall*100.0);
-				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
+				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',WhenEvaluated='", charBuffer);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='",  probEarliest);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='",     probEarly);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='",           vaR95);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='",         esVol);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='",      duration);
+				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumResamples='",  numMcIterations);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='",        ecGain);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='",  ecStrictGain);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='",        ecLoss);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='",      probGain);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='",probStrictGain);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='",      probLoss);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",    eShortfall*100.0);
+				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumEpisodes='",   numAllEpisodes);
 
 				sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 				std::cout << lineBuffer <<  std::endl;
