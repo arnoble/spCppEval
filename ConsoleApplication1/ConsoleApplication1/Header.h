@@ -330,6 +330,8 @@ public:
 };
 
 class SpBarrier {
+private:
+
 public:
 	SpBarrier(const int         barrierId,
 		const bool              capitalOrIncome,
@@ -373,6 +375,7 @@ public:
 		brel.reserve(10);
 		hit.reserve(100000);
 	};
+	// public members: DOME consider making private, in case we implement their content some other way
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute;
 	const double                    payoff, participation, param1;
@@ -387,7 +390,7 @@ public:
 	// number of days until barrier end date
 	int getEndDays() const { return endDays; }
 	// test if barrier is hit
-	bool isHit (std::vector<double> &thesePrices) const {  
+	bool isHit (const std::vector<double> &thesePrices) const {  
 		int j;
 		bool isHit  = isAnd;
 		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
@@ -428,7 +431,7 @@ public:
 			callOrPut = 1;
 		case putPayoff:
 			for (j = 0, len = brel.size(); j<len; j++) {
-				SpBarrierRelation &thisBrel(brel[j]);
+				const SpBarrierRelation &thisBrel(brel[j]);
 				n      = ulIdNameMap[thisBrel.underlying];
 				thisStrike = thisBrel.strike * startLevels[n] / thisBrel.moneyness;
 				thisRefLevel = startLevels[n] / thisBrel.moneyness;
@@ -463,7 +466,7 @@ public:
 			double basketFinal = 0.0, basketStart = 0.0, basketRef = 0.0;
 			for (j = 0, len = brel.size(); j<len; j++)
 			{
-				SpBarrierRelation &thisBrel(brel[j]);
+				const SpBarrierRelation &thisBrel(brel[j]);
 				int    n     = ulIdNameMap[thisBrel.underlying];
 				double w     = thisBrel.weight;
 				thisRefLevel = startLevels[n] / thisBrel.moneyness;
@@ -495,7 +498,7 @@ public:
 			switch (avgType) {
 			case 0: //averageLevels
 				for (int j = 0, len = brel.size(); j < len; j++) {
-					SpBarrierRelation thisBrel = brel[j];
+					const SpBarrierRelation& thisBrel = brel[j];
 					int n = ulIdNameMap[thisBrel.underlying];
 					std::vector<double> avgObs;
 					// create vector of observations
@@ -559,6 +562,13 @@ public:
 class SProduct {
 private:
 	int productId;
+	const std::vector <bool>        &allNonTradingDays;
+	const std::vector <std::string> &allDates;
+	const boost::gregorian::date    bProductStartDate;
+	const int                       daysExtant;
+	const double                    fixedCoupon, AMC, midPrice;
+	const std::string               couponFrequency;
+	const bool                      depositGteed, couponPaidOut;
 
 public:
 	SProduct(const int                  productId,
@@ -577,13 +587,8 @@ public:
 		
 		barrier.reserve(100); // for more efficient push_back
 	};
-	const std::vector <bool>        &allNonTradingDays;
-	const std::vector <std::string> &allDates;
-	const boost::gregorian::date    bProductStartDate;
-	const int                       daysExtant;
-	const double                    fixedCoupon,AMC,midPrice;
-	const std::string               couponFrequency;
-	const bool                      depositGteed,couponPaidOut;
+
+	// public members: DOME consider making private
 	int                             productDays;
 	std::vector <SpBarrier>         barrier;
 
@@ -619,10 +624,10 @@ public:
 
 				for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-					SpBarrier &b(barrier[thisBarrier]);
+					SpBarrier& b(barrier[thisBarrier]);
 					std::vector<double>	theseExtrema; theseExtrema.reserve(10);
 					for (unsigned int uI = 0; uI < b.brel.size(); uI++){
-						SpBarrierRelation &thisBrel(b.brel[uI]);
+						SpBarrierRelation& thisBrel(b.brel[uI]);
 						thisBrel.setLevels(startLevels[uI]);
 						// cater for extremum barriers, where typically averaging does not apply to barrier hit test
 						// ...so set barrierWasHit[thisBarrier] if the extremum condition is met
@@ -632,7 +637,7 @@ public:
 							double thisExtremum;
 							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0           ){ firstPoint  = 0; }
 							int lastPoint  = thisPoint + thisBrel.endDays;   if (lastPoint  > totalNumDays){ lastPoint   = totalNumDays; }
-							const std::vector<double>	&thisTimeseries = ulPrices.at(thisName).price;
+							const std::vector<double>&  thisTimeseries = ulPrices.at(thisName).price;
 							if (thisBrel.above) {
 								for (k = firstPoint, thisExtremum = -1.0e20; k<lastPoint; k++) {
 									if (thisTimeseries[k]>thisExtremum){ thisExtremum = thisTimeseries[k]; }
@@ -697,7 +702,7 @@ public:
 										couponValue += b.proportionHits*thisPayoff;
 										if (b.isMemory) {
 											for (k = 0; k<thisBarrier; k++) {
-												SpBarrier &bOther(barrier.at(k));
+												SpBarrier& bOther(barrier.at(k));
 												if (!bOther.capitalOrIncome && !barrierWasHit[k]) {
 													double payoffOther = bOther.payoff;
 													barrierWasHit[k] = true;
@@ -771,17 +776,16 @@ public:
 				double sumPayoffs(0.0), sumAnnRets(0.0), sumDuration(0.0);
 				int    numCapitalInstances(0);
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-					SpBarrier &b(barrier.at(thisBarrier));
-					double thisBarrierSumPayoffs(0.0);
+					const SpBarrier&    b(barrier.at(thisBarrier));
+					double              thisBarrierSumPayoffs(0.0);
 					std::vector<double> thisBarrierPayoffs; thisBarrierPayoffs.reserve(100000);
-					int    numInstances = b.hit.size();
-					double sumProportion = b.sumProportion;
-					double thisYears = b.yearsToBarrier;
-					//double prob             = (1.0*numInstances) / numAllEpisodes;
-					double prob = sumProportion / numAllEpisodes;
-					double thisProbDefault = probDefault(hazardCurve, thisYears);
+					int                 numInstances    = b.hit.size();
+					double              sumProportion   = b.sumProportion;
+					double              thisYears       = b.yearsToBarrier;
+					double              prob            = sumProportion / numAllEpisodes;
+					double              thisProbDefault = probDefault(hazardCurve, thisYears);
 					for (i = 0; i < b.hit.size(); i++){
-						double thisAmount = b.hit.at(i).amount;
+						double thisAmount = b.hit[i].amount;
 						// possibly apply credit adjustment
 						if (applyCredit) { thisAmount *= ((double)rand() / (RAND_MAX)) < thisProbDefault ? actualRecoveryRate : 1; }
 						thisBarrierPayoffs.push_back(thisAmount);
@@ -789,23 +793,23 @@ public:
 					}
 
 					if (b.capitalOrIncome) {
-						if (!foundEarliest){ foundEarliest = true; probEarliest = prob; }
-						if (b.settlementDate < lastSettlementDate) probEarly += prob;
-						sumDuration += numInstances*thisYears;
+						if (!foundEarliest)                        { foundEarliest = true; probEarliest = prob; }
+						if (b.settlementDate < lastSettlementDate) {                       probEarly   += prob; }
+						sumDuration         += numInstances*thisYears;
 						numCapitalInstances += numInstances;
-						sumPayoffs += b.sumPayoffs;
+						sumPayoffs          += b.sumPayoffs;
 						for (i = 0; i < b.hit.size(); i++){
-							double thisAmount = thisBarrierPayoffs.at(i);
+							double thisAmount = thisBarrierPayoffs[i];
 							double thisAnnRet = exp(log(thisAmount / midPrice) / thisYears) - 1.0;
 							allPayoffs.push_back(thisAmount);
 							allAnnRets.push_back(thisAnnRet);
 							sumAnnRets += thisAnnRet;
 							if (thisAmount >  1.0) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
-							if (thisAmount >= 1.0) { sumPosPayoffs += thisAmount; numPosPayoffs++;       sumPosDurations += thisYears; }
-							else                   { sumNegPayoffs += thisAmount; numNegPayoffs++;       sumNegDurations += thisYears; }
+							if (thisAmount >= 1.0) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
+							else                   { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
 						}
 					}
-					double mean = thisBarrierSumPayoffs / numInstances;
+					double mean      = thisBarrierSumPayoffs / numInstances;
 					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
@@ -824,13 +828,13 @@ public:
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
 				double averageReturn = sumAnnRets / numAnnRets;
-				double vaR95 = 100.0*allPayoffs[floor(numAnnRets*0.05)];
+				double vaR95         = 100.0*allPayoffs[floor(numAnnRets*0.05)];
 
 				// eShortfall, esVol
 				int numShortfall(floor(confLevel*allAnnRets.size()));
 				double eShortfall(0.0);	for (i = 0; i < numShortfall; i++){ eShortfall += allAnnRets[i]; }	eShortfall /= numShortfall;
-				double duration = sumDuration / numAnnRets;
-				double esVol = (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(.1);
+				double duration  = sumDuration / numAnnRets;
+				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(.1);
 				double scaledVol = esVol * sqrt(duration);
 				double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ geomReturn += log(allPayoffs[i] / midPrice); }
 				geomReturn = exp(geomReturn / sumDuration) - 1;
@@ -844,26 +848,26 @@ public:
 				for (j = 0; j<numAnnRets; j++) {
 					double ret = allAnnRets[j];
 					if (ret>0){ sumStrPosRet += ret; numStrPosRet++; }
-					if (ret<0){ sumNegRet += ret; numNegRet++; }
+					if (ret<0){ sumNegRet    += ret; numNegRet++; }
 					else { sumPosRet += ret; numPosRet++; }
 				}
 				double strPosDuration(sumStrPosDurations / numStrPosPayoffs), posDuration(sumPosDurations / numPosPayoffs), negDuration(sumNegDurations / numNegPayoffs);
-				double ecGain = 100.0*(numPosPayoffs ? exp(log(sumPosPayoffs / midPrice / numPosPayoffs) / posDuration) - 1.0 : 0.0);
-				double ecStrictGain = 100.0*(numStrPosPayoffs ? exp(log(sumStrPosPayoffs / midPrice / numStrPosPayoffs) / strPosDuration) - 1.0 : 0.0);
-				double ecLoss = -100.0*(numNegPayoffs ? exp(log(sumNegPayoffs / midPrice / numNegPayoffs) / negDuration) - 1.0 : 0.0);
-				double probGain = numPosRet ? ((double)numPosRet) / numAnnRets : 0;
+				double ecGain         = 100.0*(numPosPayoffs ? exp(log(sumPosPayoffs / midPrice / numPosPayoffs) / posDuration) - 1.0 : 0.0);
+				double ecStrictGain   = 100.0*(numStrPosPayoffs ? exp(log(sumStrPosPayoffs / midPrice / numStrPosPayoffs) / strPosDuration) - 1.0 : 0.0);
+				double ecLoss         = -100.0*(numNegPayoffs ? exp(log(sumNegPayoffs / midPrice / numNegPayoffs) / negDuration) - 1.0 : 0.0);
+				double probGain       = numPosRet ? ((double)numPosRet) / numAnnRets : 0;
 				double probStrictGain = numStrPosRet ? ((double)numStrPosRet) / numAnnRets : 0;
-				double probLoss = 1 - probGain;
-				double eGainRet = ecGain * probGain;
-				double eLossRet = ecLoss * probLoss;
-				double winLose = sumNegRet ? (eGainRet / eLossRet>1000.0 ? 1000.0 : eGainRet / eLossRet) : 1000.0;
+				double probLoss       = 1 - probGain;
+				double eGainRet       = ecGain * probGain;
+				double eLossRet       = ecLoss * probLoss;
+				double winLose        = sumNegRet ? (eGainRet / eLossRet>1000.0 ? 1000.0 : eGainRet / eLossRet) : 1000.0;
 
 				sprintf(lineBuffer, "%s%.5lf", "update testcashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
-				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FirstDataDate='", allDates[0].c_str());
-				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',LastDataDate='", allDates[totalNumDays - 1].c_str());
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='", sharpeRatio);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
+				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  allDates[0].c_str());
+				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   allDates[totalNumDays - 1].c_str());
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='",   riskCategory);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='", winLose);
 				std::time_t rawtime;	struct std::tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
 				strftime(charBuffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);

@@ -346,9 +346,12 @@ int _tmain(int argc, TCHAR* argv[])
 				retcode = mydb.fetch(false);
 			}
 
+
 			// further initialisation, given product info
 			spr.productDays = *max_element(monDateIndx.begin(), monDateIndx.end());
 			numMonPoints = monDateIndx.size();
+			// ...check product not matured
+			if (!numMonPoints || (numMonPoints == 1 && monDateIndx[0] == 0)){ continue; }
 			double maxYears = 0; for (i = 0; i<numBarriers; i++) { double t = spr.barrier.at(i).yearsToBarrier;   if (t > maxYears){ maxYears = t; } }
 			vector<double> fullCurve;             // populate a full annual CDS curve
 			for (j = 0; j<maxYears + 1; j++) {
@@ -371,8 +374,8 @@ int _tmain(int argc, TCHAR* argv[])
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false);
 			// tidy up
 
-		}
-	}
+		} // for each product
+	} // try
 
 	// tidy up
 	catch (out_of_range){
@@ -380,6 +383,9 @@ int _tmain(int argc, TCHAR* argv[])
 	}
 	catch (bad_alloc){
 		cerr << "Out of Memory error \n";
+	}
+	catch (length_error){
+		cerr << "Length error \n";
 	}
 	catch (...){
 		cerr << "unknown error \n";
