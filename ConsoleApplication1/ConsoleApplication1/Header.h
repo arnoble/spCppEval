@@ -598,7 +598,7 @@ public:
 		const int numBarriers, const int numUl, const std::vector<int> ulIdNameMap, const std::vector<int> monDateIndx,
 		const double recoveryRate, const std::vector<double> hazardCurve,MyDB &mydb,double &accruedCoupon,const bool doAccruals){
 		int              totalNumReturns  = totalNumDays - 1;
-		char             lineBuffer[1000], charBuffer[1000];
+		char             lineBuffer[5000], charBuffer[1000];
 		int              i, j, k, len;
 		double           couponValue;
 		RETCODE          retcode;
@@ -829,6 +829,28 @@ public:
 				sort(allAnnRets.begin(), allAnnRets.end());
 				double averageReturn = sumAnnRets / numAnnRets;
 				double vaR95         = 100.0*allPayoffs[floor(numAnnRets*0.05)];
+
+				// pctiles
+				double minReturn = allAnnRets[0];
+				std::vector<double>    returnBucket;
+				std::vector<double>    bucketProb;
+				for (i = j = 0; i < numAnnRets; i++) {
+					if (allAnnRets[i] <= minReturn) { j += 1; }
+					else { returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets); j = 0; minReturn += 0.01; }
+				}
+				returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets);
+				sprintf(lineBuffer, "%s%d%s", "delete from pctiles where productid='", productId, "';");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.execute(true);
+				sprintf(lineBuffer, "%s", "insert into pctiles values ");
+				for (i=0; i < returnBucket.size();i++){
+					if (i != 0){ sprintf(lineBuffer, "%s%s", lineBuffer,","); }
+					sprintf(lineBuffer, "%s%s%d%s%.4lf%s%.6lf%s%d%s%d%s", lineBuffer,"(",productId,",",100.0*returnBucket[i],",",bucketProb[i],",",numMcIterations,",",0,")");
+				}
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.execute(true);
+
+
 
 				// eShortfall, esVol
 				int numShortfall(floor(confLevel*allAnnRets.size()));
