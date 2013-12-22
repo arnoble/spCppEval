@@ -598,7 +598,7 @@ public:
 		const int numBarriers, const int numUl, const std::vector<int> ulIdNameMap, const std::vector<int> monDateIndx,
 		const double recoveryRate, const std::vector<double> hazardCurve,MyDB &mydb,double &accruedCoupon,const bool doAccruals){
 		int              totalNumReturns  = totalNumDays - 1;
-		char             lineBuffer[5000], charBuffer[1000];
+		char             lineBuffer[50000], charBuffer[1000];
 		int              i, j, k, len;
 		double           couponValue;
 		RETCODE          retcode;
