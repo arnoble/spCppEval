@@ -78,7 +78,7 @@ int _tmain(int argc, TCHAR* argv[])
 			// get product table data
 			enum {
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
-				colProductAMC = 43, colProductMaxIterations=55,colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductLast
+				colProductAMC = 43, colProductMaxIterations=55,colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductCollateralised,colProductLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -87,8 +87,9 @@ int _tmain(int argc, TCHAR* argv[])
 			if (numMcIterations < thisNumIterations){ thisNumIterations = numMcIterations; }
 			if (thisNumIterations<1)                { thisNumIterations = 1; }
 			int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
-			bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]) == 1;
-			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut]) == 1;
+			bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]   ) == 1;
+			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
+			bool collateralised     = atoi(szAllPrices[colProductCollateralised]) == 1;
 			productStartDateString  = szAllPrices[colProductStrikeDate];
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
 			bidPrice                = atof(szAllPrices[colProductBid]);
@@ -211,7 +212,8 @@ int _tmain(int argc, TCHAR* argv[])
 			}
 
 			// create product
-			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, depositGteed, daysExtant, midPrice);
+			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, depositGteed, 
+				collateralised,daysExtant, midPrice);
 			numBarriers = 0;
 
 			// get barriers from DB

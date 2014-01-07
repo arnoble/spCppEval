@@ -568,7 +568,7 @@ private:
 	const int                       daysExtant;
 	const double                    fixedCoupon, AMC, midPrice;
 	const std::string               couponFrequency;
-	const bool                      depositGteed, couponPaidOut;
+	const bool                      depositGteed, collateralised,couponPaidOut;
 
 public:
 	SProduct(const int                  productId,
@@ -579,11 +579,12 @@ public:
 		const bool                      couponPaidOut,
 		const double                    AMC, 
 		const bool                      depositGteed, 
-		const int                       daysExtant, 
+		const bool                      collateralised,
+		const int                       daysExtant,
 		const double                    midPrice)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
-		couponPaidOut(couponPaidOut),AMC(AMC), depositGteed(depositGteed), daysExtant(daysExtant), midPrice(midPrice) {
+		couponPaidOut(couponPaidOut), AMC(AMC), depositGteed(depositGteed), collateralised(collateralised), daysExtant(daysExtant), midPrice(midPrice) {
 		
 		barrier.reserve(100); // for more efficient push_back
 	};
@@ -761,7 +762,7 @@ public:
 				}
 			}
 			std::string   lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
-			double   actualRecoveryRate = depositGteed ? 0.9 : recoveryRate;
+			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			for (int analyseCase = 0; analyseCase < 2; analyseCase++) {
 				bool     applyCredit = analyseCase == 1;
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
