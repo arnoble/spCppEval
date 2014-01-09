@@ -333,6 +333,7 @@ public:
 
 class SpBarrier {
 private:
+	
 
 public:
 	SpBarrier(const int         barrierId,
@@ -572,6 +573,7 @@ private:
 	const double                    fixedCoupon, AMC, midPrice;
 	const std::string               couponFrequency;
 	const bool                      depositGteed, collateralised,couponPaidOut;
+	
 
 public:
 	SProduct(const int                  productId,
@@ -605,7 +607,16 @@ public:
 		char             lineBuffer[50000], charBuffer[1000];
 		int              i, j, k, len;
 		double           couponValue;
+		int              numIncomeBarriers(0);
 		RETCODE          retcode;
+
+		// init
+		if (!doAccruals){
+			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+				if (!barrier[thisBarrier].capitalOrIncome) { numIncomeBarriers  += 1; }
+			}
+		}
+		std::vector<int>   numCouponHits(numIncomeBarriers+1);
 
 		// main MC loop
 		for (int thisIteration = 0; thisIteration < numMcIterations; thisIteration++) {
@@ -618,13 +629,13 @@ public:
 				if (thisPoint >= lastPoint){ continue; }
 
 				// initialise product
-				std::vector<bool> barrierWasHit(numBarriers);
-				std::string startDateString = allDates.at(thisPoint);
+				std::vector<bool>      barrierWasHit(numBarriers);
+				std::string            startDateString = allDates.at(thisPoint);
 				boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(allDates.at(thisPoint)));
-				bool   matured = false;
+				bool                   matured = false;
 				couponValue    = 0.0;
-				double thisPayoff;
-				std::vector<double> thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl);
+				double                 thisPayoff;
+				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl);
 
 				for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
@@ -733,6 +744,12 @@ public:
 						}
 					}
 				}
+				// collect statistics for this product episode
+				int thisNumCouponHits=0;
+				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+					if (!barrier[thisBarrier].capitalOrIncome && barrierWasHit[thisBarrier]){ thisNumCouponHits += 1;}
+				}
+				numCouponHits.at(thisNumCouponHits) += 1;
 			}
 
 			// create new random sample for next iteration
@@ -759,12 +776,31 @@ public:
 		}
 		else {
 			int numAllEpisodes(0);
+			bool hasProportionalAvg(false);   // no couponHistogram
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				if (barrier.at(thisBarrier).capitalOrIncome) {
 					numAllEpisodes += barrier.at(thisBarrier).hit.size();
 				}
+				hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
 			}
-			std::string   lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
+
+			// couponHistogram
+			if (!hasProportionalAvg && numIncomeBarriers){
+				// ** delete old
+				sprintf(lineBuffer, "%s%d%s%d%s",
+					"delete from couponhistogram where ProductId='", productId, "' and IsBootstrapped='", numMcIterations == 1 ? 0:1, "'");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				// ** insert new
+				for (int thisNumHits=0; thisNumHits < numCouponHits.size(); thisNumHits++){
+					sprintf(lineBuffer, "%s%d%s%d%s%.5lf%s%d%s",
+					"insert into couponhistogram (ProductId,NumCoupons,Prob,IsBootstrapped) values (",productId,",",
+					thisNumHits, ",", ((double)numCouponHits[thisNumHits]) / numAllEpisodes, ",", numMcIterations == 1 ? 0 : 1, ")");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
+			}
+
+
+			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			for (int analyseCase = 0; analyseCase < 2; analyseCase++) {
 				bool     applyCredit = analyseCase == 1;
