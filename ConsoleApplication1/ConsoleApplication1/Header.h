@@ -853,7 +853,7 @@ public:
 					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
-					sprintf(lineBuffer, "%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update testbarrierprob set Prob='", prob,
+					sprintf(lineBuffer, "%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update barrierprob set Prob='", prob,
 						"',AnnReturn='", annReturn,
 						"',CondPayoff='", mean,
 						"',NumInstances='", numInstances,
@@ -926,7 +926,7 @@ public:
 				double eLossRet       = ecLoss * probLoss;
 				double winLose        = sumNegRet ? (eGainRet / eLossRet>1000.0 ? 1000.0 : eGainRet / eLossRet) : 1000.0;
 
-				sprintf(lineBuffer, "%s%.5lf", "update testcashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
+				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  allDates[0].c_str());
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   allDates[totalNumDays - 1].c_str());
