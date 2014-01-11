@@ -380,8 +380,8 @@ int _tmain(int argc, TCHAR* argv[])
 	} // try
 
 	// tidy up
-	catch (out_of_range){
-		cerr << "Out of Range error \n";
+	catch (out_of_range oor){
+		cerr << "Out of Range error \n" << oor.what();
 	}
 	catch (bad_alloc){
 		cerr << "Out of Memory error \n";

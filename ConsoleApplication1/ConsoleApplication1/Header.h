@@ -613,7 +613,7 @@ public:
 		// init
 		if (!doAccruals){
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-				if (!barrier[thisBarrier].capitalOrIncome) { numIncomeBarriers  += 1; }
+				if (!barrier.at(thisBarrier).capitalOrIncome) { numIncomeBarriers  += 1; }
 			}
 		}
 		std::vector<int>   numCouponHits(numIncomeBarriers+1);
@@ -637,16 +637,16 @@ public:
 				double                 thisPayoff;
 				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl);
 
-				for (i = 0; i < numUl; i++) { startLevels[i] = ulPrices.at(i).price.at(thisPoint); }
+				for (i = 0; i < numUl; i++) { startLevels.at(i) = ulPrices.at(i).price.at(thisPoint); }
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-					SpBarrier& b(barrier[thisBarrier]);
+					SpBarrier& b(barrier.at(thisBarrier));
 					std::vector<double>	theseExtrema; theseExtrema.reserve(10);
 					for (unsigned int uI = 0; uI < b.brel.size(); uI++){
-						SpBarrierRelation& thisBrel(b.brel[uI]);
-						thisBrel.setLevels(startLevels[uI]);
+						SpBarrierRelation& thisBrel(b.brel.at(uI));
+						thisBrel.setLevels(startLevels.at(uI));
 						// cater for extremum barriers, where typically averaging does not apply to barrier hit test
 						// ...so set barrierWasHit[thisBarrier] if the extremum condition is met
-						int thisName = ulIdNameMap[thisBrel.underlying];
+						int thisName = ulIdNameMap.at(thisBrel.underlying);
 						// check to see if extremumBarriers hit
 						if (b.isExtremum) {
 							double thisExtremum;
@@ -668,7 +668,7 @@ public:
 						}
 					}
 					if (b.isExtremum) {
-						barrierWasHit[thisBarrier] = b.hasBeenHit || b.isHit(theseExtrema);
+						barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(theseExtrema);
 						if (doAccruals){ b.hasBeenHit = barrierWasHit[thisBarrier]; }  // for post-strike deals, record if barriers have already been hit
 					}
 				}
@@ -745,11 +745,13 @@ public:
 					}
 				}
 				// collect statistics for this product episode
-				int thisNumCouponHits=0;
-				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-					if (!barrier[thisBarrier].capitalOrIncome && barrierWasHit[thisBarrier]){ thisNumCouponHits += 1;}
+				if (!doAccruals){
+					int thisNumCouponHits=0;
+					for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+						if (!barrier[thisBarrier].capitalOrIncome && barrierWasHit[thisBarrier]){ thisNumCouponHits += 1; }
+					}
+					numCouponHits.at(thisNumCouponHits) += 1;
 				}
-				numCouponHits.at(thisNumCouponHits) += 1;
 			}
 
 			// create new random sample for next iteration
