@@ -393,7 +393,9 @@ public:
 	// number of days until barrier end date
 	int getEndDays() const { return endDays; }
 	// test if barrier is hit
-	bool isHit (const std::vector<double> &thesePrices) const {  
+	// ...set useUlMap to false if you have more thesePrices than numUnderlyings...for example product #217 has barriers with brels keyed to the same underlying
+	//     so that a barrier can have multiple barrierRelations on the same underlying
+	bool isHit (const std::vector<double> &thesePrices,	const bool useUlMap) const {  
 		int j;
 		bool isHit  = isAnd;
 		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
@@ -402,7 +404,8 @@ public:
 
 		for (j = 0; j<numBrel; j++) {
 			const SpBarrierRelation &thisBrel(brel[j]);
-			int    thisIndx;       thisIndx    = ulIdNameMap[thisBrel.underlying];
+			int    thisIndx;       
+			thisIndx    = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
 			bool   above;          above       = thisBrel.above;
 			double thisUlPrice;    thisUlPrice = thesePrices[thisIndx];
 			double diff;           diff        = thisUlPrice - thisBrel.barrierLevel;
@@ -551,7 +554,7 @@ public:
 							int n = ulIdNameMap[thisBrel.underlying];
 							testPrices.push_back(ulPrices.at(n).price.at(thisMonPoint - k));
 						}
-						numHits += isHit(testPrices) ? 1 : 0;
+						numHits += isHit(testPrices,true) ? 1 : 0;
 						numPossibleHits += 1;
 					}
 				}
@@ -643,23 +646,23 @@ public:
 					std::vector<double>	theseExtrema; theseExtrema.reserve(10);
 					for (unsigned int uI = 0; uI < b.brel.size(); uI++){
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
-						thisBrel.setLevels(startLevels.at(uI));
+						int thisName = ulIdNameMap.at(thisBrel.underlying);
+						thisBrel.setLevels(startLevels.at(thisName));
 						// cater for extremum barriers, where typically averaging does not apply to barrier hit test
 						// ...so set barrierWasHit[thisBarrier] if the extremum condition is met
-						int thisName = ulIdNameMap.at(thisBrel.underlying);
 						// check to see if extremumBarriers hit
 						if (b.isExtremum) {
 							double thisExtremum;
 							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0           ){ firstPoint  = 0; }
-							int lastPoint  = thisPoint + thisBrel.endDays;   if (lastPoint  > totalNumDays){ lastPoint   = totalNumDays; }
+							int lastPoint  = thisPoint + thisBrel.endDays;   if (lastPoint  > totalNumDays-1){ lastPoint   = totalNumDays-1; }
 							const std::vector<double>&  thisTimeseries = ulPrices.at(thisName).price;
 							if (thisBrel.above) {
-								for (k = firstPoint, thisExtremum = -1.0e20; k<lastPoint; k++) {
+								for (k = firstPoint, thisExtremum = -1.0e20; k <= lastPoint; k++) {
 									if (thisTimeseries[k]>thisExtremum){ thisExtremum = thisTimeseries[k]; }
 								}
 							}
 							else {
-								for (k = firstPoint, thisExtremum = 1.0e20; k < lastPoint; k++) {
+								for (k = firstPoint, thisExtremum = 1.0e20; k <= lastPoint; k++) {
 									if (thisTimeseries[k] < thisExtremum){ thisExtremum = thisTimeseries[k]; }
 								}
 							}
@@ -668,7 +671,7 @@ public:
 						}
 					}
 					if (b.isExtremum) {
-						barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(theseExtrema);
+						barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(theseExtrema,false);
 						if (doAccruals){ b.hasBeenHit = barrierWasHit[thisBarrier]; }  // for post-strike deals, record if barriers have already been hit
 					}
 				}
@@ -690,7 +693,7 @@ public:
 							// averaging/lookback - will replace thesePrices with their averages
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint);
 							// is barrier hit
-							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices)){
+							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices,true)){
 								barrierWasHit[thisBarrier] = true;
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC);
 								if (b.capitalOrIncome){
@@ -739,7 +742,7 @@ public:
 							}
 							else {
 								// in case you want to see why not hit
-								// b.isHit(thesePrices);
+								// b.isHit(thesePrices,true);
 							}
 						}
 					}
