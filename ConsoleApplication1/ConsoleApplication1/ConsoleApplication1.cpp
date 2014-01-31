@@ -22,6 +22,7 @@ int _tmain(int argc, TCHAR* argv[])
 		SQLHENV          hEnv = NULL;		    // Env Handle from SQLAllocEnv()
 		SQLHDBC          hDBC = NULL;         // Connection handle
 		RETCODE          retcode;
+		SomeCurve        anyCurve;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
@@ -50,7 +51,7 @@ int _tmain(int argc, TCHAR* argv[])
 			int              i, j, len, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId;
 			double           barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
-			string           couponFrequency, productStartDateString, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
+			string           couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
 			bool             capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
@@ -77,7 +78,7 @@ int _tmain(int argc, TCHAR* argv[])
 
 			// get product table data
 			enum {
-				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
+				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
 				colProductAMC = 43, colProductMaxIterations=55,colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductCollateralised,colProductLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
@@ -91,6 +92,7 @@ int _tmain(int argc, TCHAR* argv[])
 			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
 			bool collateralised     = atoi(szAllPrices[colProductCollateralised]) == 1;
 			productStartDateString  = szAllPrices[colProductStrikeDate];
+			productCcy              = szAllPrices[colProductCcy];
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
 			bidPrice                = atof(szAllPrices[colProductBid]);
 			askPrice                = atof(szAllPrices[colProductAsk]);
@@ -126,6 +128,20 @@ int _tmain(int argc, TCHAR* argv[])
 				cdsSpread.push_back(atof(szAllPrices[1]) / 10000.0);
 				retcode = mydb.fetch(false);
 			}
+
+			// get baseCurve
+			sprintf(lineBuffer, "%s%s%s", "select Tenor,Rate/100 Spread from curve where ccy='", productCcy.c_str(),
+				"' order by Tenor");
+			mydb.prepare((SQLCHAR *)lineBuffer, 2);
+			retcode = mydb.fetch(false);
+			vector<SomeCurve> baseCurve;
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+				anyCurve.tenor  = atof(szAllPrices[0]);
+				anyCurve.spread = atof(szAllPrices[1]);
+				baseCurve.push_back(anyCurve);
+				retcode = mydb.fetch(false);
+			}
+
 
 			// get underlyingids for this product from DB
 			vector<int> ulIds;
@@ -213,7 +229,7 @@ int _tmain(int argc, TCHAR* argv[])
 
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, depositGteed, 
-				collateralised,daysExtant, midPrice);
+				collateralised, daysExtant, midPrice, baseCurve);
 			numBarriers = 0;
 
 			// get barriers from DB

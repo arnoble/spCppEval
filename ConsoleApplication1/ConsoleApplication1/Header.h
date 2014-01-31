@@ -118,8 +118,8 @@ enum { uFnLargest = 1, uFnLargestN };
 
 
 
-
-
+// *************** STRUCTS
+typedef struct someCurve { double tenor, spread; } SomeCurve;
 
 
 // *************** CLASSES
@@ -386,7 +386,7 @@ public:
 	const std::vector<int>          ulIdNameMap;
 	bool                            hasBeenHit, isExtremum, isContinuous, proportionalAveraging;
 	int                             endDays;
-	double                          strike, cap, yearsToBarrier, sumPayoffs, proportionHits, sumProportion;
+	double                          strike, cap, yearsToBarrier, sumPayoffs, proportionHits, sumProportion,forwardRate;
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
 
@@ -576,7 +576,7 @@ private:
 	const double                    fixedCoupon, AMC, midPrice;
 	const std::string               couponFrequency;
 	const bool                      depositGteed, collateralised,couponPaidOut;
-	
+	const std::vector<SomeCurve>    baseCurve;
 
 public:
 	SProduct(const int                  productId,
@@ -589,17 +589,21 @@ public:
 		const bool                      depositGteed, 
 		const bool                      collateralised,
 		const int                       daysExtant,
-		const double                    midPrice)
+		const double                    midPrice,
+		const std::vector<SomeCurve>    baseCurve)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
-		couponPaidOut(couponPaidOut), AMC(AMC), depositGteed(depositGteed), collateralised(collateralised), daysExtant(daysExtant), midPrice(midPrice) {
+		couponPaidOut(couponPaidOut), AMC(AMC), depositGteed(depositGteed), collateralised(collateralised), daysExtant(daysExtant), 
+		midPrice(midPrice),baseCurve(baseCurve) {
 		
+		for (int i=0; i < baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 		barrier.reserve(100); // for more efficient push_back
 	};
 
 	// public members: DOME consider making private
 	int                             productDays;
 	std::vector <SpBarrier>         barrier;
+	std::vector <double>            baseCurveTenor, baseCurveSpread;
 
 	// evaluate product at this point in time
 	void evaluate(const int totalNumDays, const int startPoint, const int lastPoint, const int numMcIterations, const int historyStep,
@@ -620,7 +624,10 @@ public:
 			}
 		}
 		std::vector<int>   numCouponHits(numIncomeBarriers+1);
-
+		for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+			SpBarrier& b(barrier.at(thisBarrier));
+			b.forwardRate            = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, b.yearsToBarrier); // DOME: very crude for now
+		}
 		// main MC loop
 		for (int thisIteration = 0; thisIteration < numMcIterations; thisIteration++) {
 			// start a product on each TRADING date
@@ -703,28 +710,48 @@ public:
 										// ...could just use this predicate around the next block: 
 										// if(!(thisBarrier.payoffType === 'put' && thisBarrier.Participation<0 && optionPayoff === 0) ){
 										matured = true;
+										// add forwardValue of paidOutCoupons
+										if (couponPaidOut) {
+											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
+												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier]){
+													SpBarrier &ib(barrier[paidOutBarrier]);
+													couponValue   += ib.proportionHits*ib.payoff*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
+												}
+											}
+										}
 										thisPayoff += couponValue + accruedCoupon;
 										if (couponFrequency.size()) {  // add fixed coupon
 											boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(allDates.at(thisMonPoint)));
-											double daysElapsed = (bThisDate - bStartDate).days() + daysExtant;
-											char   freqChar = toupper(couponFrequency[1]);
-											double couponEvery = couponFrequency[0] - '0';
+											char   freqChar     = toupper(couponFrequency[1]);
+											double couponEvery  = couponFrequency[0] - '0';
 											double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 360;
-											thisPayoff += fixedCoupon*floor(daysElapsed / daysPerEvery / couponEvery);
+											double daysElapsed  = (bThisDate - bStartDate).days() + daysExtant;
+											double couponPeriod = daysPerEvery*couponEvery;
+											if (couponPaidOut){
+												daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod;
+											}
+											double numFixedCoupons = floor(daysElapsed / couponPeriod);
+											double periodicRate    = exp(log(b.forwardRate) * (daysPerEvery/360));
+											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
+											thisPayoff += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
 										}
 									}
 								}
 								else {
 									barrierWasHit[thisBarrier] = true;
 									if (!couponPaidOut || b.endDays >= 0) {
-										couponValue += b.proportionHits*thisPayoff;
+										if (!couponPaidOut){
+											couponValue += b.proportionHits*thisPayoff;
+										}
 										if (b.isMemory) {
 											for (k = 0; k<thisBarrier; k++) {
 												SpBarrier& bOther(barrier.at(k));
 												if (!bOther.capitalOrIncome && !barrierWasHit[k]) {
 													double payoffOther = bOther.payoff;
 													barrierWasHit[k] = true;
-													couponValue += payoffOther;
+													if (!couponPaidOut){
+														couponValue += payoffOther;
+													}
 													// only store a hit if this barrier is in the future
 													if (thisMonDays>0){
 														bOther.storePayoff(thisDateString, payoffOther, 1.0);
