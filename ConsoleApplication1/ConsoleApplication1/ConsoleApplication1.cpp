@@ -8,15 +8,19 @@ using namespace std;
 
 
 
-int _tmain(int argc, TCHAR* argv[])
+int _tmain(int argc, _TCHAR* argv[])
 {
 	try{
 		// initialise
-		if (argc != 4){ cout << "Usage: startId stopId numIterations" << endl;  exit(0); }
+		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments>" << endl;  exit(0); }
 		int              historyStep = 1;
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 363;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 363;
 		int              numMcIterations = argc > 3 ? _ttoi(argv[3]) : 100;
+		bool             forceIterations(false);
+		if (argc>4){
+			forceIterations = _ttoi(argv[4]) == 1;
+		}
 		const int        maxUls(100);
 		const int        bufSize(1000);
 		SQLHENV          hEnv = NULL;		    // Env Handle from SQLAllocEnv()
@@ -84,7 +88,7 @@ int _tmain(int argc, TCHAR* argv[])
 			sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 			retcode = mydb.fetch(true);
-			int  thisNumIterations  = atoi(szAllPrices[colProductMaxIterations]); 
+			int  thisNumIterations  = forceIterations ? numMcIterations : atoi(szAllPrices[colProductMaxIterations]);
 			if (numMcIterations < thisNumIterations){ thisNumIterations = numMcIterations; }
 			if (thisNumIterations<1)                { thisNumIterations = 1; }
 			int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
