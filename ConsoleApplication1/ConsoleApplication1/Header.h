@@ -13,8 +13,6 @@
 #include <stdio.h>
 #include <vector>
 #include <regex>
-
-
 // cds functions
 double interpCurve(std::vector<double> curveTimes, std::vector<double> curveValues,double point){
 	int len = curveTimes.size();
@@ -565,6 +563,45 @@ public:
 	}
 };
 
+
+
+// math functions
+double PayoffMean(const std::vector<SpBarrier> &barrier){
+	int                 numInstances(0);
+	double              sumPayoffs(0.0);
+	for (int thisBarrier = 0; thisBarrier < barrier.size(); thisBarrier++){
+		const SpBarrier&    b(barrier.at(thisBarrier));
+		if (b.capitalOrIncome) {
+			numInstances    += b.hit.size();
+			for (int i = 0; i < b.hit.size(); i++){
+				sumPayoffs += b.hit[i].amount;
+			}
+		}
+	}
+	return (sumPayoffs / numInstances);
+}
+
+double PayoffStdev(const std::vector<SpBarrier> &barrier, const double mean){
+	int                 numInstances(0);
+	double              sumVariance(0.0);
+	for (int thisBarrier = 0; thisBarrier < barrier.size(); thisBarrier++){
+		const SpBarrier&    b(barrier.at(thisBarrier));
+		if (b.capitalOrIncome) {
+			numInstances    += b.hit.size();
+			for (int i = 0; i < b.hit.size(); i++){
+				double thisAmount = (b.hit[i].amount - mean);
+				sumVariance += thisAmount*thisAmount;
+			}
+		}
+	}
+	return sqrt(sumVariance / numInstances);
+}
+
+
+
+
+
+
 // structured product
 class SProduct {
 private:
@@ -610,12 +647,13 @@ public:
 		std::vector<UlTimeseries>   &ulPrices, const std::vector<double> ulReturns[],
 		const int numBarriers, const int numUl, const std::vector<int> ulIdNameMap, const std::vector<int> monDateIndx,
 		const double recoveryRate, const std::vector<double> hazardCurve,MyDB &mydb,double &accruedCoupon,const bool doAccruals){
-		int              totalNumReturns  = totalNumDays - 1;
-		char             lineBuffer[50000], charBuffer[1000];
-		int              i, j, k, len;
-		double           couponValue;
-		int              numIncomeBarriers(0);
-		RETCODE          retcode;
+		int                 totalNumReturns  = totalNumDays - 1;
+		char                lineBuffer[50000], charBuffer[1000];
+		int                 i, j, k, len, thisIteration;
+		double              couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
+		std::vector<double> stdevRatioPctChanges;
+		int                 numIncomeBarriers(0);
+		RETCODE             retcode;
 
 		// init
 		if (!doAccruals){
@@ -628,8 +666,42 @@ public:
 			SpBarrier& b(barrier.at(thisBarrier));
 			b.forwardRate            = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, b.yearsToBarrier); // DOME: very crude for now
 		}
+
+		// prebuild all nonparametric bootstrap samples in resampledIndexes
+		std::vector<std::vector <int>> resampledIndexs;
+		if (numMcIterations>1) {
+			// balancedResampling (and antithetic): ensures each real observation is sampled roughly equally; more effective than antithetic
+			int concatenatedBlocks = (int)floor(numMcIterations / 2.0) + 1;
+			std::vector<int> concatenatedSample; concatenatedSample.reserve(totalNumReturns*concatenatedBlocks);
+			for (i=0; i<concatenatedBlocks; i++) { 
+				for (j=0; j < totalNumReturns; j++) {
+					concatenatedSample.push_back(j);
+				}
+			}
+			int concatenatedLength = concatenatedSample.size();
+			// permutations will now give balanced sample
+			for (int bootSample=0; bootSample<numMcIterations; bootSample++) {
+				if (bootSample % 2 == 0) {
+					std::vector<int> oneBootstrapSample; oneBootstrapSample.reserve(totalNumReturns);
+					for (j=0; j<totalNumReturns; j++, concatenatedLength--) {
+						int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(concatenatedLength - 1));
+						oneBootstrapSample.push_back(concatenatedSample[thisIndx]);
+					}
+					resampledIndexs.push_back(oneBootstrapSample); 
+				}
+			}
+		}
+
+
+
+
+
+
+
+
+
 		// main MC loop
-		for (int thisIteration = 0; thisIteration < numMcIterations; thisIteration++) {
+		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.1; thisIteration++) {
 			// start a product on each TRADING date
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
 				// wind forwards to next trading date
@@ -786,15 +858,48 @@ public:
 
 			// create new random sample for next iteration
 			if (numMcIterations>1){
-				for (j = 1; j < totalNumReturns; j++){
-					int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
-					for (i = 0; i < numUl; i++) {
-						double thisReturn; thisReturn = ulReturns[i][thisIndx];
-						ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+				bool useNewMethod(true);				
+				if (useNewMethod){   // NEW representative and antithetic sampling
+					int thisAntithetic = (int)floor(thisIteration / 2.0);
+					std::vector<int> &thisTrace(resampledIndexs[thisAntithetic]);
+					bool useAntithetic = thisIteration % 2 == 0;
+					for (j = 1; j < totalNumReturns; j++){
+						int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j] - 1 : thisTrace[j];
+						for (i = 0; i < numUl; i++) {
+							double thisReturn; thisReturn = ulReturns[i][thisIndx];
+							ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+						}
 					}
 				}
+				else{   // OLD method KEEP
+					for (j = 1; j < totalNumReturns; j++){
+						int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
+						for (i = 0; i < numUl; i++) {
+							double thisReturn; thisReturn = ulReturns[i][thisIndx];
+							ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+						}
+					}
+				}
+
 			}
 			std::cout << ".";
+			if (thisIteration>750 && (thisIteration + 1) % 100 == 0){
+				double thisMean       = PayoffMean(barrier);
+				double thisStdevRatio = PayoffStdev(barrier, thisMean) / thisMean;
+				double thisChange     = floor(10000.0*(thisStdevRatio - stdevRatio) / stdevRatio) / 100.0;
+				const int numSigChanges(3);
+				stdevRatioPctChanges.push_back(fabs(thisChange));
+				int numStdevRatioPctChanges = stdevRatioPctChanges.size();
+				if (numStdevRatioPctChanges > numSigChanges){
+					double sumChanges(0.0);
+					for (int j=numStdevRatioPctChanges - 1; j >= numStdevRatioPctChanges - numSigChanges; j--) {
+						sumChanges += stdevRatioPctChanges[j];
+					}
+					stdevRatioPctChange = sumChanges / numSigChanges;
+				} 
+				std::cout << std::endl << " MeanPayoff:" << thisMean << " StdevRatio:" << thisStdevRatio << " StdevRatioChange:" << stdevRatioPctChange;
+				stdevRatio = thisStdevRatio;
+			}
 		}
 		std::cout << std::endl;
 
@@ -973,7 +1078,7 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='",           vaR95);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='",         esVol);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='",      duration);
-				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumResamples='",  numMcIterations);
+				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumResamples='",  thisIteration);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='",        ecGain);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='",  ecStrictGain);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='",        ecLoss);
