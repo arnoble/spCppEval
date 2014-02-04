@@ -264,7 +264,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					}*/
 					tenorPeriodDays = avgTenor[avgChar2];
 
-					avgDays = numTenor * tenorPeriodDays + 1;  // add 1 since averaging invariably includes both end dates
+					avgDays = numTenor * tenorPeriodDays ;  // maybe add 1 since averaging invariably includes both end dates
 					avgChar2 = tolower(szAllPrices[colAvgFreq][0]);
 					/*
 					for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
