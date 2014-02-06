@@ -54,7 +54,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 		// open database
-		MyDB  mydb((char **)szAllBufs);
+		MyDB  mydb((char **)szAllBufs), mydb1((char **)szAllBufs);
 
 		// get list of productIds
 		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId from product where ProductId>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0'"); 	mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
@@ -64,6 +64,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 
 		// get BID,ASK prices for productIds
+		char *bidAskFields[] ={ "PX_BID", "PX_ASK" };
+		char *lastFields[]   ={ "PX_LAST", "PX_LAST" };
 		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where Isin != ''  and productid>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0' order by ProductId; ");
 		mydb.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb.fetch(true);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
@@ -76,7 +78,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			else {
 				strcpy(charBuffer, szAllBufs[4]);
 			}
-			double thisPrice = getBbergPrice(charBuffer, found ? "PX_BID" : "PX_LAST", ref, session);
+			BbergData thisBbergData = getBbergPrice(charBuffer, found ? bidAskFields : lastFields, ref, session);
+			sprintf(charBuffer, "%s%.2lf%s%.2lf%s%d%s", "update product set bid='", thisBbergData.p[0], "',ask='", thisBbergData.p[1],"' where productid='", id, "';");
+			mydb1.prepare((SQLCHAR *)charBuffer, 1);
+
 			retcode = mydb.fetch(false);
 		}
 		

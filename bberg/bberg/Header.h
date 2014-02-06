@@ -19,18 +19,20 @@ using namespace BloombergLP;
 using namespace blpapi;
 
 // *************** STRUCTS
-typedef struct bbergData { double bid, ask; } BbergData;
+typedef struct bbergData { double p[2]; } BbergData;
 
 
 
 // Bberg send request to service
-double getBbergPrice(char *ticker, char *field, blpapi::Service &ref, blpapi::Session &session){
-	double thePrice;
+BbergData getBbergPrice(char *ticker, char **fields, blpapi::Service &ref, blpapi::Session &session){
+	BbergData thePrices;
 	
 	blpapi::Request request = ref.createRequest("HistoricalDataRequest");
 	request.getElement("securities").appendValue(ticker);
-	request.getElement("fields").appendValue(field);
-	//request.set("periodicityAdjustment", "ACTUAL");
+	request.getElement("fields").appendValue(fields[0]);
+	request.getElement("fields").appendValue(fields[1]);
+
+		//request.set("periodicityAdjustment", "ACTUAL");
 	request.set("periodicitySelection", "DAILY");
 	request.set("startDate", "20140205");
 	request.set("endDate", "20140205");
@@ -50,13 +52,17 @@ double getBbergPrice(char *ticker, char *field, blpapi::Service &ref, blpapi::Se
 					done = true;
 					Element secs = msg.getElement("securityData");
 					std::cout << "\n" << secs.getElementAsString("security") << std::endl;
+					secs.print(std::cout);
 					Element flds = secs.getElement("fieldData");
 					// We get an array of value for the historical request.
 					std::cout << "Date\t\tPX_LAST" << std::endl;
 					for (int i = 0; i < flds.numValues(); ++i) {
 						Element f = flds.getValueAsElement(i);
-						thePrice = f.getElementAsFloat64(field);
-						std::cout << f.getElementAsString("date") << "\t" << thePrice << std::endl;
+						for (int j = 0; j <2; ++j) {
+							thePrices.p[j] = f.getElementAsFloat64(fields[j]);
+							std::cout << f.getElementAsString("date") << "\t" << thePrices.p[j] << std::endl;
+						}
+						
 					}
 				}
 			}
@@ -65,7 +71,7 @@ double getBbergPrice(char *ticker, char *field, blpapi::Service &ref, blpapi::Se
 			}
 		}
 	}
-	return(thePrice);
+	return(thePrices);
 }
 
 
