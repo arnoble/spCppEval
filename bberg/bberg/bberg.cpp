@@ -13,10 +13,18 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId <optionalArguments>" << endl;  exit(0); }
+		if (argc < 4){ cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments>" << endl;  exit(0); }
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 34;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 1000;
-	
+		// convert date wchar to char
+		// ...consult this: http://msdn.microsoft.com/en-us/library/ms235631.aspx
+		size_t origsize      = wcslen(argv[3]) + 1;
+		const size_t newsize = origsize * 2;
+		char *thisDate       = new char[newsize];
+		size_t convertedChars = 0;
+		wcstombs_s(&convertedChars, thisDate, newsize, argv[3], _TRUNCATE);
+
+		
 
 		// init
 		const int        maxBufs(100);
@@ -54,7 +62,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 		// open database
-		MyDB  mydb((char **)szAllBufs), mydb1((char **)szAllBufs);
+		MyDB  mydb((char **)szAllBufs, "spIPRL"), mydb1((char **)szAllBufs, "spIPRL");
 
 		// get list of productIds
 		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId from product where ProductId>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0'"); 	mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
@@ -63,28 +71,93 @@ int _tmain(int argc, _TCHAR* argv[])
 			retcode = mydb.fetch(false);
 		}
 
-		// get BID,ASK prices for productIds
-		char *bidAskFields[] ={ "PX_BID", "PX_ASK" };
-		char *lastFields[]   ={ "PX_LAST", "PX_LAST" };
-		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where Isin != ''  and productid>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0' order by ProductId; ");
-		mydb.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb.fetch(true);
-		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-			int id(atoi(szAllBufs[0]));
-			string tickerString = szAllBufs[4];
-			bool found = tickerString.find("Equity") == std::string::npos;
-			if (found) {
-				sprintf(charBuffer, "%s%s%s%s", "/isin/",szAllBufs[4], "@", szAllBufs[5]);
-			}
-			else {
-				strcpy(charBuffer, szAllBufs[4]);
-			}
-			BbergData thisBbergData = getBbergPrice(charBuffer, found ? bidAskFields : lastFields, ref, session);
-			sprintf(charBuffer, "%s%.2lf%s%.2lf%s%d%s", "update product set bid='", thisBbergData.p[0], "',ask='", thisBbergData.p[1],"' where productid='", id, "';");
-			mydb1.prepare((SQLCHAR *)charBuffer, 1);
 
-			retcode = mydb.fetch(false);
+		//
+		// get BID,ASK prices for productIds
+		//
+		if (1){
+			char *bidAskFields[] ={ "PX_BID", "PX_ASK" };
+			char *lastFields[]   ={ "PX_LAST", "PX_LAST" };
+			sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where Isin != ''  and productid>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0' order by ProductId; ");
+			mydb.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb.fetch(true);
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+				int id(atoi(szAllBufs[0]));
+				string tickerString = szAllBufs[4];
+				bool found = tickerString.find("Equity") == std::string::npos;
+				if (found) {
+					sprintf(charBuffer, "%s%s%s%s", "/isin/", szAllBufs[4], "@", szAllBufs[5]);
+				}
+				else {
+					strcpy(charBuffer, szAllBufs[4]);
+				}
+				std::cout << "\ngetting prices for " << id << std::endl;
+				BbergData thisBbergData = getBbergBidOfferPrices(charBuffer, found ? bidAskFields : lastFields, thisDate, ref, session);
+				if (thisBbergData.p[0] > 0.0 && thisBbergData.p[1] > 0.0){
+					sprintf(charBuffer, "%s%.2lf%s%.2lf%s%d%s", "update product set bid='", thisBbergData.p[0], "',ask='", thisBbergData.p[1], "' where productid='", id, "';");
+					mydb1.prepare((SQLCHAR *)charBuffer, 1);
+				}
+				else {
+					std::cerr << "Failed to get prices for " << id << std::endl;
+				}
+
+				retcode = mydb.fetch(false);
+			}
+
 		}
 		
+		//
+		// get curves
+		//
+		if (1){
+			sprintf(lineBuffer, "%s", "select ccy,tenor,bberg from curve order by ccy,Tenor;");
+			mydb.prepare((SQLCHAR *)lineBuffer, 3); 	retcode = mydb.fetch(true);
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+				char   *ccy          = szAllBufs[0];
+				char   *tenor        = szAllBufs[1];
+				char   *tickerString = szAllBufs[2];
+				double  thePrice     = -1.0;
+				getBbergPrices(tickerString, "PX_LAST", thisDate, thisDate, ref, session, &thePrice);
+				if (thePrice > 0.0){
+					sprintf(charBuffer, "%s%.4lf%s%.2lf%s%s%s",
+						"update curve set rate='", thePrice, "' where Tenor='", tenor, "' and ccy='", ccy, "';");
+					mydb1.prepare((SQLCHAR *)charBuffer, 1);
+				}
+				else {
+					std::cerr << "Failed to get prices for " << tickerString << std::endl;
+				}
+				retcode = mydb.fetch(false);
+			}
+		}
+
+
+
+			//
+			// get CDS info
+			//
+		if (0) {
+			sprintf(lineBuffer, "%s%s%s",
+				"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
+				" institution cp left join cdsspread cds using (institutionid) ",
+				" order by institutionId,maturity;");
+			mydb.prepare((SQLCHAR *)lineBuffer, 3); 	retcode = mydb.fetch(true);
+			int institutionId = -1;
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+				char   *cpName     = szAllBufs[1];
+				double  mat(atof(szAllBufs[2]));
+				char   *cdsBberg   = szAllBufs[3];
+				char   *cpBberg    = szAllBufs[4];
+				double  thePrice     = -1.0;
+				if (institutionId != atoi(szAllBufs[0])){
+					institutionId  = atoi(szAllBufs[0]);
+					char *fields[] ={ "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MOODY_LONG_TERM",
+						"RTG_FITCH_LT_ISSUER_DEFAULT", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT" };
+				}
+				// DOME
+
+				retcode = mydb.fetch(false);
+			}
+		}
+
 
 		// tidy up
 		session.stop();

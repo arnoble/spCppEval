@@ -24,8 +24,8 @@ typedef struct bbergData { double p[2]; } BbergData;
 
 
 // Bberg send request to service
-BbergData getBbergPrice(char *ticker, char **fields, blpapi::Service &ref, blpapi::Session &session){
-	BbergData thePrices;
+BbergData getBbergBidOfferPrices(char *ticker, char **fields, char *thisDate, blpapi::Service &ref, blpapi::Session &session){
+	BbergData thePrices; thePrices.p[0] = thePrices.p[1] = -1.0;
 	
 	blpapi::Request request = ref.createRequest("HistoricalDataRequest");
 	request.getElement("securities").appendValue(ticker);
@@ -34,11 +34,11 @@ BbergData getBbergPrice(char *ticker, char **fields, blpapi::Service &ref, blpap
 
 		//request.set("periodicityAdjustment", "ACTUAL");
 	request.set("periodicitySelection", "DAILY");
-	request.set("startDate", "20140205");
-	request.set("endDate", "20140205");
+	request.set("startDate", thisDate);
+	request.set("endDate", thisDate);
 	//request.set("maxDataPoints", 1);
 	session.sendRequest(request);
-	request.print(std::cout);
+	//request.print(std::cout);
 
 	// process response
 	bool done(false);
@@ -52,27 +52,89 @@ BbergData getBbergPrice(char *ticker, char **fields, blpapi::Service &ref, blpap
 					done = true;
 					Element secs = msg.getElement("securityData");
 					std::cout << "\n" << secs.getElementAsString("security") << std::endl;
-					secs.print(std::cout);
+					//secs.print(std::cout);
 					Element flds = secs.getElement("fieldData");
 					// We get an array of value for the historical request.
 					std::cout << "Date\t\tPX_LAST" << std::endl;
 					for (int i = 0; i < flds.numValues(); ++i) {
 						Element f = flds.getValueAsElement(i);
+						f.print(std::cout);
 						for (int j = 0; j <2; ++j) {
-							thePrices.p[j] = f.getElementAsFloat64(fields[j]);
-							std::cout << f.getElementAsString("date") << "\t" << thePrices.p[j] << std::endl;
+							if (f.hasElement(fields[j])){
+								thePrices.p[j] = f.getElementAsFloat64(fields[j]);
+								std::cout << f.getElementAsString("date") << "\t" << thePrices.p[j] << std::endl;
+								// in case we only get 1 price
+								if (j == 0){                    thePrices.p[1] =thePrices.p[0]; }
+								else if (thePrices.p[0] < 0.0){ thePrices.p[0] =thePrices.p[1]; }
+							}
+							else {
+								std::cout << "\n no element for " << fields[j]  << std::endl;
+							}
 						}
 						
 					}
 				}
 			}
 			else {
-				std::cout << msg << std::endl;
+				//std::cout << msg << std::endl;
 			}
 		}
 	}
 	return(thePrices);
 }
+
+void getBbergPrices(char *ticker, char *field, char *startDate, char *endDate, blpapi::Service &ref, blpapi::Session &session, double *price){
+
+	blpapi::Request request = ref.createRequest("HistoricalDataRequest");
+	request.getElement("securities").appendValue(ticker);
+	request.getElement("fields").appendValue(field);
+
+	//request.set("periodicityAdjustment", "ACTUAL");
+	request.set("periodicitySelection", "DAILY");
+	request.set("startDate", startDate);
+	request.set("endDate", endDate);
+	//request.set("maxDataPoints", 1);
+	session.sendRequest(request);
+	//request.print(std::cout);
+
+	// process response
+	bool done(false);
+	while (!done) {
+		Event event = session.nextEvent();
+		MessageIterator msgIter(event);
+		while (msgIter.next()) {
+			Message msg = msgIter.message();
+			if (Event::RESPONSE == event.eventType() || Event::PARTIAL_RESPONSE == event.eventType()) {
+				if (msg.hasElement("securityData")) {
+					done = true;
+					Element secs = msg.getElement("securityData");
+					std::cout << "\n" << secs.getElementAsString("security") << std::endl;
+					//secs.print(std::cout);
+					Element flds = secs.getElement("fieldData");
+					// We get an array of value for the historical request.
+					std::cout << "Date\t\tPX_LAST" << std::endl;
+					for (int i = 0; i < flds.numValues(); ++i) {
+						Element f = flds.getValueAsElement(i);
+						f.print(std::cout);
+						if (f.hasElement(field)){
+							*price = f.getElementAsFloat64(field);
+							std::cout << f.getElementAsString("date") << "\t" << *price << std::endl;
+						}
+						else {
+							std::cout << "\n no element for " << field << std::endl;
+						}
+					}
+
+				}
+			}
+			else {
+				//std::cout << msg << std::endl;
+			}
+		}
+	}
+	return;
+}
+
 
 
 
@@ -131,10 +193,31 @@ public:
 		}
 		return fsts;
 	}
+	// open connection to DataSource spIPRL
+	SQLRETURN dbConnIPRL(SQLHENV hEnv, SQLHDBC* hDBC) {
+		SQLWCHAR              szDSN[]    = L"spIPRL";       // Data Source Name buffer
+		SQLWCHAR              szUID[]    = L"C85693_anoble";		   // User ID buffer
+		SQLWCHAR              szPasswd[] = L"Ragtin_Mor14";   // Password buffer
+		SQLRETURN             fsts;
 
-	MyDB(char **bindBuffer) : bindBuffer(bindBuffer){
+		fsts = SQLAllocHandle(SQL_HANDLE_DBC, hEnv, hDBC);  // Allocate memory for the connection handle
+		if (!SQL_SUCCEEDED(fsts))	{
+			extract_error("SQLAllocHandle for dbc", hEnv, SQL_HANDLE_ENV);
+			exit(1);
+		}
+		// Connect to Data Source
+		fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
+		if (!SQL_SUCCEEDED(fsts))	{
+			extract_error("SQLAllocHandle for connect", hDBC, SQL_HANDLE_DBC);
+			exit(1);
+		}
+		return fsts;
+	}
+
+
+	MyDB(char **bindBuffer,const std::string dataSource) : bindBuffer(bindBuffer){
 		SQLAllocEnv(&hEnv);
-		fsts = dbConn(hEnv, &hDBC);              // connect
+		fsts = dataSource == "spIPRL" ? dbConnIPRL(hEnv, &hDBC) : dbConn(hEnv, &hDBC);              // connect
 		if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO) { exit(1); }
 	};
 	~MyDB(){
