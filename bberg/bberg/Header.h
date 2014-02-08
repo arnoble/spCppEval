@@ -83,17 +83,20 @@ BbergData getBbergBidOfferPrices(char *ticker, char **fields, char *thisDate, bl
 	return(thePrices);
 }
 
-void getBbergPrices(char *ticker, char *field, char *startDate, char *endDate, blpapi::Service &ref, blpapi::Session &session, double *price){
+void getBbergPrices(char *ticker, char *field, char *startDate, char *endDate, blpapi::Service &ref, blpapi::Session &session, char *reqType,char *result){
 
-	blpapi::Request request = ref.createRequest("HistoricalDataRequest");
+	bool  histDataRequest = strcmp(reqType, "HistoricalDataRequest") == 0;
+	blpapi::Request request = ref.createRequest(reqType);
 	request.getElement("securities").appendValue(ticker);
 	request.getElement("fields").appendValue(field);
 
 	//request.set("periodicityAdjustment", "ACTUAL");
-	request.set("periodicitySelection", "DAILY");
-	request.set("startDate", startDate);
-	request.set("endDate", endDate);
-	//request.set("maxDataPoints", 1);
+	if (histDataRequest){
+		request.set("periodicitySelection", "DAILY");
+		request.set("startDate", startDate);
+		request.set("endDate", endDate);
+		//request.set("maxDataPoints", 1);
+	}
 	session.sendRequest(request);
 	//request.print(std::cout);
 
@@ -104,27 +107,30 @@ void getBbergPrices(char *ticker, char *field, char *startDate, char *endDate, b
 		MessageIterator msgIter(event);
 		while (msgIter.next()) {
 			Message msg = msgIter.message();
+			msg.print(std::cout);
 			if (Event::RESPONSE == event.eventType() || Event::PARTIAL_RESPONSE == event.eventType()) {
 				if (msg.hasElement("securityData")) {
 					done = true;
 					Element secs = msg.getElement("securityData");
-					std::cout << "\n" << secs.getElementAsString("security") << std::endl;
-					//secs.print(std::cout);
-					Element flds = secs.getElement("fieldData");
+					secs.print(std::cout);
+					Element securityData = histDataRequest ? secs : secs.getValueAsElement(0); // should only be one
+					std::cout << "\n" << securityData.getElementAsString("security") << std::endl;
+					Element flds = securityData.getElement("fieldData");
+					flds.print(std::cout);
+					std::cout << "\nNumElements" << flds.numElements();
+					std::cout << "\nNumValues" << flds.numValues();
 					// We get an array of value for the historical request.
-					std::cout << "Date\t\tPX_LAST" << std::endl;
-					for (int i = 0; i < flds.numValues(); ++i) {
-						Element f = flds.getValueAsElement(i);
-						f.print(std::cout);
-						if (f.hasElement(field)){
-							*price = f.getElementAsFloat64(field);
-							std::cout << f.getElementAsString("date") << "\t" << *price << std::endl;
-						}
-						else {
-							std::cout << "\n no element for " << field << std::endl;
-						}
+					int numItems = flds.numValues();
+					if (histDataRequest && numItems){
+						flds = flds.getValueAsElement(0);
 					}
-
+					if (flds.hasElement(field)){
+							sprintf(result, "%s", flds.getElementAsString(field));
+							std::cout << field << "\t" << *result << std::endl;
+						}
+					else {
+							std::cout << "\n no element for " << field << std::endl;
+					}
 				}
 			}
 			else {
