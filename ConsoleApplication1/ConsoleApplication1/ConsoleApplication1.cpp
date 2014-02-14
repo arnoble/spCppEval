@@ -12,14 +12,19 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	try{
 		// initialise
-		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments>" << endl;  exit(0); }
+		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: forceIterations>" << endl;  exit(0); }
 		int              historyStep = 1;
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 363;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 363;
 		int              numMcIterations = argc > 3 ? _ttoi(argv[3]) : 100;
 		bool             forceIterations(false);
-		if (argc>4){
-			forceIterations = _ttoi(argv[4]) == 1;
+		// process optional argumants
+		for (int i=4; i < argc; i++){
+			size_t thisNumChars;
+			char * thisArg = WcharToChar(argv[i], &thisNumChars);
+			if (strstr(thisArg,"forceIterations")){
+				forceIterations = true;
+			}
 		}
 		const int        maxUls(100);
 		const int        bufSize(1000);

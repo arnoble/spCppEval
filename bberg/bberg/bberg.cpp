@@ -7,6 +7,16 @@ using namespace BloombergLP;
 using namespace blpapi;
 using namespace std;
 
+// convert date wchar to char
+// ...consult this: http://msdn.microsoft.com/en-us/library/ms235631.aspx
+char *WcharToChar(const WCHAR* orig, size_t* convertedChars) {
+	size_t origsize      = wcslen(orig) + 1;
+	const size_t newsize = origsize * 2;
+	char *thisDate       = new char[newsize];
+	*convertedChars      = 0;
+	wcstombs_s(convertedChars, thisDate, newsize, orig, _TRUNCATE);
+	return thisDate;
+}
 
 
 int _tmain(int argc, _TCHAR* argv[])
@@ -14,17 +24,11 @@ int _tmain(int argc, _TCHAR* argv[])
 	const bool doDebug(true);
 	try{
 		// initialise
-		if (argc < 4){ cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments>" << endl;  exit(0); }
+		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments>" << endl;  exit(0); }
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 34;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 1000;
-		// convert date wchar to char
-		// ...consult this: http://msdn.microsoft.com/en-us/library/ms235631.aspx
-		size_t origsize      = wcslen(argv[3]) + 1;
-		const size_t newsize = origsize * 2;
-		char *thisDate       = new char[newsize];
-		size_t convertedChars = 0;
-		wcstombs_s(&convertedChars, thisDate, newsize, argv[3], _TRUNCATE);
-
+		size_t numChars;
+		char *thisDate = WcharToChar(argv[3], &numChars);
 		
 
 		// init

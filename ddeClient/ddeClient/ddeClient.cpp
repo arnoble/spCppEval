@@ -1,5 +1,8 @@
 // DDEExample.cpp : Defines the entry point for the console application.
 // http://stackoverflow.com/questions/3306216/how-to-be-notified-of-any-update-from-dynamic-data-exchange-dde
+// http://www.angelfire.com/biz/rhaminisys/ddeinfo.html#DDECOM
+// http://stackoverflow.com/questions/14923887/is-there-any-way-to-get-ddespy-to-display-complete-untruncated-messages-if-not
+// http://social.msdn.microsoft.com/Forums/vstudio/en-US/7c51e728-b6a5-4862-a436-8beae33a60d1/dde-spy-and-monitoring-dde-messages-on-a-machine?forum=vcgeneral
 
 #include "stdafx.h"
 #include <windows.h> 
@@ -42,10 +45,15 @@ void DDERequest(DWORD idInst, HCONV hConv, char* szItem, char* sDesc)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+	/*
 	char szApp[] = "EXCEL";
 	char szTopic[] = "C:\\Test.xlsx";
 	char szCmd1[] = "[APP.MINIMIZE()]";
 	char szItem1[] = "R1C1";  char szDesc1[] = "A1 Contains: ";
+	*/
+	char szApp[] = "Sedemo";
+	char szTopic[] = "tk";
+	char szItem1[] = "MSFT_STK_SMART_USD_ISLAND/";  char szDesc1[] = "A1 Contains: ";
 
 
 	UINT uiResult;

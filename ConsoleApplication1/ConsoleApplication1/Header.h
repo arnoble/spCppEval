@@ -13,6 +13,23 @@
 #include <stdio.h>
 #include <vector>
 #include <regex>
+
+// convert date wchar to char
+// ...consult this: http://msdn.microsoft.com/en-us/library/ms235631.aspx
+char *WcharToChar(const WCHAR* orig, size_t* convertedChars) {
+	size_t origsize      = wcslen(orig) + 1;
+	const size_t newsize = origsize * 2;
+	char *thisDate       = new char[newsize];
+	*convertedChars      = 0;
+	wcstombs_s(convertedChars, thisDate, newsize, orig, _TRUNCATE);
+	return thisDate;
+}
+
+
+
+
+
+
 // cds functions
 double interpCurve(std::vector<double> curveTimes, std::vector<double> curveValues,double point){
 	int len = curveTimes.size();
@@ -1001,7 +1018,7 @@ public:
 
 				// ** process overall product results
 				int numAnnRets(allAnnRets.size());
-				const double confLevel(0.1);
+				const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
 				double averageReturn = sumAnnRets / numAnnRets;
@@ -1032,10 +1049,14 @@ public:
 
 
 				// eShortfall, esVol
-				int numShortfall(floor(confLevel*allAnnRets.size()));
-				double eShortfall(0.0);	for (i = 0; i < numShortfall; i++){ eShortfall += allAnnRets[i]; }	eShortfall /= numShortfall;
+				const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
+				int numShortfall(    floor(confLevel    *numAnnRets));
+				int numShortfallTest(floor(confLevelTest*numAnnRets));
+				double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++){ eShortfall     += allAnnRets[i]; }	eShortfall     /= numShortfall;
+				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	eShortfallTest /= numShortfall;
 				double duration  = sumDuration / numAnnRets;
-				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(.1);
+				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall))     / ESnorm(confLevel);
+				double esVolTest = (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest);
 				double scaledVol = esVol * sqrt(duration);
 				double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ geomReturn += log(allPayoffs[i] / midPrice); }
 				geomReturn = exp(geomReturn / sumDuration) - 1;
@@ -1044,14 +1065,21 @@ public:
 				double riskCategory(1.0);  for (i = 1, len = cesrBuckets.size(); i<len && scaledVol>cesrBuckets[i]; i++) { riskCategory += 1.0; }
 				if (i != len) riskCategory += (scaledVol - cesrBuckets[i - 1]) / (cesrBuckets[i] - cesrBuckets[i - 1]);
 				// WinLose
-				double sumNegRet(0.0), sumPosRet(0.0), sumStrPosRet(0.0);
-				int    numNegRet(0), numPosRet(0), numStrPosRet(0);
+				double sumNegRet(0.0), sumPosRet(0.0), sumStrPosRet(0.0),sumBelowDepo(0.0);
+				int    numNegRet(0), numPosRet(0), numStrPosRet(0), numBelowDepo(0);
 				for (j = 0; j<numAnnRets; j++) {
 					double ret = allAnnRets[j];
-					if (ret>0){ sumStrPosRet += ret; numStrPosRet++; }
-					if (ret<0){ sumNegRet    += ret; numNegRet++; }
-					else { sumPosRet += ret; numPosRet++; }
+					if (ret>0){           sumStrPosRet += ret;  numStrPosRet++; }
+					if (ret<0){           sumNegRet    += ret;  numNegRet++;    }
+					else {                sumPosRet    += ret;  numPosRet++;    }
+					if (ret < depoRate) { sumBelowDepo += ret;  numBelowDepo++; }
 				}
+				double probBelowDepo  = (double)numBelowDepo / (double)numAnnRets;
+				double eShortfallDepo = numBelowDepo ? sumBelowDepo / (double)numBelowDepo : 0.0;
+				double esVolBelowDepo = (log(1 + averageReturn) - log(1 + eShortfallDepo)) / ESnorm(probBelowDepo);
+				double eNegRet        = numNegRet ? sumNegRet / (double)numNegRet : 0.0;
+				double probNegRet     = (double)numNegRet / (double)numAnnRets;
+				double esVolNegRet    = (log(1 + averageReturn) - log(1 + eNegRet)) / ESnorm(probNegRet);
 				double strPosDuration(sumStrPosDurations / numStrPosPayoffs), posDuration(sumPosDurations / numPosPayoffs), negDuration(sumNegDurations / numNegPayoffs);
 				double ecGain         = 100.0*(numPosPayoffs ? exp(log(sumPosPayoffs / midPrice / numPosPayoffs) / posDuration) - 1.0 : 0.0);
 				double ecStrictGain   = 100.0*(numStrPosPayoffs ? exp(log(sumStrPosPayoffs / midPrice / numStrPosPayoffs) / strPosDuration) - 1.0 : 0.0);
@@ -1077,6 +1105,9 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='",     probEarly);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='",           vaR95);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='",         esVol);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolTest='",     esVolTest);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolBelowDepo='",esVolBelowDepo);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolNegRet='",   esVolNegRet);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='",      duration);
 				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumResamples='",  thisIteration);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='",        ecGain);
@@ -1086,7 +1117,9 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='",probStrictGain);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='",      probLoss);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",    eShortfall*100.0);
-				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumEpisodes='",   numAllEpisodes);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='",eShortfallDepo*100.0);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
+				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
 
 				sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 				std::cout << lineBuffer <<  std::endl;
