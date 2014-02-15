@@ -125,7 +125,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				getBbergPrices(tickerString, "PX_LAST", thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
 				thePrice = atof(resultBuffer);
 				if (thePrice > 0.0){
-					sprintf(charBuffer, "%s%.4lf%s%.2lf%s%s%s",
+					sprintf(charBuffer, "%s%.4lf%s%s%s%s%s",
 						"update curve set rate='", thePrice, "' where Tenor='", tenor, "' and ccy='", ccy, "';");
 					mydb1.prepare((SQLCHAR *)charBuffer, 1);
 				}
@@ -149,10 +149,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			mydb.prepare((SQLCHAR *)lineBuffer, 5); 	retcode = mydb.fetch(true);
 			int institutionId = -1;
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				char   *cpName     = szAllBufs[1];
-				char   *mat        = szAllBufs[2];
-				char   *cdsBberg   = szAllBufs[3];
-				char   *cpBberg    = szAllBufs[4];
+				char *cpName   = szAllBufs[1];
+				char *mat      = szAllBufs[2];
+				char *cdsBberg = szAllBufs[3];
+				char *cpBberg  = szAllBufs[4];
 				double  thePrice     = -1.0;
 				// first record - get static data for institution
 				if (institutionId != atoi(szAllBufs[0])){
@@ -160,7 +160,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					char *fields[] ={ "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MOODY_LONG_TERM",
 						"RTG_FITCH_LT_ISSUER_DEFAULT", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT","" };
 					char *fieldFormat[] = { "%s", "%.2lf", "%s", "%.2lf", "%s","%s", "%s" };
-					double fieldScaling[] ={ 0, 1000000000.0, 0, 0.01, 0, 0, 0 };
+					double fieldScaling[] ={ 0, 1000000000.0, 0, 1, 0, 0, 0 };
 					char *fieldName[] ={"SPrating",	"MarketCap","Currency","TierOne","Moody","Fitch","drsk1yprobdefault"};
 					for (int i=0; strcmp(fields[i],""); i++){
 						strcpy(resultBuffer,"");
@@ -175,13 +175,16 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 				}
 				// get CDS rates
-				strcpy(resultBuffer, "");
-				getBbergPrices(cdsBberg, "PX_LAST", thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
-				if (strcmp(resultBuffer, "")){
-					sprintf(charBuffer, "%s%s%s%d%s%s%s", "update cdsspread set Spread='", resultBuffer, "' where institutionid='", institutionId, "' and Maturity='",mat,"';");
-					mydb1.prepare((SQLCHAR *)charBuffer, 1);
+				if (strcmp(cdsBberg,"")){
+					strcpy(resultBuffer, "");
+					getBbergPrices(cdsBberg, "PX_LAST", thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
+					if (strcmp(resultBuffer, "")){
+						sprintf(charBuffer, "%s%s%s%d%s%s%s", "update cdsspread set Spread='", resultBuffer, "' where institutionid='", institutionId, "' and Maturity='", mat, "';");
+						mydb1.prepare((SQLCHAR *)charBuffer, 1);
+					}
+					strcpy(cdsBberg,""); // some institutions have no CDS...so MySQL will return a NULL, leaving cdsBberg at its old value, typically for the previous institution 
 				}
-
+				
 				retcode = mydb.fetch(false);
 			}
 		}
