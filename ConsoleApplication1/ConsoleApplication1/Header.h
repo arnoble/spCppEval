@@ -1003,7 +1003,7 @@ public:
 							else                   { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
 						}
 					}
-					double mean      = thisBarrierSumPayoffs / numInstances;
+					double mean      = numInstances ? thisBarrierSumPayoffs / numInstances : 0.0;
 					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
