@@ -24,12 +24,12 @@ int _tmain(int argc, _TCHAR* argv[])
 	const bool doDebug(true);
 	try{
 		// initialise
-		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments>" << endl;  exit(0); }
+		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: dbServer>" << endl;  exit(0); }
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 34;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 1000;
 		size_t numChars;
-		char *thisDate = WcharToChar(argv[3], &numChars);
-		
+		char *thisDate  = WcharToChar(argv[3], &numChars);
+		char *dbServer  = argc > 4 ? WcharToChar(argv[4], &numChars) : "spIPRL";  // newSp for local PC
 
 		// init
 		const int        maxBufs(100);
@@ -67,8 +67,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 		// open database
-		MyDB  mydb((char **)szAllBufs, "spIPRL"), mydb1((char **)szAllBufs, "spIPRL");  // production
-		//MyDB  mydb((char **)szAllBufs, "spIPRL"), mydb1((char **)szAllBufs, "newSp"); // local
+		MyDB  mydb((char **)szAllBufs, dbServer), mydb1((char **)szAllBufs, dbServer); 
 
 		// get list of productIds
 		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId from product where ProductId>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0'"); 	mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
