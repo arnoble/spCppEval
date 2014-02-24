@@ -15,6 +15,7 @@
 #include <blpapi_message.h> 
 #include <blpapi_request.h> 
 #include <iostream> 
+#include <map>
 using namespace BloombergLP;
 using namespace blpapi;
 
@@ -22,6 +23,22 @@ using namespace blpapi;
 typedef struct bbergData { double p[2]; } BbergData;
 
 
+
+
+// find map key for given value
+std::string FindMapKeyIndx(std::map<std::string, int> &MyMap, int value) {
+	std::string key("");
+	std::map<std::string, int>::const_iterator it;
+	for (it = MyMap.begin(); it != MyMap.end(); ++it)
+	{
+		if (it->second >= value)
+		{
+			key = it->first;
+			break;
+		}
+	}
+	return key;
+}
 
 // Bberg send request to service
 BbergData getBbergBidOfferPrices(char *ticker, char **fields, char *thisDate, blpapi::Service &ref, blpapi::Session &session){

@@ -21,7 +21,7 @@ char *WcharToChar(const WCHAR* orig, size_t* convertedChars) {
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	const bool doDebug(true);
+	const bool doDebug(false);
 	try{
 		// initialise
 		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: dbServer>" << endl;  exit(0); }
@@ -67,7 +67,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 		// open database
-		MyDB  mydb((char **)szAllBufs, dbServer), mydb1((char **)szAllBufs, dbServer); 
+		MyDB  mydb((char **)szAllBufs, dbServer), mydb1((char **)szAllBufs, dbServer), mydb2((char **)szAllBufs, dbServer);
 
 		// get list of productIds
 		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId from product where ProductId>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0'"); 	mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
@@ -80,7 +80,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		//
 		// get BID,ASK prices for productIds
 		//
-		if (doDebug){
+		if (!doDebug){
 			char *bidAskFields[] ={ "PX_BID", "PX_ASK" };
 			char *lastFields[]   ={ "PX_LAST", "PX_LAST" };
 			sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where Isin != ''  and productid>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0' order by ProductId; ");
@@ -113,7 +113,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		//
 		// get curves
 		//
-		if (doDebug){
+		if (!doDebug){
 			sprintf(lineBuffer, "%s", "select ccy,tenor,bberg from curve order by ccy,Tenor;");
 			mydb.prepare((SQLCHAR *)lineBuffer, 3); 	retcode = mydb.fetch(true);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
@@ -137,53 +137,127 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 
-			//
-			// get CDS info
-			//
-		if (doDebug) {
-			sprintf(lineBuffer, "%s%s%s",
-				"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
-				" institution cp left join cdsspread cds using (institutionid) ",
-				" order by institutionId,maturity;");
-			mydb.prepare((SQLCHAR *)lineBuffer, 5); 	retcode = mydb.fetch(true);
-			int institutionId = -1;
-			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				char *cpName   = szAllBufs[1];
-				char *mat      = szAllBufs[2];
-				char *cdsBberg = szAllBufs[3];
-				char *cpBberg  = szAllBufs[4];
-				double  thePrice     = -1.0;
-				// first record - get static data for institution
-				if (institutionId != atoi(szAllBufs[0])){
-					institutionId  = atoi(szAllBufs[0]);
-					char *fields[] ={ "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MOODY_LONG_TERM",
-						"RTG_FITCH_LT_ISSUER_DEFAULT", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT","" };
-					char *fieldFormat[] = { "%s", "%.2lf", "%s", "%.2lf", "%s","%s", "%s" };
-					double fieldScaling[] ={ 0, 1000000000.0, 0, 1, 0, 0, 0 };
-					char *fieldName[] ={"SPrating",	"MarketCap","Currency","TierOne","Moody","Fitch","drsk1yprobdefault"};
-					for (int i=0; strcmp(fields[i],""); i++){
-						strcpy(resultBuffer,"");
-						getBbergPrices(cpBberg, fields[i], thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
-						if (strcmp(resultBuffer,"")){
-							if (fieldScaling[i]){
-								sprintf(resultBuffer, fieldFormat[i], atof(resultBuffer) / fieldScaling[i]);
+		//
+		// get CDS info
+		//
+		char   *fields[]       ={  "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MOODY_LONG_TERM",
+					               "RTG_FITCH_LT_ISSUER_DEFAULT", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT", "" };
+		char   *fieldFormat[]  ={ "%s", "%.2lf", "%s", "%.2lf", "%s", "%s", "%s" };
+		double  fieldScaling[] ={ 0, 1000000000.0, 0, 1, 0, 0, 0 };
+		char   *fieldName[]    ={ "SPrating", "MarketCap", "Currency", "TierOne", "Moody", "Fitch", "drsk1yprobdefault" };
+		if (!doDebug) {
+			if (!doDebug) {
+				sprintf(lineBuffer, "%s%s%s",
+					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
+					" institution cp left join cdsspread cds using (institutionid) ",
+					" order by institutionId,maturity;");
+				mydb.prepare((SQLCHAR *)lineBuffer, 5); 	retcode = mydb.fetch(true);
+				int     institutionId  = -1;
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+					char *cpName   = szAllBufs[1];
+					char *mat      = szAllBufs[2];
+					char *cdsBberg = szAllBufs[3];
+					char *cpBberg  = szAllBufs[4];
+					double  thePrice     = -1.0;
+					// first record - get static data for institution
+					if (institutionId != atoi(szAllBufs[0])){
+						institutionId  = atoi(szAllBufs[0]);
+						for (int i=0; strcmp(fields[i], ""); i++){
+							strcpy(resultBuffer, "");
+							getBbergPrices(cpBberg, fields[i], thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+							if (strcmp(resultBuffer, "")){
+								if (fieldScaling[i]){
+									sprintf(resultBuffer, fieldFormat[i], atof(resultBuffer) / fieldScaling[i]);
+								}
+								sprintf(charBuffer, "%s%s%s%s%s%d%s", "update institution set ", fieldName[i], "='", resultBuffer, "' where institutionid='", institutionId, "';");
+								mydb1.prepare((SQLCHAR *)charBuffer, 1);
 							}
-							sprintf(charBuffer, "%s%s%s%s%s%d%s", "update institution set ", fieldName[i], "='", resultBuffer, "' where institutionid='", institutionId, "';");
-							mydb1.prepare((SQLCHAR *)charBuffer, 1);
 						}
 					}
-				}
-				// get CDS rates
-				if (strcmp(cdsBberg,"")){
-					strcpy(resultBuffer, "");
-					getBbergPrices(cdsBberg, "PX_LAST", thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
-					if (strcmp(resultBuffer, "")){
-						sprintf(charBuffer, "%s%s%s%d%s%s%s", "update cdsspread set Spread='", resultBuffer, "' where institutionid='", institutionId, "' and Maturity='", mat, "';");
-						mydb1.prepare((SQLCHAR *)charBuffer, 1);
+					// get CDS rates
+					if (strcmp(cdsBberg, "")){
+						strcpy(resultBuffer, "");
+						getBbergPrices(cdsBberg, "PX_LAST", thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
+						if (strcmp(resultBuffer, "")){
+							sprintf(charBuffer, "%s%s%s%d%s%s%s", "update cdsspread set Spread='", resultBuffer, "' where institutionid='", institutionId, "' and Maturity='", mat, "';");
+							mydb1.prepare((SQLCHAR *)charBuffer, 1);
+						}
+						strcpy(cdsBberg, ""); // some institutions have no CDS...so MySQL will return a NULL, leaving cdsBberg at its old value, typically for the previous institution 
 					}
-					strcpy(cdsBberg,""); // some institutions have no CDS...so MySQL will return a NULL, leaving cdsBberg at its old value, typically for the previous institution 
+					retcode = mydb.fetch(false);
 				}
-				
+			}
+
+			//
+			// now handle issuers with MULTI in name - assume all sub-names equally weighted
+			//
+			sprintf(lineBuffer, "%s","select institutionid,EntityName from  institution where name like 'MULTI%' ");
+			mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+				int institutionId  = atoi(szAllBufs[0]);
+				char subNameBuffer[1000];
+				char* multiName    = szAllBufs[1];
+				vector<string>  subNames;
+
+				// split into subnames
+				char *cptr = strtok(multiName,",");
+				while (cptr != NULL){
+					subNames.push_back(cptr);
+					cptr = strtok(NULL, ",");
+				}
+				// get sub-names fields
+				strcpy(subNameBuffer, "");
+				sprintf(lineBuffer, "%s", "select institutionid,SPrating,replace(Moody,'(P)','') Moody,Fitch,TierOne,drsk1yprobdefault drsk from institution where EntityName in (");
+				for (int j=0; j < subNames.size(); j++){
+					if (j != 0){ strcat(subNameBuffer, ","); }
+					sprintf(subNameBuffer, "%s%s%s%s", subNameBuffer, "'", subNames[j].c_str(), "'");
+				}
+				sprintf(lineBuffer, "%s%s%s",lineBuffer,subNameBuffer,");");
+				mydb1.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb1.fetch(true);
+				vector<int> spRatings, moRatings, fiRatings;
+				vector<double> tierOne, drskProbs;
+				map<string, int> SPscore,MoScore,FiScore; 
+				SPscore["AAA" ]=1; SPscore["AA+" ]=2; SPscore["AA"  ]=3;  SPscore["AA-"]=4;  SPscore["A+"]=5;  SPscore["A"  ]=6;  SPscore["A-"]=7;
+				SPscore["BBB+"]=8; SPscore["BBB" ]=9; SPscore["BBB-"]=10; SPscore["BB+"]=11; SPscore["BB"]=12; SPscore["BB-"]=13; SPscore["B+"]=14;
+				MoScore["Aaa" ]=1; MoScore["Aa1" ]=2; MoScore["Aa2" ]=3;  MoScore["Aa3"]=4;  MoScore["A1"]=5;  MoScore["A2" ]=6;  MoScore["A3"]=7; MoScore["A"]=7;
+				MoScore["Baa1"]=8; MoScore["Baa2"]=9; MoScore["Baa3"]=10; MoScore["B"  ]=10; 
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+					if (strcmp(szAllBufs[1], "0") && strcmp(szAllBufs[1], "") && SPscore.find(szAllBufs[1]) != SPscore.end()) { spRatings.push_back(SPscore[szAllBufs[1]]); }
+					if (strcmp(szAllBufs[2], "0") && strcmp(szAllBufs[2], "") && MoScore.find(szAllBufs[2]) != MoScore.end()) { moRatings.push_back(MoScore[szAllBufs[2]]); }
+					if (strcmp(szAllBufs[3], "0") && strcmp(szAllBufs[3], "") && SPscore.find(szAllBufs[3]) != SPscore.end()) { fiRatings.push_back(SPscore[szAllBufs[3]]); }
+					double thisTierOne = atof(szAllBufs[4]); if (thisTierOne > 0.0) { tierOne.push_back(thisTierOne); }
+					double thisDrsk    = atof(szAllBufs[5]); if (thisDrsk    > 0.0) { drskProbs.push_back(thisDrsk); }
+					retcode = mydb1.fetch(false);
+				}
+				int thisSpScore = std::accumulate(spRatings.begin(), spRatings.end(), 0.0) / spRatings.size();
+				string thisSpRating = FindMapKeyIndx(SPscore,thisSpScore);
+				int thisMoScore = std::accumulate(moRatings.begin(), moRatings.end(), 0.0) / moRatings.size();
+				string thisMoRating = FindMapKeyIndx(MoScore, thisMoScore);
+				int thisFiScore = std::accumulate(fiRatings.begin(), fiRatings.end(), 0.0) / fiRatings.size();
+				string thisFiRating = FindMapKeyIndx(SPscore, thisFiScore);
+				double thisTierOneScore = std::accumulate(tierOne.begin(), tierOne.end(), 0.0) / tierOne.size();
+				double thisDrskScore = std::accumulate(drskProbs.begin(), drskProbs.end(), 0.0) / drskProbs.size();
+				// update static data for MULTI institution
+				sprintf(charBuffer, "%s%s%s%s%s%s%s%lf,%s%lf%s%d%s",
+					"update institution set SPrating='", thisSpRating.c_str(),
+					"',Moody='", thisMoRating.c_str(),
+					"',Fitch='", thisFiRating.c_str(),
+					"',TierOne='", thisTierOneScore,
+					"',drsk1yprobdefault='", thisDrskScore,
+					"' where institutionid='", institutionId, "';");
+				mydb1.prepare((SQLCHAR *)charBuffer, 1);
+
+				// update CDS rates
+				sprintf(lineBuffer, "%s", "select Maturity,avg(Spread) Spread from cdsspread join institution using (institutionid) where EntityName in (");
+				sprintf(lineBuffer, "%s%s%s", lineBuffer, subNameBuffer, ") and Spread is not null group by Maturity order by Maturity;");
+				mydb1.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb1.fetch(true);
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+					sprintf(charBuffer, "%s%d%s%s%s%s%s", 
+						"replace into cdsspread values (", institutionId, ",", szAllBufs[0], ",", szAllBufs[1], ",'');");
+					mydb2.prepare((SQLCHAR *)charBuffer, 1);
+					retcode = mydb1.fetch(false);
+				}
+				// get next institution
 				retcode = mydb.fetch(false);
 			}
 		}
