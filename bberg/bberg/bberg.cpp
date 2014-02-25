@@ -24,20 +24,28 @@ int _tmain(int argc, _TCHAR* argv[])
 	const bool doDebug(false);
 	try{
 		// initialise
-		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: dbServer>" << endl;  exit(0); }
+		const int        maxBufs(100);
+		const int        bufSize(1000);
+		char             lineBuffer[bufSize], charBuffer[bufSize], resultBuffer[bufSize];
+		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: dbServer:name prices:y/n  cds:y/n static:y/n>" << endl;  exit(0); }
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 34;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 1000;
 		size_t numChars;
 		char *thisDate  = WcharToChar(argv[3], &numChars);
-		char *dbServer  = argc > 4 ? WcharToChar(argv[4], &numChars) : "spIPRL";  // newSp for local PC
+		char *dbServer  = "spIPRL";  // newSp for local PC
+		bool doPrices(true),doCDS(true),doStatic(true);
+		for (int i=4; i<argc; i++){
+			char *thisArg  = WcharToChar(argv[i], &numChars);
+			if (sscanf(thisArg, "prices:%s",   lineBuffer)){ doPrices = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "cds:%s",      lineBuffer)){ doCDS    = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "static:%s",   lineBuffer)){ doStatic = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "dbServer:%s", lineBuffer)){ strcpy(dbServer, lineBuffer); }
+		}
 
 		// init
-		const int        maxBufs(100);
-		const int        bufSize(1000);
 		SQLHENV          hEnv = NULL;		  // Env Handle from SQLAllocEnv()
 		SQLHDBC          hDBC = NULL;         // Connection handle
 		RETCODE          retcode;
-		char             lineBuffer[1000], charBuffer[1000], resultBuffer[1000];
 		char             **szAllBufs = new char*[maxBufs];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
 		for (int i = 0; i < maxBufs; i++){
@@ -80,11 +88,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		//
 		// get BID,ASK prices for productIds
 		//
-		if (!doDebug){
+		if (!doDebug && doPrices){
 			char *bidAskFields[] ={ "PX_BID", "PX_ASK" };
 			char *lastFields[]   ={ "PX_LAST", "PX_LAST" };
 			sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where Isin != ''  and productid>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0' order by ProductId; ");
-			mydb.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb.fetch(true);
+			mydb.prepare((SQLCHAR *)lineBuffer, 6); 	
+			retcode = mydb.fetch(false);  // set to false, since there may not be any deals with ISINs
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				int id(atoi(szAllBufs[0]));
 				string tickerString = szAllBufs[4];
@@ -104,7 +113,6 @@ int _tmain(int argc, _TCHAR* argv[])
 				else {
 					std::cerr << "Failed to get prices for " << id << std::endl;
 				}
-
 				retcode = mydb.fetch(false);
 			}
 
@@ -113,7 +121,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		//
 		// get curves
 		//
-		if (!doDebug){
+		if (!doDebug && doStatic){
 			sprintf(lineBuffer, "%s", "select ccy,tenor,bberg from curve order by ccy,Tenor;");
 			mydb.prepare((SQLCHAR *)lineBuffer, 3); 	retcode = mydb.fetch(true);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
@@ -145,7 +153,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		char   *fieldFormat[]  ={ "%s", "%.2lf", "%s", "%.2lf", "%s", "%s", "%s" };
 		double  fieldScaling[] ={ 0, 1000000000.0, 0, 1, 0, 0, 0 };
 		char   *fieldName[]    ={ "SPrating", "MarketCap", "Currency", "TierOne", "Moody", "Fitch", "drsk1yprobdefault" };
-		if (!doDebug) {
+		if (!doDebug  && doCDS) {
 			if (!doDebug) {
 				sprintf(lineBuffer, "%s%s%s",
 					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
