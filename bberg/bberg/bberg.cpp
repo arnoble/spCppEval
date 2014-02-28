@@ -155,10 +155,10 @@ int _tmain(int argc, _TCHAR* argv[])
 		char   *fieldName[]    ={ "SPrating", "MarketCap", "Currency", "TierOne", "Moody", "Fitch", "drsk1yprobdefault" };
 		if (!doDebug  && doCDS) {
 			if (!doDebug) {
-				sprintf(lineBuffer, "%s%s%s",
+				sprintf(lineBuffer, "%s%s%d%s%d%s",
 					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
-					" institution cp left join cdsspread cds using (institutionid) ",
-					" order by institutionId,maturity;");
+					" product p join institution cp on (p.CounterpartyId=cp.InstitutionId) left join cdsspread cds using (institutionid)  where p.ProductId >='",
+					startProductId, "' and p.ProductId <= '", stopProductId,"' order by institutionId,maturity;");
 				mydb.prepare((SQLCHAR *)lineBuffer, 5); 	retcode = mydb.fetch(true);
 				int     institutionId  = -1;
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
