@@ -158,7 +158,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(lineBuffer, "%s%s%d%s%d%s",
 					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
 					" product p join institution cp on (p.CounterpartyId=cp.InstitutionId) left join cdsspread cds using (institutionid)  where p.ProductId >='",
-					startProductId, "' and p.ProductId <= '", stopProductId,"' order by institutionId,maturity;");
+					startProductId, "' and p.ProductId <= '", stopProductId,"'n order by institutionId,maturity;");
 				mydb.prepare((SQLCHAR *)lineBuffer, 5); 	retcode = mydb.fetch(true);
 				int     institutionId  = -1;
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {

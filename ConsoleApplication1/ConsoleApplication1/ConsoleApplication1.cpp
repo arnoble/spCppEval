@@ -59,20 +59,27 @@ int _tmain(int argc, _TCHAR* argv[])
 			int              numBarriers = 0, thisIteration = 0;
 			int              i, j, len, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId;
-			double           barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
-			string           couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
+			double           barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId,issuePrice, bidPrice, askPrice, midPrice;
+			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
 			bool             capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
 
 			productId = allProductIds.at(productIndx);
 		
-			// get general info:  productType, barrierType
+			// get general info:  productType, productShape, barrierType
 			// ...productType
 			map<int, string> productTypeMap;
 			sprintf(lineBuffer, "%s", "select * from producttype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				productTypeMap[atoi(szAllPrices[0])] = szAllPrices[1];
+				retcode = mydb.fetch(false);
+			}
+			// ...productShape
+			map<int, string> productShapeMap;
+			sprintf(lineBuffer, "%s", "select * from productshape"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+				productShapeMap[atoi(szAllPrices[0])] = szAllPrices[1];
 				retcode = mydb.fetch(false);
 			}
 
@@ -88,7 +95,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get product table data
 			enum {
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
-				colProductAMC = 43, colProductMaxIterations=55,colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductCollateralised,colProductLast
+				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductCollateralised, colProductLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -106,6 +113,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			bidPrice                = atof(szAllPrices[colProductBid]);
 			askPrice                = atof(szAllPrices[colProductAsk]);
 			AMC                     = atof(szAllPrices[colProductAMC]);
+			productShapeId          = atoi(szAllPrices[colProductShapeId]);
+			productShape			= productShapeMap[productShapeId];
 			issuePrice              = atof(szAllPrices[colProductIssuePrice]);
 			midPrice                = ((bidPrice > 99.999) && (askPrice > 99.999) && (bidPrice < 100.001) && (askPrice < 100.001)) ? 1.0 : (bidPrice + askPrice) / (2.0*issuePrice);
 			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
@@ -237,8 +246,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 
 			// create product
-			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, depositGteed, 
-				collateralised, daysExtant, midPrice, baseCurve);
+			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
+				productShape,depositGteed, collateralised, daysExtant, midPrice, baseCurve);
 			numBarriers = 0;
 
 			// get barriers from DB

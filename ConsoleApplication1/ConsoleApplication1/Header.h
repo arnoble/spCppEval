@@ -440,7 +440,7 @@ public:
 	double getPayoff(const std::vector<double> &startLevels,
 		std::vector<double> &lookbackLevel,
 		const std::vector<double> &thesePrices,
-		const double amc) {
+		const double amc, const std::string productShape) {
 		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisAssetReturn,thisStrike;
 		std::vector<double> optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
@@ -476,8 +476,10 @@ public:
 				break;
 			case uFnLargestN:
 				double avgNpayoff(0.0);
-				sort(optionPayoffs.begin(), optionPayoffs.end()); // sort ASCENDING
-				for (len=optionPayoffs.size(),j = len-param1; j<len; j++) { avgNpayoff += optionPayoffs[j]; }
+				sort(optionPayoffs.begin(), optionPayoffs.end(), std::greater<double>()); // sort DECENDING
+				for (len=optionPayoffs.size(),j = len-param1; j<len; j++) { 
+					avgNpayoff += optionPayoffs[j] * (productShape == "Rainbow" ? param1*brel[j].weight : 1.0);
+				}
 				optionPayoff = avgNpayoff > 0.0 ? avgNpayoff / param1 : 0.0;		
 				break;
 			}
@@ -628,7 +630,7 @@ private:
 	const boost::gregorian::date    bProductStartDate;
 	const int                       daysExtant;
 	const double                    fixedCoupon, AMC, midPrice;
-	const std::string               couponFrequency;
+	const std::string               couponFrequency, productShape;
 	const bool                      depositGteed, collateralised,couponPaidOut;
 	const std::vector<SomeCurve>    baseCurve;
 
@@ -640,6 +642,7 @@ public:
 		const std::string               couponFrequency, 
 		const bool                      couponPaidOut,
 		const double                    AMC, 
+		const std::string				productShape,
 		const bool                      depositGteed, 
 		const bool                      collateralised,
 		const int                       daysExtant,
@@ -647,8 +650,8 @@ public:
 		const std::vector<SomeCurve>    baseCurve)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
-		couponPaidOut(couponPaidOut), AMC(AMC), depositGteed(depositGteed), collateralised(collateralised), daysExtant(daysExtant), 
-		midPrice(midPrice),baseCurve(baseCurve) {
+		couponPaidOut(couponPaidOut), AMC(AMC), productShape(productShape),depositGteed(depositGteed), collateralised(collateralised), 
+		daysExtant(daysExtant),	midPrice(midPrice),baseCurve(baseCurve) {
 		
 		for (int i=0; i < baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 		barrier.reserve(100); // for more efficient push_back
@@ -791,7 +794,7 @@ public:
 							// is barrier hit
 							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices,true)){
 								barrierWasHit[thisBarrier] = true;
-								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC);
+								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape);
 								if (b.capitalOrIncome){
 									if (thisMonDays>0){
 										// DOME: just because a KIP barrier is hit does not mean the put option is ITM
