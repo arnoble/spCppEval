@@ -477,7 +477,7 @@ public:
 			case uFnLargestN:
 				double avgNpayoff(0.0);
 				sort(optionPayoffs.begin(), optionPayoffs.end(), std::greater<double>()); // sort DECENDING
-				for (len=optionPayoffs.size(),j = len-param1; j<len; j++) { 
+				for (optionPayoff=0, j=0, len=param1; j<len; j++){
 					avgNpayoff += optionPayoffs[j] * (productShape == "Rainbow" ? param1*brel[j].weight : 1.0);
 				}
 				optionPayoff = avgNpayoff > 0.0 ? avgNpayoff / param1 : 0.0;		
