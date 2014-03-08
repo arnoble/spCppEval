@@ -27,18 +27,19 @@ int _tmain(int argc, _TCHAR* argv[])
 		const int        maxBufs(100);
 		const int        bufSize(1000);
 		char             lineBuffer[bufSize], charBuffer[bufSize], resultBuffer[bufSize];
-		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: 'dbServer:'spIPRL|newSp  'prices:'y/n  'cds:'y/n 'static:'y/n>" << endl;  exit(0); }
+		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: 'dbServer:'spIPRL|newSp  'prices:'y/n  'curves:'y/n 'cds:'y/n 'static:'y/n>" << endl;  exit(0); }
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 34;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 1000;
 		size_t numChars;
 		char *thisDate  = WcharToChar(argv[3], &numChars);
 		char dbServer[100]; strcpy(dbServer,"spIPRL");  // newSp for local PC
-		bool doPrices(true),doCDS(true),doStatic(true);
+		bool doPrices(true), doCDS(true), doCurves(true), doStatic(true);
 		for (int i=4; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (sscanf(thisArg, "prices:%s",   lineBuffer)){ doPrices = strcmp(lineBuffer, "y") == 0; }
 			if (sscanf(thisArg, "cds:%s",      lineBuffer)){ doCDS    = strcmp(lineBuffer, "y") == 0; }
 			if (sscanf(thisArg, "static:%s",   lineBuffer)){ doStatic = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "curves:%s",   lineBuffer)){ doCurves = strcmp(lineBuffer, "y") == 0; }
 			if (sscanf(thisArg, "dbServer:%s", lineBuffer)){ strcpy(dbServer, lineBuffer); }
 		}
 
@@ -121,7 +122,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		//
 		// get curves
 		//
-		if (!doDebug && doStatic){
+		if (!doDebug && doCurves){
 			sprintf(lineBuffer, "%s", "select ccy,tenor,bberg from curve order by ccy,Tenor;");
 			mydb.prepare((SQLCHAR *)lineBuffer, 3); 	retcode = mydb.fetch(true);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
@@ -158,7 +159,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(lineBuffer, "%s%s%d%s%d%s",
 					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
 					" product p join institution cp on (p.CounterpartyId=cp.InstitutionId) left join cdsspread cds using (institutionid)  where p.ProductId >='",
-					startProductId, "' and p.ProductId <= '", stopProductId,"'n order by institutionId,maturity;");
+					startProductId, "' and p.ProductId <= '", stopProductId,"' order by institutionId,maturity;");
 				mydb.prepare((SQLCHAR *)lineBuffer, 5); 	retcode = mydb.fetch(true);
 				int     institutionId  = -1;
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {

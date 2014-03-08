@@ -12,19 +12,22 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	try{
 		// initialise
-		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: forceIterations>" << endl;  exit(0); }
+		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: forceIterations  endDate:YYYY-mm-dd>" << endl;  exit(0); }
 		int              historyStep = 1;
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 363;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 363;
 		int              numMcIterations = argc > 3 ? _ttoi(argv[3]) : 100;
 		bool             forceIterations(false);
+		char             lineBuffer[1000], charBuffer[1000];
+		char             endDate[11] = "";
 		// process optional argumants
-		for (int i=4; i < argc; i++){
-			size_t thisNumChars;
-			char * thisArg = WcharToChar(argv[i], &thisNumChars);
-			if (strstr(thisArg,"forceIterations")){
+		for (int i=4; i<argc; i++){
+			size_t numChars;
+			char *thisArg  = WcharToChar(argv[i], &numChars);
+			if (strstr(thisArg, "forceIterations")){
 				forceIterations = true;
 			}
+			if (sscanf(thisArg, "endDate:%s", lineBuffer)){ strcpy(endDate,lineBuffer); }
 		}
 		const int        maxUls(100);
 		const int        bufSize(1000);
@@ -32,7 +35,6 @@ int _tmain(int argc, _TCHAR* argv[])
 		SQLHDBC          hDBC = NULL;         // Connection handle
 		RETCODE          retcode;
 		SomeCurve        anyCurve;
-		char             lineBuffer[1000], charBuffer[1000];
 		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
 		vector<string>   payoffType = { "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall" };
@@ -196,6 +198,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			strcat(ulSql, lineBuffer);
 			if (numUl > 1) { for (i = 1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
 			if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
+			if (strlen(endDate)) { sprintf(ulSql, "%s%s%s%s",ulSql," and Date <='",endDate,"'"); }
 			strcat(ulSql, " order by Date");
 			// ...call DB
 			mydb.prepare((SQLCHAR *)ulSql, numUl + 1);
