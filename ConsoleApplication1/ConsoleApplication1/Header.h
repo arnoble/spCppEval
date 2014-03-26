@@ -462,8 +462,14 @@ public:
 				else {
 					thisAssetReturn = thesePrices[n] / thisRefLevel;
 				}
-
-				p = callOrPut*(thisAssetReturn - thisStrike / thisRefLevel);
+				// the typical optionPayoff = max(0,return) is done below in the 'for' loops initialised with 'optionPayoff=0'
+				if (payoffTypeId == putPayoff && productShape == "Autocall"){
+					p = callOrPut*(thisAssetReturn*thisRefLevel / thisStrike - 1);
+				}
+				else {
+					p = callOrPut*(thisAssetReturn - thisStrike / thisRefLevel);
+				}
+				
 				if (payoffTypeId == twinWinPayoff) { p = fabs(p); }
 				if (p > cap){ p = cap; }
 				optionPayoffs.push_back(p);
@@ -746,8 +752,9 @@ public:
 				for (i = 0; i < numUl; i++) { startLevels.at(i) = ulPrices.at(i).price.at(thisPoint); }
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					SpBarrier& b(barrier.at(thisBarrier));
+					int numBrel = b.brel.size();
 					std::vector<double>	theseExtrema; theseExtrema.reserve(10);
-					for (unsigned int uI = 0; uI < b.brel.size(); uI++){
+					for (unsigned int uI = 0; uI < numBrel; uI++){
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
 						int thisName = ulIdNameMap.at(thisBrel.underlying);
 						thisBrel.setLevels(startLevels.at(thisName));
@@ -774,7 +781,27 @@ public:
 						}
 					}
 					if (b.isExtremum) {
-						barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(theseExtrema,false);
+						if (b.isAnd && numBrel>1 && b.brel[0].above) {  // for product 536, all underlyings must be above their barriers on some common date
+							int firstPoint = thisPoint + b.brel[0].startDays; if (firstPoint < 0){ firstPoint  = 0; }
+							int lastPoint  = thisPoint + b.brel[0].endDays;   if (lastPoint  > totalNumDays - 1){ lastPoint   = totalNumDays - 1; }
+							std::vector<int> ulNames;
+							for (unsigned int uI = 0; uI < numBrel; uI++){
+								ulNames.push_back(ulIdNameMap.at(b.brel.at(uI).underlying));
+							}
+							for (k=firstPoint; !barrierWasHit.at(thisBarrier) && k <= lastPoint; k++) {
+								std:: vector<double> thesePrices;
+								for (j=0; j<numBrel; j++) {
+									thesePrices.push_back(ulPrices.at(ulNames[j]).price[k]);
+								}
+								barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(thesePrices, false);
+								if (barrierWasHit.at(thisBarrier)){
+									int jj=1;
+								}
+							}					
+						}
+						else {
+							barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(theseExtrema, false);
+						}
 						if (doAccruals){ b.hasBeenHit = barrierWasHit[thisBarrier]; }  // for post-strike deals, record if barriers have already been hit
 					}
 				}
