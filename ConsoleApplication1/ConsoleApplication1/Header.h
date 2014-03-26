@@ -731,7 +731,7 @@ public:
 
 
 		// main MC loop
-		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.1; thisIteration++) {
+		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.5; thisIteration++) {
 			// start a product on each TRADING date
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
 				// wind forwards to next trading date
