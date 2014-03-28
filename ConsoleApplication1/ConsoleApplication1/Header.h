@@ -463,7 +463,7 @@ public:
 					thisAssetReturn = thesePrices[n] / thisRefLevel;
 				}
 				// the typical optionPayoff = max(0,return) is done below in the 'for' loops initialised with 'optionPayoff=0'
-				if (payoffTypeId == putPayoff && productShape == "Autocall"){
+				if (payoffTypeId == putPayoff && (productShape == "Autocall" || productShape == "Phoenix")){
 					p = callOrPut*(thisAssetReturn*thisRefLevel / thisStrike - 1);
 				}
 				else {
