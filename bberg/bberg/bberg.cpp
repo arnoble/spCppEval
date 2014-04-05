@@ -32,6 +32,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 1000;
 		size_t numChars;
 		char *thisDate  = WcharToChar(argv[3], &numChars);
+		string anyString(thisDate); if (anyString.find("-") != string::npos){ std::cout << "Usage: enter date as YYYYMMDD " << endl;  exit(0); }
 		char dbServer[100]; strcpy(dbServer,"spIPRL");  // newSp for local PC
 		bool doPrices(true), doCDS(true), doCurves(true), doStatic(true);
 		for (int i=4; i<argc; i++){
