@@ -1,5 +1,5 @@
 #include <boost/lambda/lambda.hpp>
-#include <boost/regex.hpp>
+//#include <boost/regex.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <iostream>
 #include <fstream>
@@ -183,6 +183,7 @@ public:
 		} while (ret == SQL_SUCCESS);
 	}
 	// open connection to DataSource newSp
+	/*
 	SQLRETURN dbConn(SQLHENV hEnv, SQLHDBC* hDBC) {
 		SQLWCHAR              szDSN[]    = L"newSp";       // Data Source Name buffer
 		SQLWCHAR              szUID[]    = L"root";		   // User ID buffer
@@ -202,10 +203,41 @@ public:
 		}
 		return fsts;
 	}
+	
+	*/
+	// open connection to DataSource
+	SQLRETURN dbConn(SQLHENV hEnv, SQLHDBC* hDBC, SQLWCHAR *szDSN, SQLWCHAR *szUID, SQLWCHAR *szPasswd) {
+		SQLRETURN             fsts;
 
-	MyDB(char **bindBuffer) : bindBuffer(bindBuffer){
+		fsts = SQLAllocHandle(SQL_HANDLE_DBC, hEnv, hDBC);  // Allocate memory for the connection handle
+		if (!SQL_SUCCEEDED(fsts))	{
+			extract_error("SQLAllocHandle for dbc", hEnv, SQL_HANDLE_ENV);
+			exit(1);
+		}
+		// Connect to Data Source
+		fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
+		if (!SQL_SUCCEEDED(fsts))	{
+			extract_error("SQLAllocHandle for connect", hDBC, SQL_HANDLE_DBC);
+			exit(1);
+		}
+		return fsts;
+	}
+
+	MyDB(char **bindBuffer, const std::string dataSource) : bindBuffer(bindBuffer){
 		SQLAllocEnv(&hEnv);
-		fsts = dbConn(hEnv, &hDBC);              // connect
+		if (dataSource == "spCloud"){
+			fsts = dbConn(hEnv, &hDBC, L"spCloud", L"anoble", L"Ragtin_Mor14");
+		}
+		else if (dataSource == "newSp"){
+			fsts =  dbConn(hEnv, &hDBC, L"newSp", L"root", L"ragtinmor");            
+		}
+		else if (dataSource == "spIPRL"){
+			fsts =  dbConn(hEnv, &hDBC, L"spIPRL", L"C85693_anoble", L"Ragtin_Mor14");
+		}
+		else {
+			std::cerr << "Unknown database " << dataSource << "\n";
+			exit(101);
+		}
 		if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO) { exit(1); }
 	};
 	~MyDB(){
@@ -256,12 +288,12 @@ public:
 class SpPayoff {
 
 public:
-	SpPayoff(std::string date, double amount) :
+	SpPayoff(std::string date, double amount, double finalAssetReturn) :
 		// use this for debug only...in production it uses too much memory eg 1000 iterations of a 6000point timeseries with 72(monthly) barriers
 		// date(date), 
-		amount(amount){};
+		amount(amount), finalAssetReturn(finalAssetReturn){};
 	// std::string date;
-	double amount;
+	double amount, finalAssetReturn;
 };
 
 
@@ -438,9 +470,13 @@ public:
 	};
 	// get payoff
 	double getPayoff(const std::vector<double> &startLevels,
-		std::vector<double> &lookbackLevel,
-		const std::vector<double> &thesePrices,
-		const double amc, const std::string productShape) {
+		std::vector<double>                    &lookbackLevel,
+		const std::vector<double>              &thesePrices,
+		const double                            amc, 
+		const std::string                       productShape,
+		const bool                             doFinalAssetReturn,
+		double                                 &finalAssetReturn,
+		const std::vector<int>                 &ulIds) {
 		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisAssetReturn,thisStrike;
 		std::vector<double> optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
@@ -462,6 +498,11 @@ public:
 				else {
 					thisAssetReturn = thesePrices[n] / thisRefLevel;
 				}
+				double thisSpotReturn   = thesePrices[n] / startLevels[n];
+				if (finalAssetReturn > thisSpotReturn)  { 
+					finalAssetReturn = thisSpotReturn; 
+				}
+
 				// the typical optionPayoff = max(0,return) is done below in the 'for' loops initialised with 'optionPayoff=0'
 				if (payoffTypeId == putPayoff && (productShape == "Autocall" || productShape == "Phoenix")){
 					p = callOrPut*(thisAssetReturn*thisRefLevel / thisStrike - 1);
@@ -480,32 +521,44 @@ public:
 					if (optionPayoffs[j] > optionPayoff) { optionPayoff = optionPayoffs[j]; }
 				}
 				break;
-			case uFnLargestN:
+			case uFnLargestN: {
 				double avgNpayoff(0.0);
 				sort(optionPayoffs.begin(), optionPayoffs.end(), std::greater<double>()); // sort DECENDING
 				for (optionPayoff=0, j=0, len=param1; j<len; j++){
 					avgNpayoff += optionPayoffs[j] * (productShape == "Rainbow" ? param1*brel[j].weight : 1.0);
 				}
-				optionPayoff = avgNpayoff > 0.0 ? avgNpayoff / param1 : 0.0;		
+				optionPayoff = avgNpayoff > 0.0 ? avgNpayoff / param1 : 0.0;
 				break;
+				}
 			}
 			thisPayoff += participation*optionPayoff;
 			break;
-		case basketCallPayoff:
-			double basketFinal = 0.0, basketStart = 0.0, basketRef = 0.0;
-			for (j = 0, len = brel.size(); j<len; j++)
-			{
-				const SpBarrierRelation &thisBrel(brel[j]);
-				int    n     = ulIdNameMap[thisBrel.underlying];
-				double w     = thisBrel.weight;
-				thisRefLevel = startLevels[n] / thisBrel.moneyness;
-				basketFinal += thesePrices[n] * w;
-				basketStart += startLevels[n] * w;
-				basketRef   += thisRefLevel   * w;
+		case basketCallPayoff: {
+		   double basketFinal = 0.0, basketStart = 0.0, basketRef = 0.0;
+		   for (j = 0, len = brel.size(); j<len; j++)	{
+			   const SpBarrierRelation &thisBrel(brel[j]);
+			   int    n     = ulIdNameMap[thisBrel.underlying];
+			   double w     = thisBrel.weight;
+			   thisRefLevel = startLevels[n] / thisBrel.moneyness;
+			   basketFinal += thesePrices[n] * w;
+			   basketStart += startLevels[n] * w;
+			   basketRef   += thisRefLevel   * w;
+		   }
+		   finalAssetReturn = basketFinal / basketStart;
+		   optionPayoff     = basketFinal / basketRef - (strike*basketStart / basketRef);
+		   thisPayoff      += participation*(optionPayoff > 0.0 ? optionPayoff : 0.0);
+		   break;
+		}
+		case fixedPayoff:
+			if (doFinalAssetReturn){
+				// DOME: just record worstPerformer for now
+				finalAssetReturn = 1.0e9;
+				for (j = 0, len = ulIds.size(); j<len; j++)	{
+					int    n     = ulIdNameMap[ulIds[j]];
+					double perf  = thesePrices[n] / startLevels[n] ;
+					if (perf < finalAssetReturn){ finalAssetReturn = perf; }
+				}
 			}
-			double finalAssetReturn = basketFinal / basketStart;
-			optionPayoff = basketFinal / basketRef - (strike*basketStart / basketRef);
-			thisPayoff  += participation*(optionPayoff > 0.0 ? optionPayoff: 0.0);
 			break;
 		}
 
@@ -518,10 +571,10 @@ public:
 
 		return(thisPayoff);
 	}
-	void storePayoff(const std::string thisDateString, const double amount,const double proportion){
+	void storePayoff(const std::string thisDateString, const double amount, const double proportion, const double finalAssetReturn){
 		sumPayoffs     += amount;
 		sumProportion += proportion;
-		hit.push_back(SpPayoff(thisDateString, amount));
+		hit.push_back(SpPayoff(thisDateString, amount,finalAssetReturn));
 	}
 	// do any averaging
 	void doAveraging(const std::vector<double> &startLevels, std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, const std::vector<UlTimeseries> &ulPrices,
@@ -636,6 +689,7 @@ class SProduct {
 private:
 	int productId;
 	const std::vector <bool>        &allNonTradingDays;
+	const std::vector <int>         &ulIds;
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate;
 	const int                       daysExtant;
@@ -657,11 +711,12 @@ public:
 		const bool                      collateralised,
 		const int                       daysExtant,
 		const double                    midPrice,
-		const std::vector<SomeCurve>    baseCurve)
+		const std::vector<SomeCurve>    baseCurve,
+		const std::vector<int>          &ulIds)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), productShape(productShape),depositGteed(depositGteed), collateralised(collateralised), 
-		daysExtant(daysExtant),	midPrice(midPrice),baseCurve(baseCurve) {
+		daysExtant(daysExtant),	midPrice(midPrice),baseCurve(baseCurve),ulIds(ulIds) {
 		
 		for (int i=0; i < baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 		barrier.reserve(100); // for more efficient push_back
@@ -673,10 +728,23 @@ public:
 	std::vector <double>            baseCurveTenor, baseCurveSpread;
 
 	// evaluate product at this point in time
-	void evaluate(const int totalNumDays, const int startPoint, const int lastPoint, const int numMcIterations, const int historyStep,
-		std::vector<UlTimeseries>   &ulPrices, const std::vector<double> ulReturns[],
-		const int numBarriers, const int numUl, const std::vector<int> ulIdNameMap, const std::vector<int> monDateIndx,
-		const double recoveryRate, const std::vector<double> hazardCurve,MyDB &mydb,double &accruedCoupon,const bool doAccruals){
+	void evaluate(const int       totalNumDays, 
+		const int                 startPoint, 
+		const int                 lastPoint, 
+		const int                 numMcIterations, 
+		const int                 historyStep,
+		std::vector<UlTimeseries> &ulPrices, 
+		const std::vector<double> ulReturns[],
+		const int                 numBarriers, 
+		const int                 numUl, 
+		const std::vector<int>    ulIdNameMap, 
+		const std::vector<int>    monDateIndx,
+		const double              recoveryRate, 
+		const std::vector<double> hazardCurve,
+		MyDB                      &mydb,
+		double                    &accruedCoupon,
+		const bool                doAccruals,
+		const bool                doFinalAssetReturn){
 		int                 totalNumReturns  = totalNumDays - 1;
 		char                lineBuffer[50000], charBuffer[1000];
 		int                 i, j, k, len, thisIteration;
@@ -731,7 +799,7 @@ public:
 
 
 		// main MC loop
-		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.5; thisIteration++) {
+		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.1; thisIteration++) {
 			// start a product on each TRADING date
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
 				// wind forwards to next trading date
@@ -745,8 +813,9 @@ public:
 				std::string            startDateString = allDates.at(thisPoint);
 				boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(allDates.at(thisPoint)));
 				bool                   matured = false;
-				couponValue    = 0.0;
+				couponValue                    = 0.0;
 				double                 thisPayoff;
+				double                 finalAssetReturn  = 1.0e9;
 				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl);
 
 				for (i = 0; i < numUl; i++) { startLevels.at(i) = ulPrices.at(i).price.at(thisPoint); }
@@ -825,7 +894,7 @@ public:
 							// is barrier hit
 							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices,true)){
 								barrierWasHit[thisBarrier] = true;
-								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape);
+								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds);
 								if (b.capitalOrIncome){
 									if (thisMonDays>0){
 										// DOME: just because a KIP barrier is hit does not mean the put option is ITM
@@ -877,7 +946,7 @@ public:
 													}
 													// only store a hit if this barrier is in the future
 													if (thisMonDays>0){
-														bOther.storePayoff(thisDateString, payoffOther, 1.0);
+														bOther.storePayoff(thisDateString, payoffOther, 1.0, finalAssetReturn);
 													}
 												}
 											}
@@ -886,7 +955,7 @@ public:
 								}
 								// only store a hit if this barrier is in the future
 								if (thisMonDays>0){
-									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, b.proportionHits);
+									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, b.proportionHits, finalAssetReturn);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								}
 							}
@@ -987,7 +1056,17 @@ public:
 				}
 			}
 
+			// doFinalAssetReturn
+			char farBuffer[100000];
+			int  farCounter(0),totalFarCounter(0);
+			if (doFinalAssetReturn){
+				strcpy(farBuffer, "insert into finalassetreturns values ");
+				sprintf(lineBuffer, "%s%d%s", "delete from finalassetreturns where productid='", productId, "'");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			}
+			
 
+			// process results
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			for (int analyseCase = 0; analyseCase < 2; analyseCase++) {
@@ -1029,6 +1108,21 @@ public:
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount = thisBarrierPayoffs[i];
 							double thisAnnRet = exp(log(thisAmount / midPrice) / thisYears) - 1.0;
+							
+							// maybe save finalAssetReturns
+							if (doFinalAssetReturn && !applyCredit && totalFarCounter<350000){
+								if (farCounter){ strcat(farBuffer, ","); }
+								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.hit[i].finalAssetReturn, ")");
+								farCounter += 1;
+								if (farCounter == 100){
+									totalFarCounter += farCounter;
+									strcat(farBuffer, ";");
+									mydb.prepare((SQLCHAR *)farBuffer, 1);
+									strcpy(farBuffer, "insert into finalassetreturns values ");
+									farCounter = 0;
+								}
+							}
+							
 							allPayoffs.push_back(thisAmount);
 							allAnnRets.push_back(thisAnnRet);
 							sumAnnRets += thisAnnRet;

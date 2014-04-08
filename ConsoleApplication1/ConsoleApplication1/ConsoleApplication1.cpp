@@ -12,22 +12,25 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	try{
 		// initialise
-		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: forceIterations  endDate:YYYY-mm-dd>" << endl;  exit(0); }
+		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR'   'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'endDate:'YYYY-mm-dd>" << endl;  exit(0); }
 		int              historyStep = 1;
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 363;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 363;
 		int              numMcIterations = argc > 3 ? _ttoi(argv[3]) : 100;
 		bool             forceIterations(false);
 		char             lineBuffer[1000], charBuffer[1000];
-		char             endDate[11] = "";
+		char             endDate[11]        = "";
+		bool             doFinalAssetReturn = false;
+		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
+
 		// process optional argumants
 		for (int i=4; i<argc; i++){
 			size_t numChars;
 			char *thisArg  = WcharToChar(argv[i], &numChars);
-			if (strstr(thisArg, "forceIterations")){
-				forceIterations = true;
-			}
-			if (sscanf(thisArg, "endDate:%s", lineBuffer)){ strcpy(endDate,lineBuffer); }
+			if (strstr(thisArg, "forceIterations" )){ forceIterations    = true; }
+			if (strstr(thisArg, "doFAR"           )){ doFinalAssetReturn = true; }
+			if (sscanf(thisArg, "endDate:%s", lineBuffer)){ strcpy(endDate, lineBuffer); }
+			if (sscanf(thisArg, "dbServer:%s", lineBuffer)){ strcpy(dbServer, lineBuffer); }
 		}
 		const int        maxUls(100);
 		const int        bufSize(1000);
@@ -46,7 +49,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 		// open database
-		MyDB  mydb((char **)szAllPrices), mydb1((char **)szAllPrices);
+		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
 
 		// get list of productIds
 		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId from product where ProductId>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0'"); 	mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
@@ -250,7 +253,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
-				productShape,depositGteed, collateralised, daysExtant, midPrice, baseCurve);
+				productShape,depositGteed, collateralised, daysExtant, midPrice, baseCurve,ulIds);
 			numBarriers = 0;
 
 			// get barriers from DB
@@ -406,11 +409,11 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true);
+				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true,false);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, thisNumIterations*numBarriers>100000 ? 100000/numBarriers : thisNumIterations, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false);
+				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn);
 			// tidy up
 
 		} // for each product
