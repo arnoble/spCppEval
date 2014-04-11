@@ -286,15 +286,15 @@ public:
 };
 
 class SpPayoff {
-
 public:
-	SpPayoff(std::string date, double amount, double finalAssetReturn) :
+	SpPayoff(std::string date, double amount) :
 		// use this for debug only...in production it uses too much memory eg 1000 iterations of a 6000point timeseries with 72(monthly) barriers
 		// date(date), 
-		amount(amount), finalAssetReturn(finalAssetReturn){};
+		amount(amount){};
 	// std::string date;
-	double amount, finalAssetReturn;
+	double amount;
 };
+
 
 
 class SpBarrierRelation {
@@ -380,8 +380,7 @@ public:
 
 class SpBarrier {
 private:
-	
-
+	const bool          doFinalAssetReturn;
 public:
 	SpBarrier(const int         barrierId,
 		const bool              capitalOrIncome,
@@ -403,19 +402,21 @@ public:
 		const bool              isMemory,
 		const bool              isAbsolute,
 		const int               daysExtant,
-		const boost::gregorian::date bProductStartDate)
+		const boost::gregorian::date bProductStartDate,
+		const bool              doFinalAssetReturn)
 		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike), cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
 		isAnd(nature == "and"), avgDays(avgDays), avgType(avgType),
-		avgFreq(avgFreq), isMemory(isMemory), isAbsolute(isAbsolute),daysExtant(daysExtant)
+		avgFreq(avgFreq), isMemory(isMemory), isAbsolute(isAbsolute), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn)
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
 		endDays = (bEndDate - bProductStartDate).days() - daysExtant;
 		yearsToBarrier         = endDays / 365.25;
 		sumPayoffs             = 0.0;
+		variableCoupon         = 0.0;
 		isExtremum             = false;
 		isContinuous           = false;
 		hasBeenHit             = false;
@@ -423,17 +424,19 @@ public:
 		sumProportion          = 0.0;
 		proportionalAveraging  = avgDays > 0 && avgType == 1;
 		brel.reserve(10);
+		if (doFinalAssetReturn){fars.reserve(100000); }
 		hit.reserve(100000);
 	};
 	// public members: DOME consider making private, in case we implement their content some other way
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute;
-	const double                    payoff, participation, param1;
+	const double                    payoff,participation, param1;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
 	bool                            hasBeenHit, isExtremum, isContinuous, proportionalAveraging;
 	int                             endDays;
-	double                          strike, cap, yearsToBarrier, sumPayoffs, proportionHits, sumProportion,forwardRate;
+	double                          variableCoupon,strike, cap, yearsToBarrier, sumPayoffs, proportionHits, sumProportion,forwardRate;
+	std::vector <double>            fars; // final asset returns
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
 
@@ -571,10 +574,11 @@ public:
 
 		return(thisPayoff);
 	}
-	void storePayoff(const std::string thisDateString, const double amount, const double proportion, const double finalAssetReturn){
+	void storePayoff(const std::string thisDateString, const double amount, const double proportion, const double finalAssetReturn,const bool doFinalAssetReturn){
 		sumPayoffs     += amount;
 		sumProportion += proportion;
-		hit.push_back(SpPayoff(thisDateString, amount,finalAssetReturn));
+		hit.push_back(SpPayoff(thisDateString, amount));
+		if (doFinalAssetReturn){ fars.push_back(finalAssetReturn); }
 	}
 	// do any averaging
 	void doAveraging(const std::vector<double> &startLevels, std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, const std::vector<UlTimeseries> &ulPrices,
@@ -907,7 +911,7 @@ public:
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
 												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier]){
 													SpBarrier &ib(barrier[paidOutBarrier]);
-													couponValue   += ib.proportionHits*ib.payoff*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
+													couponValue   += (ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
 											}
 										}
@@ -935,6 +939,9 @@ public:
 										if (!couponPaidOut){
 											couponValue += b.proportionHits*thisPayoff;
 										}
+										else if (b.payoffTypeId != fixedPayoff){  // paid-out variable coupon
+											b.variableCoupon = b.proportionHits*thisPayoff;
+										}
 										if (b.isMemory) {
 											for (k = 0; k<thisBarrier; k++) {
 												SpBarrier& bOther(barrier.at(k));
@@ -946,7 +953,7 @@ public:
 													}
 													// only store a hit if this barrier is in the future
 													if (thisMonDays>0){
-														bOther.storePayoff(thisDateString, payoffOther, 1.0, finalAssetReturn);
+														bOther.storePayoff(thisDateString, payoffOther, 1.0, finalAssetReturn,doFinalAssetReturn);
 													}
 												}
 											}
@@ -955,7 +962,7 @@ public:
 								}
 								// only store a hit if this barrier is in the future
 								if (thisMonDays>0){
-									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, b.proportionHits, finalAssetReturn);
+									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, b.proportionHits, finalAssetReturn,doFinalAssetReturn);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								}
 							}
@@ -1110,9 +1117,9 @@ public:
 							double thisAnnRet = exp(log(thisAmount / midPrice) / thisYears) - 1.0;
 							
 							// maybe save finalAssetReturns
-							if (doFinalAssetReturn && !applyCredit && totalFarCounter<350000){
+							if (doFinalAssetReturn && !applyCredit && totalFarCounter<400000){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
 								if (farCounter){ strcat(farBuffer, ","); }
-								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.hit[i].finalAssetReturn, ")");
+								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i], ")");
 								farCounter += 1;
 								if (farCounter == 100){
 									totalFarCounter += farCounter;

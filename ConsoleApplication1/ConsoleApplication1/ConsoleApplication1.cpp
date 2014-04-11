@@ -309,7 +309,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				double  param1 = atof(szAllPrices[colParam1]);
 				spr.barrier.push_back(SpBarrier(barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
-					avgFreq, isMemory, isAbsolute, daysExtant, bProductStartDate));
+					avgFreq, isMemory, isAbsolute, daysExtant, bProductStartDate,doFinalAssetReturn));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 				// update vector of monitoring dates
 				// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
