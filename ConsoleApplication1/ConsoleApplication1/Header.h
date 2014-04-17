@@ -1081,7 +1081,7 @@ public:
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
-				std::vector<double> allPayoffs, allAnnRets;
+				std::vector<double> allPayoffs, allDurations,allAnnRets;
 				int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0);
@@ -1131,11 +1131,12 @@ public:
 							}
 							
 							allPayoffs.push_back(thisAmount);
+							allDurations.push_back(thisYears);
 							allAnnRets.push_back(thisAnnRet);
 							sumAnnRets += thisAnnRet;
-							if (thisAmount >  1.0) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
-							if (thisAmount >= 1.0) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
-							else                   { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
+							if (thisAmount >  midPrice) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
+							if (thisAmount >= midPrice) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
+							else                        { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
 						}
 					}
 					double mean      = numInstances ? thisBarrierSumPayoffs / numInstances : 0.0;
@@ -1151,6 +1152,50 @@ public:
 					//retcode = mydb.execute(true);
 				}
 
+				// winlose ratios for different cutoff returns
+				if (numMcIterations > 1 && analyseCase == 0) {
+					sprintf(lineBuffer, "%s%d%s", "delete from winlose where productid='", productId, "';");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					double winLoseMinRet       = -0.2;
+					const double winLoseMaxRet =  0.21;
+					while (winLoseMinRet<winLoseMaxRet) {
+						double sumWinLosePosRets    = 0.0;
+						double sumWinLoseNegRets    = 0.0;
+						double sumWinLosePosPayoffs = 0.0;
+						double sumWinLoseNegPayoffs = 0.0;
+						double posWinLoseDuration   = 0.0;
+						double negWinLoseDuration   = 0.0;
+						int    numWinLosePosPayoffs = 0;
+						int    numWinLoseNegPayoffs = 0;
+						std::vector <double> thesePayoffs, theseRets;
+						for (j = 0, len=allAnnRets.size(); j<len; j++) {
+							double ret      = allAnnRets[j] - winLoseMinRet;
+							double payoff   = allPayoffs[j];
+							double duration = allDurations[j];
+							if (ret> 0){ sumWinLosePosRets += ret; sumWinLosePosPayoffs += payoff; numWinLosePosPayoffs += 1; posWinLoseDuration += duration; }
+							else       { sumWinLoseNegRets += ret; sumWinLoseNegPayoffs += payoff; numWinLoseNegPayoffs += 1; negWinLoseDuration += duration; }
+						}
+						double ecGain         =  100.0*(numWinLosePosPayoffs ? exp(log(sumWinLosePosPayoffs / midPrice / numWinLosePosPayoffs) / (posWinLoseDuration / numWinLosePosPayoffs)) - 1.0 : 0.0);
+						double ecLoss         = fabs(100.0*(numWinLoseNegPayoffs ? exp(log(sumWinLoseNegPayoffs / midPrice / numWinLoseNegPayoffs) / (negWinLoseDuration / numWinLoseNegPayoffs)) - 1.0 : 0.0));
+						double probGain       = numWinLosePosPayoffs ? ((double)numWinLosePosPayoffs) / len : 0;
+						double probLoss       = 1 - probGain;
+						double eGainRet       = ecGain * probGain;
+						double eLossRet       = ecLoss * probLoss;
+						// two ways to do it
+						// ...first recognises the fact that a 6y annuity is worth more than a 1y annuity
+						double winLose        = numWinLoseNegPayoffs ? (eGainRet / eLossRet>1000.0 ? 1000.0 : eGainRet / eLossRet) : 1000.0;
+						// ...second assumes annualised returns have equal duration
+						//double winLose        = numWinLoseNegPayoffs ? (sumWinLosePosRets / -sumWinLoseNegRets>1000.0 ? 1000.0 : sumWinLosePosRets / -sumWinLoseNegRets) : 1000.0;
+
+						sprintf(lineBuffer, "%s%d%s%.4lf%s%.6lf%s",
+							"insert into winlose values (", productId, ",", 100.0*winLoseMinRet, ",", winLose, ");");
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						winLoseMinRet += 0.01;
+					}
+
+				}
+
+
 				// ** process overall product results
 				int numAnnRets(allAnnRets.size());
 				const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
@@ -1159,8 +1204,9 @@ public:
 				double averageReturn = sumAnnRets / numAnnRets;
 				double vaR95         = 100.0*allPayoffs[floor(numAnnRets*0.05)];
 
-				// pctiles
+				// pctiles and other calcs
 				if (numMcIterations > 1 && analyseCase == 0) {
+					// pctiles
 					double minReturn = allAnnRets[0];
 					std::vector<double>    returnBucket;
 					std::vector<double>    bucketProb;
@@ -1171,15 +1217,14 @@ public:
 					returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets);
 					sprintf(lineBuffer, "%s%d%s", "delete from pctiles where productid='", productId, "';");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					//retcode = mydb.execute(true);
+					
 					sprintf(lineBuffer, "%s", "insert into pctiles values ");
 					for (i=0; i < returnBucket.size(); i++){
 						if (i != 0){ sprintf(lineBuffer, "%s%s", lineBuffer, ","); }
 						sprintf(lineBuffer, "%s%s%d%s%.4lf%s%.6lf%s%d%s%d%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1, ")");
 					}
 					sprintf(lineBuffer, "%s%s", lineBuffer, ";");
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					//retcode = mydb.execute(true);
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);	
 				}
 
 
