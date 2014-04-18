@@ -1152,7 +1152,7 @@ public:
 				}
 
 				// winlose ratios for different cutoff returns
-				if (numMcIterations > 1 && analyseCase == 0) {
+				if (analyseCase == 0) {
 					sprintf(lineBuffer, "%s%d%s", "delete from winlose where productid='", productId, "';");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					double winLoseMinRet       =  0.5;
