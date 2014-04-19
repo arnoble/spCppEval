@@ -1258,7 +1258,7 @@ public:
 				double eGainRet       = ecGain * probGain;
 				double eLossRet       = ecLoss * probLoss;
 				//double winLose        = sumNegRet ? (eGainRet / eLossRet>1000.0 ? 1000.0 : eGainRet / eLossRet) : 1000.0;
-				double winLose        = numNegPayoffs ? (sumPosPayoffs - midPrice*numPosPayoffs) / (midPrice*numNegPayoffs-sumNegPayoffs) : 1000.0;
+				double winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0;
 				if (winLose > 1000.0){ winLose = 1000.0; }
 
 				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
