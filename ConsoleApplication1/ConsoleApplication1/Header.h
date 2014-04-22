@@ -1155,30 +1155,28 @@ public:
 				if (analyseCase == 0) {
 					sprintf(lineBuffer, "%s%d%s", "delete from winlose where productid='", productId, "';");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					double winLoseMinRet       =  0.5;
-					const double winLoseMaxRet =  2.01;
+					double winLoseMinRet       =  -0.2;
+					const double winLoseMaxRet =   0.21;
 					while (winLoseMinRet < winLoseMaxRet) {
 						double sumWinLosePosPayoffs = 0.0;
 						double sumWinLoseNegPayoffs = 0.0;
 						int    numWinLosePosPayoffs = 0;
 						int    numWinLoseNegPayoffs = 0;
-						std::vector <double> thesePayoffs, theseRets;
 						for (j = 0, len=allAnnRets.size(); j<len; j++) {
-							double payoff   = allPayoffs[j] / midPrice - winLoseMinRet;
+							double payoff   = allAnnRets[j] - winLoseMinRet;
 							if (payoff > 0){ sumWinLosePosPayoffs += payoff; numWinLosePosPayoffs += 1; }
 							else           { sumWinLoseNegPayoffs -= payoff; numWinLoseNegPayoffs += 1; }
 						}
 						// two ways to do it
 						// ...first recognises the fact that a 6y annuity is worth more than a 1y annuity
-						//double winLose        = numWinLoseNegPayoffs ? (eGainRet / eLossRet>1000.0 ? 1000.0 : eGainRet / eLossRet) : 1000.0;
-						double winLose        = numWinLoseNegPayoffs ? (sumWinLosePosPayoffs / sumWinLoseNegPayoffs>1000.0 ? 1000.0 : sumWinLosePosPayoffs / sumWinLoseNegPayoffs) : 1000.0;
+						// double winLose        = numWinLoseNegPayoffs ? (sumWinLosePosPayoffs / sumWinLoseNegPayoffs>1000.0 ? 1000.0 : sumWinLosePosPayoffs / sumWinLoseNegPayoffs) : 1000.0;
 						// ...second assumes annualised returns have equal duration
-						//double winLose        = numWinLoseNegPayoffs ? (sumWinLosePosRets / -sumWinLoseNegRets>1000.0 ? 1000.0 : sumWinLosePosRets / -sumWinLoseNegRets) : 1000.0;
+						double winLose        = numWinLoseNegPayoffs ? (sumWinLosePosPayoffs / sumWinLoseNegPayoffs>1000.0 ? 1000.0 : sumWinLosePosPayoffs / sumWinLoseNegPayoffs) : 1000.0;
 
 						sprintf(lineBuffer, "%s%d%s%.4lf%s%.6lf%s",
 							"insert into winlose values (", productId, ",", 100.0*winLoseMinRet, ",", winLose, ");");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
-						winLoseMinRet += 0.05;
+						winLoseMinRet += 0.01;
 					}
 
 				}
@@ -1257,12 +1255,16 @@ public:
 				double probLoss       = 1 - probGain;
 				double eGainRet       = ecGain * probGain;
 				double eLossRet       = ecLoss * probLoss;
-				//double winLose        = sumNegRet ? (eGainRet / eLossRet>1000.0 ? 1000.0 : eGainRet / eLossRet) : 1000.0;
+				// on balance, prefer to use annualised returns, rather than payoffs
+				double winLose        = sumNegRet ? (sumPosRet / -sumNegRet>1000.0 ? 1000.0 : sumPosRet / -sumNegRet) : 1000.0;
+				/*
 				double winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0;
 				if (winLose > 1000.0){ winLose = 1000.0; }
-
+				*/
+				
 				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  allDates[0].c_str());
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   allDates[totalNumDays - 1].c_str());
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);
