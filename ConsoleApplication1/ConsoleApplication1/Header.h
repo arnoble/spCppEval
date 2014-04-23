@@ -1076,12 +1076,13 @@ public:
 			// process results
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
+			double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
 			for (int analyseCase = 0; analyseCase < 2; analyseCase++) {
 				bool     applyCredit = analyseCase == 1;
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
-				std::vector<double> allPayoffs, allDurations,allAnnRets;
+				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets;
 				int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0);
@@ -1131,6 +1132,7 @@ public:
 							}
 							
 							allPayoffs.push_back(thisAmount);
+							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
 							sumAnnRets += thisAnnRet;
 							if (thisAmount >  midPrice) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
@@ -1150,40 +1152,46 @@ public:
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					//retcode = mydb.execute(true);
 				}
+				int numAnnRets(allAnnRets.size());
+				double duration  = sumDuration / numAnnRets;
 
 				// winlose ratios for different cutoff returns
+				// ...two ways to do it
+				// ...first recognises the fact that a 6y annuity is worth more than a 1y annuity
+				// ...second assumes annualised returns have equal duration
+				bool doWinLoseAnnualised = true; // as you want
 				if (analyseCase == 0) {
 					sprintf(lineBuffer, "%s%d%s", "delete from winlose where productid='", productId, "';");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					double winLoseMinRet       =  -0.2;
-					const double winLoseMaxRet =   0.21;
+					double winLoseMinRet       =  doWinLoseAnnualised ? -0.20 : 0.9;
+					const double winLoseMaxRet =  doWinLoseAnnualised ?  0.21 : 2.0;
+					const std::vector<double> &theseWinLoseMeasures = doWinLoseAnnualised ? allAnnRets : allFVpayoffs;
+					const double thisWinLoseDivisor  = doWinLoseAnnualised ? 1.0 : midPrice;
+					const double thisWinLoseClick    = doWinLoseAnnualised ? 0.01 : 0.05;
+					const double thisWinLoseVolScale = doWinLoseAnnualised ? sqrt(duration) : 1;
 					while (winLoseMinRet < winLoseMaxRet) {
 						double sumWinLosePosPayoffs = 0.0;
 						double sumWinLoseNegPayoffs = 0.0;
 						int    numWinLosePosPayoffs = 0;
 						int    numWinLoseNegPayoffs = 0;
 						for (j = 0, len=allAnnRets.size(); j<len; j++) {
-							double payoff   = allAnnRets[j] - winLoseMinRet;
+							double payoff   = theseWinLoseMeasures[j] /thisWinLoseDivisor - winLoseMinRet;
 							if (payoff > 0){ sumWinLosePosPayoffs += payoff; numWinLosePosPayoffs += 1; }
 							else           { sumWinLoseNegPayoffs -= payoff; numWinLoseNegPayoffs += 1; }
 						}
-						// two ways to do it
-						// ...first recognises the fact that a 6y annuity is worth more than a 1y annuity
-						// double winLose        = numWinLoseNegPayoffs ? (sumWinLosePosPayoffs / sumWinLoseNegPayoffs>1000.0 ? 1000.0 : sumWinLosePosPayoffs / sumWinLoseNegPayoffs) : 1000.0;
-						// ...second assumes annualised returns have equal duration
-						double winLose        = numWinLoseNegPayoffs ? (sumWinLosePosPayoffs / sumWinLoseNegPayoffs>1000.0 ? 1000.0 : sumWinLosePosPayoffs / sumWinLoseNegPayoffs) : 1000.0;
+						double winLose        = numWinLoseNegPayoffs ? (thisWinLoseVolScale*sumWinLosePosPayoffs / sumWinLoseNegPayoffs) : 1000.0;
+						if (winLose > 1000.0){ winLose = 1000.0; }
 
 						sprintf(lineBuffer, "%s%d%s%.4lf%s%.6lf%s",
 							"insert into winlose values (", productId, ",", 100.0*winLoseMinRet, ",", winLose, ");");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
-						winLoseMinRet += 0.01;
+						winLoseMinRet += thisWinLoseClick;
 					}
 
 				}
 
 
 				// ** process overall product results
-				int numAnnRets(allAnnRets.size());
 				const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
@@ -1220,7 +1228,6 @@ public:
 				int numShortfallTest(floor(confLevelTest*numAnnRets));
 				double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++){ eShortfall     += allAnnRets[i]; }	eShortfall     /= numShortfall;
 				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	eShortfallTest /= numShortfall;
-				double duration  = sumDuration / numAnnRets;
 				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall))     / ESnorm(confLevel);
 				double esVolTest = (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest);
 				double scaledVol = esVol * sqrt(duration);
@@ -1256,11 +1263,10 @@ public:
 				double eGainRet       = ecGain * probGain;
 				double eLossRet       = ecLoss * probLoss;
 				// on balance, prefer to use annualised returns, rather than payoffs
-				double winLose        = sumNegRet ? (sumPosRet / -sumNegRet>1000.0 ? 1000.0 : sumPosRet / -sumNegRet) : 1000.0;
-				/*
-				double winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0;
+				double winLose;
+				if (doWinLoseAnnualised){ winLose = sumNegRet ? (sumPosRet / -sumNegRet)*sqrt(duration) : 1000.0; }
+				else { winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0; }
 				if (winLose > 1000.0){ winLose = 1000.0; }
-				*/
 				
 				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
