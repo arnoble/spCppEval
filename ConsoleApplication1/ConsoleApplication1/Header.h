@@ -898,6 +898,7 @@ public:
 							// is barrier hit
 							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices,true)){
 								barrierWasHit[thisBarrier] = true;
+								if (doAccruals){ b.hasBeenHit = true; }  // for post-strike deals, record if barriers have already been hit
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds);
 								if (b.capitalOrIncome){
 									if (thisMonDays>0){
@@ -945,7 +946,7 @@ public:
 										if (b.isMemory) {
 											for (k = 0; k<thisBarrier; k++) {
 												SpBarrier& bOther(barrier.at(k));
-												if (!bOther.capitalOrIncome && !barrierWasHit[k]) {
+												if (!bOther.capitalOrIncome && !bOther.hasBeenHit  && !barrierWasHit[k]) {
 													double payoffOther = bOther.payoff;
 													barrierWasHit[k] = true;
 													if (!couponPaidOut){
