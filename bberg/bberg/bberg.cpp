@@ -93,7 +93,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		if (!doDebug && doPrices){
 			char *bidAskFields[] ={ "PX_BID", "PX_ASK" };
 			char *lastFields[]   ={ "PX_LAST", "PX_LAST" };
-			sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where Isin != ''  and productid>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0' order by ProductId; ");
+			sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where Isin != ''  and productid>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0' and strikedate<now() order by ProductId; ");
 			mydb.prepare((SQLCHAR *)lineBuffer, 6); 	
 			retcode = mydb.fetch(false);  // set to false, since there may not be any deals with ISINs
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
