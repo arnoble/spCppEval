@@ -576,7 +576,7 @@ public:
 	}
 	void storePayoff(const std::string thisDateString, const double amount, const double proportion, const double finalAssetReturn,const bool doFinalAssetReturn){
 		sumPayoffs     += amount;
-		sumProportion += proportion;
+		sumProportion  += proportion;
 		hit.push_back(SpPayoff(thisDateString, amount));
 		if (doFinalAssetReturn){ fars.push_back(finalAssetReturn); }
 	}
@@ -803,7 +803,9 @@ public:
 
 
 		// main MC loop
+		int anyOldCounter(0);
 		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.1; thisIteration++) {
+			// anyOldCounter = 0;
 			// start a product on each TRADING date
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
 				// wind forwards to next trading date
@@ -935,7 +937,13 @@ public:
 									}
 								}
 								else {
-									barrierWasHit[thisBarrier] = true;
+									if (thisPayoff == 0.0){ // Rainbow option coupons for example, where a 'hit' is only known after the option payoff is calculated 
+										barrierWasHit[thisBarrier] = false;
+									}
+									else {
+										barrierWasHit[thisBarrier] = true;
+									}
+									
 									if (!couponPaidOut || b.endDays >= 0) {
 										if (!couponPaidOut){
 											couponValue += b.proportionHits*thisPayoff;
@@ -963,7 +971,7 @@ public:
 								}
 								// only store a hit if this barrier is in the future
 								if (thisMonDays>0){
-									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, b.proportionHits, finalAssetReturn,doFinalAssetReturn);
+									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, barrierWasHit[thisBarrier] ? b.proportionHits:0.0, finalAssetReturn, doFinalAssetReturn);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								}
 							}
