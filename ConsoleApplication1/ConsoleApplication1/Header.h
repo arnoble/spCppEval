@@ -125,7 +125,14 @@ double NormSInv(double p) {
 double ESnorm(double prob) { return Dnorm(NormSInv(prob)) / prob; }
 
 
-
+// ************** sundry functions
+double calcRiskCategory(const std::vector<double> &buckets,const double scaledVol,const double start){
+	double riskCategory(start);  
+	int i, len;
+	for (i = 1, len = buckets.size(); i<len && scaledVol>buckets[i]; i++) { riskCategory += 1.0; }
+	if (i != len) riskCategory += (scaledVol - buckets[i - 1]) / (buckets[i] - buckets[i - 1]);
+	return(riskCategory);
+}
 
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff };
 enum { uFnLargest = 1, uFnLargestN };
@@ -1244,8 +1251,9 @@ public:
 				geomReturn = exp(geomReturn / sumDuration) - 1;
 				double sharpeRatio = scaledVol > 0.0 ? (geomReturn / scaledVol>1000.0 ? 1000.0 : geomReturn / scaledVol) : 1000.0;
 				std::vector<double> cesrBuckets = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
-				double riskCategory(1.0);  for (i = 1, len = cesrBuckets.size(); i<len && scaledVol>cesrBuckets[i]; i++) { riskCategory += 1.0; }
-				if (i != len) riskCategory += (scaledVol - cesrBuckets[i - 1]) / (cesrBuckets[i] - cesrBuckets[i - 1]);
+				std::vector<double> cubeBuckets ={ 0.0, 0.026, 0.052, 0.078, 0.104, 0.130, 0.156, 0.182, 0.208, 0.234, 0.260, 0.40 };
+				double riskCategory   = calcRiskCategory(cesrBuckets,scaledVol,1.0);  
+				double riskScore1to10 = calcRiskCategory(cubeBuckets, scaledVol, 0.0);
 				// WinLose
 				double sumNegRet(0.0), sumPosRet(0.0), sumStrPosRet(0.0),sumBelowDepo(0.0);
 				int    numNegRet(0), numPosRet(0), numStrPosRet(0), numBelowDepo(0);
@@ -1284,7 +1292,8 @@ public:
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   allDates[totalNumDays - 1].c_str());
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='",   riskCategory);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='", winLose);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScore1to10='", riskScore1to10);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='",        winLose);
 				std::time_t rawtime;	struct std::tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
 				strftime(charBuffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',WhenEvaluated='", charBuffer);
