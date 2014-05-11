@@ -99,21 +99,41 @@ int _tmain(int argc, _TCHAR* argv[])
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				int id(atoi(szAllBufs[0]));
 				string tickerString = szAllBufs[4];
-				bool found = tickerString.find("Equity") == std::string::npos;
-				if (found) {
-					sprintf(charBuffer, "%s%s%s%s", "/isin/", szAllBufs[4], "@", szAllBufs[5]);
-				}
-				else {
-					strcpy(charBuffer, szAllBufs[4]);
-				}
+				
+				// get prices ... there may be more than one where a product has several ISINs eg #524
 				std::cout << "\ngetting prices for " << id << std::endl;
-				BbergData thisBbergData = getBbergBidOfferPrices(charBuffer, found ? bidAskFields : lastFields, thisDate, ref, session);
-				if (thisBbergData.p[0] > 0.0 && thisBbergData.p[1] > 0.0){
-					sprintf(charBuffer, "%s%.2lf%s%.2lf%s%d%s", "update product set bid='", thisBbergData.p[0], "',ask='", thisBbergData.p[1], "' where productid='", id, "';");
-					mydb1.prepare((SQLCHAR *)charBuffer, 1);
+				double bidPrice(0.0), askPrice(0.0);
+				char *cPtr(NULL);
+				bool notEquityTicker = tickerString.find("Equity") == std::string::npos;
+				if (notEquityTicker) {
+					cPtr = strtok(szAllBufs[4],",");
 				}
 				else {
-					std::cerr << "Failed to get prices for " << id << std::endl;
+					cPtr = szAllBufs[4];
+				}
+				bool gotAllPrices(true);
+				while (cPtr && gotAllPrices){
+					// make this ticker
+					if (notEquityTicker) {
+						sprintf(charBuffer, "%s%s%s%s", "/isin/", cPtr, "@", szAllBufs[5]);
+					}
+					else { sprintf(charBuffer, "%s", cPtr); }
+					BbergData thisBbergData = getBbergBidOfferPrices(charBuffer, notEquityTicker ? bidAskFields : lastFields, thisDate, ref, session);
+					if (thisBbergData.p[0] > 0.0 && thisBbergData.p[1] > 0.0){
+						bidPrice += thisBbergData.p[0]; askPrice += thisBbergData.p[1];
+					}
+					else {
+						std::cerr << "Failed to get prices for " << id << std::endl;
+						gotAllPrices = false;
+					}
+					if (notEquityTicker) {
+						cPtr = strtok(NULL, ",");
+					}
+					else { cPtr = NULL; }
+				}
+				if (gotAllPrices){
+					sprintf(charBuffer, "%s%.2lf%s%.2lf%s%d%s", "update product set bid='", bidPrice, "',ask='", askPrice, "' where productid='", id, "';");
+					mydb1.prepare((SQLCHAR *)charBuffer, 1);
 				}
 				retcode = mydb.fetch(false);
 			}
