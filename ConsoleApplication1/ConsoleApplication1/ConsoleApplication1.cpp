@@ -12,13 +12,14 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	try{
 		// initialise
-		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR'   'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'endDate:'YYYY-mm-dd>" << endl;  exit(0); }
+		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR'   'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd>" << endl;  exit(0); }
 		int              historyStep = 1;
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 363;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 363;
 		int              numMcIterations = argc > 3 ? _ttoi(argv[3]) : 100;
 		bool             forceIterations(false);
 		char             lineBuffer[1000], charBuffer[1000];
+		char             startDate[11]      = "";
 		char             endDate[11]        = "";
 		bool             doFinalAssetReturn = false;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
@@ -29,8 +30,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations" )){ forceIterations    = true; }
 			if (strstr(thisArg, "doFAR"           )){ doFinalAssetReturn = true; }
-			if (sscanf(thisArg, "endDate:%s", lineBuffer)){ strcpy(endDate, lineBuffer); }
-			if (sscanf(thisArg, "dbServer:%s", lineBuffer)){ strcpy(dbServer, lineBuffer); }
+			if (sscanf(thisArg, "startDate:%s",  lineBuffer)){ strcpy(startDate, lineBuffer); }
+			if (sscanf(thisArg, "endDate:%s",    lineBuffer)){ strcpy(endDate,   lineBuffer); }
+			if (sscanf(thisArg, "dbServer:%s",   lineBuffer)){ strcpy(dbServer,  lineBuffer); }
 		}
 		const int        maxUls(100);
 		const int        bufSize(1000);
@@ -201,7 +203,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			strcat(ulSql, lineBuffer);
 			if (numUl > 1) { for (i = 1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
 			if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
-			if (strlen(endDate)) { sprintf(ulSql, "%s%s%s%s",ulSql," and Date <='",endDate,"'"); }
+			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
+			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
 			strcat(ulSql, " order by Date");
 			// ...call DB
 			mydb.prepare((SQLCHAR *)ulSql, numUl + 1);
