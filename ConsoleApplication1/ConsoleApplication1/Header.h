@@ -1284,10 +1284,12 @@ public:
 				if (doWinLoseAnnualised){ winLose = sumNegRet ? (sumPosRet / -sumNegRet)*sqrt(duration) : 1000.0; }
 				else { winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0; }
 				if (winLose > 1000.0){ winLose = 1000.0; }
+				double expectedPayoff = sumPayoffs / numAnnRets;
 				
-				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", sumPayoffs / numAnnRets);
+				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", expectedPayoff );
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
+				// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", pow(expectedPayoff, 1.0 / duration) - 1.0);
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  allDates[0].c_str());
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   allDates[totalNumDays - 1].c_str());
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);

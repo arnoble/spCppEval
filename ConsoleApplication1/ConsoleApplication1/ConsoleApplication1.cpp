@@ -202,8 +202,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			sprintf(lineBuffer, "%s%d%s", " where p0.underlyingId = '", ulIds.at(0), "'");
 			strcat(ulSql, lineBuffer);
 			if (numUl > 1) { for (i = 1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
-			if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
 			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
+			else if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
 			strcat(ulSql, " order by Date");
 			// ...call DB
