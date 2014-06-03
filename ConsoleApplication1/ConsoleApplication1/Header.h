@@ -134,7 +134,7 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 	return(riskCategory);
 }
 
-enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff };
+enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff };
 enum { uFnLargest = 1, uFnLargestN };
 
 
@@ -496,13 +496,14 @@ public:
 		case lookbackCallPayoff:
 		case twinWinPayoff:
 			callOrPut = 1;
+		case lookbackPutPayoff:
 		case putPayoff:
 			for (j = 0, len = brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n      = ulIdNameMap[thisBrel.underlying];
 				thisStrike = thisBrel.strike * startLevels[n] / thisBrel.moneyness;
 				thisRefLevel = startLevels[n] / thisBrel.moneyness;
-				if (payoffTypeId == lookbackCallPayoff) {
+				if (payoffTypeId == lookbackCallPayoff || payoffTypeId == lookbackPutPayoff) {
 					thisAssetReturn = lookbackLevel[n] / thisRefLevel;
 				}
 				else {
@@ -615,6 +616,13 @@ public:
 						anyValue = *max_element(avgObs.begin(), avgObs.end());
 						// DOME remove for loop if it gives the same value
 						for (int k = 0, len1 = avgObs.size(); k<len1; k++) { double anyValue1 = avgObs[k]; if (anyValue1>anyValue){ anyValue = anyValue1; } }
+						lookbackLevel[n] = anyValue;
+					}
+					else if (payoffType == "lookbackPut"){
+						double anyValue(INFINITY);
+						anyValue = *min_element(avgObs.begin(), avgObs.end());
+						// DOME remove for loop if it gives the same value
+						for (int k = 0, len1 = avgObs.size(); k<len1; k++) { double anyValue1 = avgObs[k]; if (anyValue1<anyValue){ anyValue = anyValue1; } }
 						lookbackLevel[n] = anyValue;
 					}
 					else {
