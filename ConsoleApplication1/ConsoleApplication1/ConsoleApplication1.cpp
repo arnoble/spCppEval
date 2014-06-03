@@ -332,36 +332,38 @@ int _tmain(int argc, _TCHAR* argv[])
 				enum {
 					brcolBarrierRelationId = 0, brcolProductBarrierId,
 					brcolUnderlyingId, brcolBarrier, brcolBarrierTypeId, brcolAbove, brcolAt, brcolStartDate, brcolEndDate,
-					brcolTriggered, brcolIsAbsolute, brcolUpperBarrier, brcolWeight, colBarrierRelationLast
+					brcolTriggered, brcolIsAbsolute, brcolUpperBarrier, brcolWeight, brcolStrikeOverride, colBarrierRelationLast
 				};
 				// ** SQL fetch block
-				sprintf(lineBuffer, "%s%d%s", "select * from barrierrelation where ProductBarrierId='", barrierId, "'");
+				sprintf(lineBuffer, "%s%d%s", "select * from barrierrelation where ProductBarrierId='", barrierId, "' order by UnderlyingId");
 				mydb1.prepare((SQLCHAR *)lineBuffer, colBarrierRelationLast);
 				retcode = mydb1.fetch(false);
 				// ...parse each barrierrelation row
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					double weight = atof(szAllPrices[brcolWeight]);
-					bool isAbsolute = atoi(szAllPrices[brcolIsAbsolute]) == 1;
-					uid = atoi(szAllPrices[brcolUnderlyingId]);
-					barrier = atof(szAllPrices[brcolBarrier]);
+					double weight         = atof(szAllPrices[brcolWeight]);
+					double strikeOverride = atof(szAllPrices[brcolStrikeOverride]);
+					bool   isAbsolute     = atoi(szAllPrices[brcolIsAbsolute]) == 1;
+					uid      = atoi(szAllPrices[brcolUnderlyingId]);
+					barrier  = atof(szAllPrices[brcolBarrier]);
 					uBarrier = atof(szAllPrices[brcolUpperBarrier]);
 					if (uBarrier > 999999 && uBarrier < 1000001.0) { uBarrier = NULL; } // using 1000000 as a quasiNULL, since C++ SQLFetch ignores NULL columns
-					above = atoi(szAllPrices[brcolAbove]) == 1;
-					at = atoi(szAllPrices[brcolAt]) == 1;
-					startDateString = szAllPrices[brcolStartDate];
-					endDateString = szAllPrices[brcolEndDate];
-					anyTypeId = atoi(szAllPrices[brcolBarrierTypeId]);
-					thisBarrier.isContinuous = barrierTypeMap[anyTypeId] == "continuous";
+					above                      = atoi(szAllPrices[brcolAbove]) == 1;
+					at                         = atoi(szAllPrices[brcolAt]) == 1;
+					startDateString            = szAllPrices[brcolStartDate];
+					endDateString              = szAllPrices[brcolEndDate];
+					anyTypeId                  = atoi(szAllPrices[brcolBarrierTypeId]);
+					thisBarrier.isContinuous   = barrierTypeMap[anyTypeId] == "continuous";
 					// express absolute levels as %ofSpot
 					double thisStrikeDatePrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
 					// ...DOME only works with single underlying, for now...the issue is whether to add FixedStrike fields to each brel
 					if (thisBarrier.isAbsolute)	{ 		// change fixed strike levels to percentages of spot
-						thisBarrier.cap = thisBarrier.cap / thisStrikeDatePrice - 1.0;
-						thisBarrier.strike /= thisStrikeDatePrice;
+						thisBarrier.cap         = thisBarrier.cap / thisStrikeDatePrice - 1.0;
+						thisBarrier.strike     /= thisStrikeDatePrice;
 					}
 					if (isAbsolute){
 						barrier /= thisStrikeDatePrice;
-						if (uBarrier != NULL) { uBarrier /= thisStrikeDatePrice; }
+						if (uBarrier       != NULL) { uBarrier       /= thisStrikeDatePrice; }
+						if (strikeOverride != 0.0)  { strikeOverride /= thisStrikeDatePrice; }
 					}
 
 
@@ -369,7 +371,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					if (uid) {
 						// create barrierRelation
 						thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
-							above, at, weight, daysExtant, thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), avgType, avgDays, avgFreq, productStartDateString));
+							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), avgType, avgDays, avgFreq, productStartDateString));
 					}
 					// next barrierRelation record
 					retcode = mydb1.fetch(false);

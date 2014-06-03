@@ -317,7 +317,7 @@ public:
 		const bool          at,
 		const double        weight,
 		const int           daysExtant,
-		double              strike,
+		const double        unadjStrike,
 		const UlTimeseries  &ulTimeseries,
 		const int           avgType, 
 		const int           avgDays,
@@ -325,7 +325,7 @@ public:
 		const std::string   productStartDateString)
 		: underlying(underlying), barrier(barrier), uBarrier(uBarrier), isAbsolute(isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		strike(strike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq)
+		strike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq)
 	{
 		using namespace boost::gregorian;
 		const date bStartDate(from_simple_string(startDate));
@@ -413,7 +413,7 @@ public:
 		const bool              doFinalAssetReturn)
 		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
-		payoffTypeId(payoffTypeId), strike(strike), cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
+		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
 		isAnd(nature == "and"), avgDays(avgDays), avgType(avgType),
 		avgFreq(avgFreq), isMemory(isMemory), isAbsolute(isAbsolute), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn)
@@ -501,7 +501,10 @@ public:
 			for (j = 0, len = brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n      = ulIdNameMap[thisBrel.underlying];
-				thisStrike = thisBrel.strike * startLevels[n] / thisBrel.moneyness;
+				// following line changed as we now correctly do SpBarrierRelation initialisation from strike(strike) to strike(unadjStrike)
+				// ...previously strike /= moneyness was only affecting the parameter value! and not the member variable
+				// thisStrike = thisBrel.strike * startLevels[n] / thisBrel.moneyness;
+				thisStrike = thisBrel.strike * startLevels[n] ;
 				thisRefLevel = startLevels[n] / thisBrel.moneyness;
 				if (payoffTypeId == lookbackCallPayoff || payoffTypeId == lookbackPutPayoff) {
 					thisAssetReturn = lookbackLevel[n] / thisRefLevel;
