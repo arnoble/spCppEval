@@ -1115,7 +1115,7 @@ public:
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0);
 
 				// ** process barrier results
-				double sumPayoffs(0.0), sumAnnRets(0.0), sumDuration(0.0);
+				double sumPayoffs(0.0), sumAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
 				int    numCapitalInstances(0);
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					const SpBarrier&    b(barrier.at(thisBarrier));
@@ -1137,9 +1137,10 @@ public:
 					if (b.capitalOrIncome) {
 						if (!foundEarliest)                        { foundEarliest = true; probEarliest = prob; }
 						if (b.settlementDate < lastSettlementDate) {                       probEarly   += prob; }
-						sumDuration         += numInstances*thisYears;
-						numCapitalInstances += numInstances;
-						sumPayoffs          += b.sumPayoffs;
+						sumDuration                 += numInstances*thisYears;
+						numCapitalInstances         += numInstances;
+						sumPayoffs                  += b.sumPayoffs;
+						sumPossiblyCreditAdjPayoffs += thisBarrierSumPayoffs;
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount = thisBarrierPayoffs[i];
 							double thisAnnRet = exp(log(thisAmount / midPrice) / thisYears) - 1.0;
@@ -1300,7 +1301,7 @@ public:
 				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", expectedPayoff );
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
 				// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", pow(expectedPayoff, 1.0 / duration) - 1.0);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", pow(sumPossiblyCreditAdjPayoffs/numAnnRets, 1.0 / duration) - 1.0);
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  allDates[0].c_str());
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   allDates[totalNumDays - 1].c_str());
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);
