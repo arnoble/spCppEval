@@ -1301,7 +1301,7 @@ public:
 				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", expectedPayoff );
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
 				// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", pow(sumPossiblyCreditAdjPayoffs/numAnnRets, 1.0 / duration) - 1.0);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0);
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  allDates[0].c_str());
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   allDates[totalNumDays - 1].c_str());
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);
