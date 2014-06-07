@@ -1259,7 +1259,7 @@ public:
 				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall))     / ESnorm(confLevel);
 				double esVolTest = (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest);
 				double scaledVol = esVol * sqrt(duration);
-				double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ geomReturn += log(allPayoffs[i] / midPrice); }
+				double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ double thisPayoff = allPayoffs[i]; geomReturn += log((thisPayoff<0.1 ? 0.1 : thisPayoff) / midPrice); }
 				geomReturn = exp(geomReturn / sumDuration) - 1;
 				double sharpeRatio = scaledVol > 0.0 ? (geomReturn / scaledVol>1000.0 ? 1000.0 : geomReturn / scaledVol) : 1000.0;
 				std::vector<double> cesrBuckets = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
