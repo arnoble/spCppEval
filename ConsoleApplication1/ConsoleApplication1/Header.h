@@ -388,6 +388,7 @@ public:
 class SpBarrier {
 private:
 	const bool          doFinalAssetReturn;
+
 public:
 	SpBarrier(const int         barrierId,
 		const bool              capitalOrIncome,
@@ -429,6 +430,7 @@ public:
 		hasBeenHit             = false;
 		proportionHits         = 1.0;
 		sumProportion          = 0.0;
+		isLargestN             = underlyingFunctionId == uFnLargestN && payoffTypeId == fixedPayoff;
 		proportionalAveraging  = avgDays > 0 && avgType == 1;
 		brel.reserve(10);
 		if (doFinalAssetReturn){fars.reserve(100000); }
@@ -440,7 +442,7 @@ public:
 	const double                    payoff,participation, param1;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
-	bool                            hasBeenHit, isExtremum, isContinuous, proportionalAveraging;
+	bool                            hasBeenHit, isExtremum, isContinuous, proportionalAveraging, isLargestN;
 	int                             endDays;
 	double                          variableCoupon,strike, cap, yearsToBarrier, sumPayoffs, proportionHits, sumProportion,forwardRate;
 	std::vector <double>            fars; // final asset returns
@@ -449,35 +451,68 @@ public:
 
 	// number of days until barrier end date
 	int getEndDays() const { return endDays; }
-	// test if barrier is hit
+
+
+	// VANILLA test if barrier is hit
 	// ...set useUlMap to false if you have more thesePrices than numUnderlyings...for example product #217 has barriers with brels keyed to the same underlying
 	//     so that a barrier can have multiple barrierRelations on the same underlying
-	bool isHit (const std::vector<double> &thesePrices,	const bool useUlMap) const {  
-		int j;
+	bool isHit(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+		int j, thisIndx;
 		bool isHit  = isAnd;
+		double thisRefLevel, nthLargestReturn;
 		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
 		if (numBrel == 0) return true;
 		std::string word;
 
-		for (j = 0; j<numBrel; j++) {
-			const SpBarrierRelation &thisBrel(brel[j]);
-			int    thisIndx;       
-			thisIndx    = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
-			bool   above;          above       = thisBrel.above;
-			double thisUlPrice;    thisUlPrice = thesePrices[thisIndx];
-			double diff;           diff        = thisUlPrice - thisBrel.barrierLevel;
-			bool   thisTest;       thisTest    = above ? diff>0 : diff < 0;
-			//std::cout << j << "Diff:" << diff << "Price:" << thisUlPrice << "Barrier:" << thisBrel.barrierLevel << std::endl;
-			if (thisBrel.uBarrier != NULL){
-				diff     = thisUlPrice - thisBrel.uBarrierLevel;
-				thisTest &= above ? diff<0 : diff>0;
+
+		/*
+		* is this a LargestN barrier
+		*
+		* VERY UGLY ... DOME: tried virtual function but not as easy as I thought...do when more time
+		*/
+		std::vector<bool>   activeBrels;
+		if (isLargestN) {
+			std::vector<double> theseReturns;
+			for (j=0; j < numBrel; j++){   // get returns
+				const SpBarrierRelation &thisBrel(brel[j]);
+				thisIndx     = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
+				thisRefLevel = startLevels[thisIndx] / thisBrel.moneyness;
+				theseReturns.push_back(thesePrices[thisIndx] / thisRefLevel);
 			}
-			if (isAnd)  isHit &= thisTest;
-			else        isHit |= thisTest;
+			sort(theseReturns.begin(), theseReturns.end(), std::greater<double>()); // sort DECENDING
+			nthLargestReturn = theseReturns[param1];
+			for (j=0; j<numBrel; j++){   // mark inactive barrierRelations
+				const SpBarrierRelation &thisBrel(brel[j]);
+				thisIndx         = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
+				thisRefLevel     = startLevels[thisIndx] / thisBrel.moneyness;
+				activeBrels.push_back(thesePrices[thisIndx] / thisRefLevel > nthLargestReturn);
+			}
+		}
+		/*
+		* test active barrierRelations
+		*/
+		for (j = 0; j<numBrel; j++) {
+			if (!isLargestN || activeBrels[j]){
+				const SpBarrierRelation &thisBrel(brel[j]);
+				thisIndx    = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
+				bool   above;          above       = thisBrel.above;
+				double thisUlPrice;    thisUlPrice = thesePrices[thisIndx];
+				double diff;           diff        = thisUlPrice - thisBrel.barrierLevel;
+				bool   thisTest;       thisTest    = above ? diff > 0 : diff < 0;
+				//std::cout << j << "Diff:" << diff << "Price:" << thisUlPrice << "Barrier:" << thisBrel.barrierLevel << std::endl;
+				if (thisBrel.uBarrier != NULL){
+					diff     = thisUlPrice - thisBrel.uBarrierLevel;
+					thisTest &= above ? diff<0 : diff>0;
+				}
+				if (isAnd)  isHit &= thisTest;
+				else        isHit |= thisTest;
+			}
 		}
 		//std::cout << "isHit:" << isHit << "Press a key to continue..." << std::endl;  std::getline(std::cin, word);
 		return isHit;
 	};
+
+	
 	// get payoff
 	double getPayoff(const std::vector<double> &startLevels,
 		std::vector<double>                    &lookbackLevel,
@@ -504,7 +539,7 @@ public:
 				// following line changed as we now correctly do SpBarrierRelation initialisation from strike(strike) to strike(unadjStrike)
 				// ...previously strike /= moneyness was only affecting the parameter value! and not the member variable
 				// thisStrike = thisBrel.strike * startLevels[n] / thisBrel.moneyness;
-				thisStrike = thisBrel.strike * startLevels[n] ;
+				thisStrike   = thisBrel.strike * startLevels[n] ;
 				thisRefLevel = startLevels[n] / thisBrel.moneyness;
 				if (payoffTypeId == lookbackCallPayoff || payoffTypeId == lookbackPutPayoff) {
 					thisAssetReturn = lookbackLevel[n] / thisRefLevel;
@@ -656,7 +691,7 @@ public:
 							int n = ulIdNameMap[thisBrel.underlying];
 							testPrices.push_back(ulPrices.at(n).price.at(thisMonPoint - k));
 						}
-						numHits += isHit(testPrices,true) ? 1 : 0;
+						numHits += isHit(testPrices,true,startLevels) ? 1 : 0;
 						numPossibleHits += 1;
 					}
 				}
@@ -666,6 +701,7 @@ public:
 		}
 	}
 };
+
 
 
 
@@ -886,14 +922,14 @@ public:
 								for (j=0; j<numBrel; j++) {
 									thesePrices.push_back(ulPrices.at(ulNames[j]).price[k]);
 								}
-								barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(thesePrices, false);
+								barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(thesePrices, false, startLevels);
 								if (barrierWasHit.at(thisBarrier)){
 									int jj=1;
 								}
 							}					
 						}
 						else {
-							barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(theseExtrema, false);
+							barrierWasHit.at(thisBarrier) = b.hasBeenHit || b.isHit(theseExtrema, false, startLevels);
 						}
 						if (doAccruals){ b.hasBeenHit = barrierWasHit[thisBarrier]; }  // for post-strike deals, record if barriers have already been hit
 					}
@@ -916,7 +952,7 @@ public:
 							// averaging/lookback - will replace thesePrices with their averages
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint);
 							// is barrier hit
-							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices,true)){
+							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.isHit(thesePrices, true, startLevels)){
 								barrierWasHit[thisBarrier] = true;
 								if (doAccruals){ b.hasBeenHit = true; }  // for post-strike deals, record if barriers have already been hit
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds);
@@ -995,7 +1031,7 @@ public:
 							}
 							else {
 								// in case you want to see why not hit
-								// b.isHit(thesePrices,true);
+								// b.isHit(thesePrices,true,startLevels);
 							}
 						}
 					}

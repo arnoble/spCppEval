@@ -310,9 +310,13 @@ int _tmain(int argc, _TCHAR* argv[])
 				cap = atof(szAllPrices[colCap]);
 				int     underlyingFunctionId = atoi(szAllPrices[colUnderlyingFunctionId]);
 				double  param1 = atof(szAllPrices[colParam1]);
+
+				/*
+				* barrier creation
+				*/
 				spr.barrier.push_back(SpBarrier(barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
-					avgFreq, isMemory, isAbsolute, daysExtant, bProductStartDate,doFinalAssetReturn));
+					avgFreq, isMemory, isAbsolute, daysExtant, bProductStartDate, doFinalAssetReturn));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 				// update vector of monitoring dates
 				// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
@@ -437,6 +441,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	catch (...){
 		cerr << "unknown error \n";
 	}
-	return 0;
+		return 0;
 }
 
