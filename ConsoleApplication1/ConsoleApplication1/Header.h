@@ -619,7 +619,8 @@ public:
 		const std::string                       productShape,
 		const bool                             doFinalAssetReturn,
 		double                                 &finalAssetReturn,
-		const std::vector<int>                 &ulIds) {
+		const std::vector<int>                 &ulIds,
+		std::vector<bool>                      &useUl) {
 		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisAssetReturn,thisStrike;
 		std::vector<double> optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
@@ -664,8 +665,21 @@ public:
 			}
 			switch (underlyingFunctionId) {
 			case uFnLargest:
-				for (optionPayoff = 0.0, j = 0, len = optionPayoffs.size(); j<len; j++) {
-					if (optionPayoffs[j] > optionPayoff) { optionPayoff = optionPayoffs[j]; }
+				if (productShape == "Himalaya"){
+					double bestUlReturn;
+					int bestUlIndx=0;
+					for (bestUlReturn=-INFINITY, optionPayoff=0.0, j=0, len=optionPayoffs.size(); j<len; j++) {
+						if (useUl[ulIdNameMap[brel[j].underlying]]){
+							if (optionPayoffs[j] > optionPayoff) { optionPayoff = optionPayoffs[j]; }
+							if (optionPayoffs[j] > bestUlReturn) { bestUlIndx   = j; bestUlReturn = optionPayoffs[j]; }
+						}
+					}
+					useUl[ulIdNameMap[brel[bestUlIndx].underlying]] = false;
+				}
+				else {
+					for (optionPayoff = 0.0, j = 0, len = optionPayoffs.size(); j<len; j++) {
+						if (optionPayoffs[j] > optionPayoff) { optionPayoff = optionPayoffs[j]; }
+					}
 				}
 				break;
 			case uFnLargestN: {
@@ -875,12 +889,15 @@ public:
 		daysExtant(daysExtant),	midPrice(midPrice),baseCurve(baseCurve),ulIds(ulIds) {
 		
 		for (int i=0; i < baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
+		numUls = ulIds.size();
+		for (int i=0; i < numUls; i++){ useUl.push_back(true); }
 		barrier.reserve(100); // for more efficient push_back
 	};
 
 	// public members: DOME consider making private
-	int                             productDays;
+	int                             productDays,numUls;
 	std::vector <SpBarrier>         barrier;
+	std::vector <bool>              useUl;
 	std::vector <double>            baseCurveTenor, baseCurveSpread;
 
 	// evaluate product at this point in time
@@ -970,6 +987,7 @@ public:
 				std::vector<bool>      barrierWasHit(numBarriers);
 				std::string            startDateString = allDates.at(thisPoint);
 				boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(allDates.at(thisPoint)));
+				for (i=0; i < numUls; i++){ useUl[i] = true; }
 				bool                   matured = false;
 				couponValue                    = 0.0;
 				double                 thisPayoff;
@@ -1053,7 +1071,7 @@ public:
 							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || (b .* (b.isHit))(thesePrices, true, startLevels)){
 								barrierWasHit[thisBarrier] = true;
 								if (doAccruals){ b.hasBeenHit = true; }  // for post-strike deals, record if barriers have already been hit
-								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds);
+								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds,useUl);
 								if (b.capitalOrIncome){
 									if (thisMonDays>0){
 										// DOME: just because a KIP barrier is hit does not mean the put option is ITM
