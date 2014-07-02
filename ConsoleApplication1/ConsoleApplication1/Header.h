@@ -411,13 +411,14 @@ public:
 		const bool              isAbsolute,
 		const int               daysExtant,
 		const boost::gregorian::date bProductStartDate,
-		const bool              doFinalAssetReturn)
+		const bool              doFinalAssetReturn,
+		const double            midPrice)
 		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
 		isAnd(nature == "and"), avgDays(avgDays), avgType(avgType),
-		avgFreq(avgFreq), isMemory(isMemory), isAbsolute(isAbsolute), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn)
+		avgFreq(avgFreq), isMemory(isMemory), isAbsolute(isAbsolute), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
@@ -445,12 +446,12 @@ public:
 	// public members: DOME consider making private, in case we implement their content some other way
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute;
-	const double                    payoff,participation, param1;
+	const double                    payoff,participation, param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
 	bool                            hasBeenHit, isExtremum, isContinuous, proportionalAveraging, isLargestN;
-	int                             endDays;
-	double                          variableCoupon,strike, cap, yearsToBarrier, sumPayoffs, proportionHits, sumProportion,forwardRate;
+	int                             endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
+	double                          variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0, proportionHits, sumProportion, forwardRate;
 	bool                            (SpBarrier::*isHit)(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <double>            fars; // final asset returns
 	std::vector <SpBarrierRelation> brel;
@@ -734,6 +735,9 @@ public:
 	}
 	void storePayoff(const std::string thisDateString, const double amount, const double proportion, const double finalAssetReturn,const bool doFinalAssetReturn){
 		sumPayoffs     += amount;
+		if (amount >  midPrice){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
+		if (amount >= midPrice){ sumPosPayoffs    += amount; numPosPayoffs++; }
+		else{                    sumNegPayoffs    += amount; numNegPayoffs++; }
 		sumProportion  += proportion;
 		hit.push_back(SpPayoff(thisDateString, amount));
 		if (doFinalAssetReturn){ fars.push_back(finalAssetReturn); }
@@ -1267,11 +1271,11 @@ public:
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0);
 
 				// ** process barrier results
-				double sumPayoffs(0.0), sumAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
-				int    numCapitalInstances(0);
+				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
+				int    numCapitalInstances(0), numStrPosInstances(0), numPosInstances(0), numNegInstances(0);
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					const SpBarrier&    b(barrier.at(thisBarrier));
-					double              thisBarrierSumPayoffs(0.0);
+					double              thisBarrierSumPayoffs(0.0), thisAmount;
 					std::vector<double> thisBarrierPayoffs; thisBarrierPayoffs.reserve(100000);
 					int                 numInstances    = b.hit.size();
 					double              sumProportion   = b.sumProportion;
@@ -1279,7 +1283,7 @@ public:
 					double              prob            = sumProportion / numAllEpisodes;
 					double              thisProbDefault = probDefault(hazardCurve, thisYears);
 					for (i = 0; i < b.hit.size(); i++){
-						double thisAmount = b.hit[i].amount;
+						thisAmount = b.hit[i].amount;
 						// possibly apply credit adjustment
 						if (applyCredit) { thisAmount *= ((double)rand() / (RAND_MAX)) < thisProbDefault ? actualRecoveryRate : 1; }
 						thisBarrierPayoffs.push_back(thisAmount);
@@ -1293,6 +1297,10 @@ public:
 						numCapitalInstances         += numInstances;
 						sumPayoffs                  += b.sumPayoffs;
 						sumPossiblyCreditAdjPayoffs += thisBarrierSumPayoffs;
+						eStrPosPayoff    += b.sumStrPosPayoffs; numStrPosInstances += b.numStrPosPayoffs; 
+						ePosPayoff       += b.sumPosPayoffs;    numPosInstances    += b.numPosPayoffs;
+						eNegPayoff       += b.sumNegPayoffs;    numNegInstances    += b.numNegPayoffs;
+
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount = thisBarrierPayoffs[i];
 							double thisAnnRet = exp(log(thisAmount / midPrice) / thisYears) - 1.0;
@@ -1320,6 +1328,7 @@ public:
 							else                        { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
 						}
 					}
+
 					double mean      = numInstances ? thisBarrierSumPayoffs / numInstances : 0.0;
 					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
@@ -1332,6 +1341,11 @@ public:
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					//retcode = mydb.execute(true);
 				}
+
+				if (numPosInstances    > 0)    { ePosPayoff    /= numPosInstances; }
+				if (numStrPosInstances > 0)    { eStrPosPayoff /= numStrPosInstances; }
+				if (numNegInstances    > 0)    { eNegPayoff    /= numNegInstances; }
+
 				int numAnnRets(allAnnRets.size());
 				double duration  = sumDuration / numAnnRets;
 
@@ -1451,7 +1465,10 @@ public:
 				double expectedPayoff = sumPayoffs / numAnnRets;
 				
 				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", expectedPayoff );
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='",       ePosPayoff);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedLossPayoff='",       eNegPayoff);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='",           geomReturn);
 				// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0);
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  allDates[0].c_str());
