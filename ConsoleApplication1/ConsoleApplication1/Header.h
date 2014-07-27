@@ -14,6 +14,8 @@
 #include <vector>
 #include <regex>
 
+#define MAX_SP_BUF       500000
+
 // convert date wchar to char
 // ...consult this: http://msdn.microsoft.com/en-us/library/ms235631.aspx
 char *WcharToChar(const WCHAR* orig, size_t* convertedChars) {
@@ -253,6 +255,12 @@ public:
 		SQLFreeEnv(hEnv);    // Free the allocated ODBC environment handle
 	}
 	void prepare(SQLCHAR* thisSQL,int numCols) {
+		/* DEBUG ONLY 
+		if (strlen((char*)thisSQL)>MAX_SP_BUF){
+			std::cerr << "String len:" << strlen((char*)thisSQL) << " will overflow\n";
+			exit(102);
+		}
+		*/
 		if (hStmt != NULL) {
 			SQLFreeStmt(hStmt, SQL_DROP);
 		}
@@ -923,7 +931,7 @@ public:
 		const bool                doAccruals,
 		const bool                doFinalAssetReturn){
 		int                 totalNumReturns  = totalNumDays - 1;
-		char                lineBuffer[50000], charBuffer[1000];
+		char                lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                 i, j, k, len, thisIteration;
 		double              couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
 		std::vector<double> stdevRatioPctChanges;
@@ -1409,7 +1417,7 @@ public:
 					sprintf(lineBuffer, "%s", "insert into pctiles values ");
 					for (i=0; i < returnBucket.size(); i++){
 						if (i != 0){ sprintf(lineBuffer, "%s%s", lineBuffer, ","); }
-						sprintf(lineBuffer, "%s%s%d%s%.4lf%s%.6lf%s%d%s%d%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1, ")");
+						sprintf(lineBuffer, "%s%s%d%s%.2lf%s%.4lf%s%d%s%d%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1, ")");
 					}
 					sprintf(lineBuffer, "%s%s", lineBuffer, ";");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);	
@@ -1478,7 +1486,7 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScore1to10='", riskScore1to10);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='",        winLose);
 				std::time_t rawtime;	struct std::tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
-				strftime(charBuffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
+				strftime(charBuffer, 100L, "%Y-%m-%d %H:%M:%S", timeinfo);
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',WhenEvaluated='", charBuffer);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='",  probEarliest);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='",     probEarly);
