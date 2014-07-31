@@ -27,7 +27,14 @@ char *WcharToChar(const WCHAR* orig, size_t* convertedChars) {
 	return thisDate;
 }
 
-
+// convert char to wchar
+static wchar_t* charToWChar(const char* text)
+{
+	size_t size = strlen(text) + 1;
+	wchar_t* wa = new wchar_t[size];
+	mbstowcs(wa, text, size);
+	return wa;
+}
 
 
 
@@ -223,10 +230,12 @@ public:
 			extract_error("SQLAllocHandle for dbc", hEnv, SQL_HANDLE_ENV);
 			exit(1);
 		}
-		// Connect to Data Source
+		// Connect to Data Source  
 		fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
+		std::cerr << "Connection params " << szDSN << szUID << szPasswd << "\n";
 		if (!SQL_SUCCEEDED(fsts))	{
-			extract_error("SQLAllocHandle for connect", hDBC, SQL_HANDLE_DBC);
+			char thisBuffer[200]; sprintf(thisBuffer,"SQLConnect for connect >>%ls<<", szDSN);
+			extract_error(thisBuffer, hDBC, SQL_HANDLE_DBC);
 			exit(1);
 		}
 		return fsts;
