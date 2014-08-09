@@ -232,7 +232,7 @@ public:
 		}
 		// Connect to Data Source  
 		fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
-		std::cerr << "Connection params " << szDSN << szUID << szPasswd << "\n";
+		// std::cerr << "Connection params " << szDSN << szUID << szPasswd << "\n";
 		if (!SQL_SUCCEEDED(fsts))	{
 			char thisBuffer[200]; sprintf(thisBuffer,"SQLConnect for connect >>%ls<<", szDSN);
 			extract_error(thisBuffer, hDBC, SQL_HANDLE_DBC);

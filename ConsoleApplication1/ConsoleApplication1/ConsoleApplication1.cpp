@@ -281,19 +281,22 @@ int _tmain(int argc, _TCHAR* argv[])
 					char avgChar1 = szAllPrices[colAvgTenor][0];
 					numTenor = (avgChar1 - '0');
 					char avgChar2 = tolower(szAllPrices[colAvgTenor][1]);
-					/*
+					/* one way to do it
 					for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
 						if (curr->first == avgChar2){ found = true; tenorPeriodDays = curr->second; }
 					}*/
-					tenorPeriodDays = avgTenor[avgChar2];
+					if (avgTenor.find(avgChar2) != avgTenor.end()){
+						tenorPeriodDays = avgTenor[avgChar2];
+					}
+					else { throw std::out_of_range("map_at()"); }
 
 					avgDays = numTenor * tenorPeriodDays ;  // maybe add 1 since averaging invariably includes both end dates
 					avgChar2 = tolower(szAllPrices[colAvgFreq][0]);
-					/*
-					for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
-						if (curr->first == avgChar2){ found = true; avgFreq = curr->second; }
-					}*/
-					avgFreq = avgTenor[avgChar2];
+					if (avgTenor.find(avgChar2) != avgTenor.end()){
+						avgFreq = avgTenor[avgChar2];
+					}
+					else { throw std::out_of_range("map_at()"); }
+
 
 				}
 				int barrierId = atoi(szAllPrices[colProductBarrierId]);
