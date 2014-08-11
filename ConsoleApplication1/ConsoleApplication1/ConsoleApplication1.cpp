@@ -364,7 +364,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					double thisStrikeDatePrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
 					// ...DOME only works with single underlying, for now...the issue is whether to add FixedStrike fields to each brel
 					if (thisBarrier.isAbsolute)	{ 		// change fixed strike levels to percentages of spot
-						thisBarrier.cap         = thisBarrier.cap / thisStrikeDatePrice - 1.0;
+						thisBarrier.cap        /= thisStrikeDatePrice;
 						thisBarrier.strike     /= thisStrikeDatePrice;
 					}
 					if (isAbsolute){
