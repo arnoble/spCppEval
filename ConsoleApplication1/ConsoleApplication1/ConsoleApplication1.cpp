@@ -48,7 +48,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			szAllPrices[i] = new char[bufSize];
 		}
 		srand(time(0)); // reseed rand
-
+		time_t startTime = time(0);
 
 		// open database
 		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
@@ -429,6 +429,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			// tidy up
 
 		} // for each product
+		std::cout << "timeTaken:" << difftime(time(0), startTime) << "secs" << endl;
+		std::cout << "clytemnestra";
 	} // try
 
 	// tidy up
@@ -444,6 +446,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	catch (...){
 		cerr << "unknown error \n";
 	}
-		return 0;
+
+	return 0;
 }
 

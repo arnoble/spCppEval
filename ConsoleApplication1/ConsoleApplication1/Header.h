@@ -909,6 +909,11 @@ public:
 		couponPaidOut(couponPaidOut), AMC(AMC), productShape(productShape),depositGteed(depositGteed), collateralised(collateralised), 
 		daysExtant(daysExtant),	midPrice(midPrice),baseCurve(baseCurve),ulIds(ulIds) {
 		
+		// ...prebuild all dates outside loop
+		int numAllDates = allDates.size();	allBdates.reserve(numAllDates);
+		for (int thisPoint = 0; thisPoint < numAllDates; thisPoint += 1) {	allBdates.push_back(boost::gregorian::from_simple_string(allDates.at(thisPoint))); }
+
+
 		for (int i=0; i < baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 		numUls = ulIds.size();
 		for (int i=0; i < numUls; i++){ useUl.push_back(true); }
@@ -920,6 +925,7 @@ public:
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl;
 	std::vector <double>            baseCurveTenor, baseCurveSpread;
+	std::vector<boost::gregorian::date> allBdates;
 
 	// evaluate product at this point in time
 	void evaluate(const int       totalNumDays, 
@@ -990,8 +996,6 @@ public:
 
 
 
-
-
 		// main MC loop
 		int anyOldCounter(0);
 		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.1; thisIteration++) {
@@ -1007,7 +1011,14 @@ public:
 				// initialise product
 				std::vector<bool>      barrierWasHit(numBarriers);
 				std::string            startDateString = allDates.at(thisPoint);
+				/*
 				boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(allDates.at(thisPoint)));
+				if ((bStartDate - allBdates.at(thisPoint)).days() != 0.0){
+					int jj=1;
+				}
+				*/
+				boost::gregorian::date &bStartDate(allBdates.at(thisPoint));
+
 				for (i=0; i < numUls; i++){ useUl[i] = true; }
 				bool                   matured = false;
 				couponValue                    = 0.0;
@@ -1111,7 +1122,14 @@ public:
 										}
 										thisPayoff += couponValue + accruedCoupon;
 										if (couponFrequency.size()) {  // add fixed coupon
+											/*
 											boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(allDates.at(thisMonPoint)));
+											if ((bThisDate - allBdates.at(thisMonPoint)).days() != 0.0){
+												int jj=1;
+											}
+											*/
+											boost::gregorian::date &bThisDate(allBdates.at(thisMonPoint));
+
 											char   freqChar     = toupper(couponFrequency[1]);
 											double couponEvery  = couponFrequency[0] - '0';
 											double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 360;
