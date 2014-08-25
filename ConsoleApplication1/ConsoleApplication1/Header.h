@@ -1132,14 +1132,14 @@ public:
 
 											char   freqChar     = toupper(couponFrequency[1]);
 											double couponEvery  = couponFrequency[0] - '0';
-											double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 360;
+											double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 365.25;
 											double daysElapsed  = (bThisDate - bStartDate).days() + daysExtant;
 											double couponPeriod = daysPerEvery*couponEvery;
 											if (couponPaidOut){
 												daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod;
 											}
 											double numFixedCoupons = floor(daysElapsed / couponPeriod);
-											double periodicRate    = exp(log(b.forwardRate) * (daysPerEvery/360));
+											double periodicRate    = exp(log(b.forwardRate) * (daysPerEvery/365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
 											thisPayoff += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
 										}
@@ -1430,12 +1430,13 @@ public:
 				// pctiles and other calcs
 				if (numMcIterations > 1 && analyseCase == 0) {
 					// pctiles
+					double bucketSize = productShape == "Supertracker" ? 0.05 : 0.01;
 					double minReturn = allAnnRets[0];
 					std::vector<double>    returnBucket;
 					std::vector<double>    bucketProb;
 					for (i = j = 0; i < numAnnRets; i++) {
 						if (allAnnRets[i] <= minReturn) { j += 1; }
-						else { returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets); j = 0; minReturn += 0.01; }
+						else { returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets); j = 0; minReturn += bucketSize; }
 					}
 					returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets);
 					sprintf(lineBuffer, "%s%d%s", "delete from pctiles where productid='", productId, "';");
