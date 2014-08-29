@@ -42,7 +42,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		SomeCurve        anyCurve;
 		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
-		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut" };
+		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut" };
 		vector<int>::iterator intIterator, intIterator1;
 		for (int i = 0; i < maxUls; i++){
 			szAllPrices[i] = new char[bufSize];
@@ -373,8 +373,6 @@ int _tmain(int argc, _TCHAR* argv[])
 						if (strikeOverride != 0.0)  { strikeOverride /= thisStrikeDatePrice; }
 					}
 
-
-
 					if (uid) {
 						// create barrierRelation
 						thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
@@ -383,6 +381,24 @@ int _tmain(int argc, _TCHAR* argv[])
 					// next barrierRelation record
 					retcode = mydb1.fetch(false);
 				}
+
+				switch (thisBarrier.payoffTypeId) {
+					// single-currency baskets
+				case basketCallPayoff:
+				case basketPutPayoff:
+					double basketFinal=0.0, basketRef=0.0;
+					for (j=0; j<thisBarrier.brel.size(); j++) {
+						const SpBarrierRelation &thisBrel(thisBarrier.brel[j]);
+						double w       = thisBrel.weight;
+						int uid        = thisBrel.underlying;
+						basketFinal   += ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1             ] * w;
+						basketRef     += ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant] * w;
+					}
+					thisBarrier.strike  /= basketFinal / basketRef;
+					break;
+				}
+
+
 
 				// detect extremumBarriers
 				// DOME: for now ANY barrier with a brel which has different Start/End dates
@@ -395,6 +411,9 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 				}
 				thisBarrier.isExtremum = isExtremumBarrier;
+
+
+
 				// next barrier record
 				numBarriers += 1;
 				retcode = mydb.fetch(false);

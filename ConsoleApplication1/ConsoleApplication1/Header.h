@@ -143,7 +143,7 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 	return(riskCategory);
 }
 
-enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff };
+enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff };
 enum { uFnLargest = 1, uFnLargestN };
 
 
@@ -712,7 +712,10 @@ public:
 			}
 			thisPayoff += participation*optionPayoff;
 			break;
-		case basketCallPayoff: {
+		case basketCallPayoff:
+			callOrPut = 1;
+		case basketPutPayoff:
+		{
 		   double basketFinal = 0.0, basketStart = 0.0, basketRef = 0.0;
 		   for (j = 0, len = brel.size(); j<len; j++)	{
 			   const SpBarrierRelation &thisBrel(brel[j]);
@@ -724,7 +727,8 @@ public:
 			   basketRef   += thisRefLevel   * w;
 		   }
 		   finalAssetReturn = basketFinal / basketStart;
-		   optionPayoff     = basketFinal / basketRef - (strike*basketStart / basketRef);
+		   optionPayoff     = callOrPut *(basketFinal / basketRef - (strike*basketStart / basketRef));
+		   if (optionPayoff > cap){ optionPayoff =cap; }
 		   thisPayoff      += participation*(optionPayoff > 0.0 ? optionPayoff : 0.0);
 		   break;
 		}
