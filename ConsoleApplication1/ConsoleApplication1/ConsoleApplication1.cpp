@@ -42,7 +42,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		SomeCurve        anyCurve;
 		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
-		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut" };
+		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut", "basketCallQuanto", "basketPutQuanto" };
 		vector<int>::iterator intIterator, intIterator1;
 		for (int i = 0; i < maxUls; i++){
 			szAllPrices[i] = new char[bufSize];
@@ -384,15 +384,26 @@ int _tmain(int argc, _TCHAR* argv[])
 
 				switch (thisBarrier.payoffTypeId) {
 					// single-currency baskets
-				case basketCallPayoff:
+				case basketCallPayoff:	
 				case basketPutPayoff:
+					// quanto baskets	
+				case basketCallQuantoPayoff:
+				case basketPutQuantoPayoff:
 					double basketFinal=0.0, basketRef=0.0;
+					if (thisBarrier.payoffTypeId == basketCallQuantoPayoff || thisBarrier.payoffTypeId == basketPutQuantoPayoff) { basketRef=1.0; }
 					for (j=0; j<thisBarrier.brel.size(); j++) {
 						const SpBarrierRelation &thisBrel(thisBarrier.brel[j]);
-						double w       = thisBrel.weight;
-						int uid        = thisBrel.underlying;
-						basketFinal   += ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1             ] * w;
-						basketRef     += ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant] * w;
+						double w          = thisBrel.weight;
+						int uid           = thisBrel.underlying;
+						double finalPrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1];
+						double refPrice   = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
+						if (thisBarrier.payoffTypeId == basketCallQuantoPayoff || thisBarrier.payoffTypeId == basketPutQuantoPayoff) { 
+							basketFinal   += finalPrice / refPrice * w;
+						}
+						else {
+							basketFinal   += finalPrice * w;
+							basketRef     += refPrice   * w;
+						}
 					}
 					thisBarrier.strike  /= basketFinal / basketRef;
 					break;

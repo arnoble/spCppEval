@@ -143,7 +143,7 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 	return(riskCategory);
 }
 
-enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff };
+enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, basketCallQuantoPayoff, basketPutQuantoPayoff };
 enum { uFnLargest = 1, uFnLargestN };
 
 
@@ -452,6 +452,9 @@ public:
 		if (isLargestN){
 			isHit = &SpBarrier::isHitLargestN;
 		}
+		else if (payoffType.find("basket") != std::string::npos){
+			isHit = &SpBarrier::isHitBasket;
+		}
 		else {
 			isHit = &SpBarrier::isHitVanilla;
 		}
@@ -564,6 +567,36 @@ public:
 		//std::cout << "isHit:" << isHit << "Press a key to continue..." << std::endl;  std::getline(std::cin, word);
 		return isHit;
 	};
+
+
+	// basket test if barrier is hit
+	bool isHitBasket(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+		int j, thisIndx;
+		bool isHit  = isAnd;
+		bool above;
+		double w,thisRefLevel;
+		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		if (numBrel == 0) return true;
+		/*
+		* see if basket return breaches barrier level (in 'N' field)
+		*/
+		double basketReturn = 0.0;
+		for (j = 0; j<numBrel; j++) {
+			const SpBarrierRelation &thisBrel(brel[j]);
+			thisIndx       = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
+			above          = thisBrel.above;
+			w              = thisBrel.weight;
+			thisRefLevel   = startLevels[thisIndx] / thisBrel.moneyness;
+			basketReturn  += (thesePrices[thisIndx] / thisRefLevel) * w;
+		}
+		double diff      = basketReturn - param1;
+		bool   thisTest  = above ? diff > 0 : diff < 0;
+		if (isAnd)  isHit &= thisTest;
+		else        isHit |= thisTest;
+		//std::cout << "isHit:" << isHit << "Press a key to continue..." << std::endl;  std::getline(std::cin, word);
+		return isHit;
+	};
+
 
 
 
@@ -713,18 +746,27 @@ public:
 			thisPayoff += participation*optionPayoff;
 			break;
 		case basketCallPayoff:
+		case basketCallQuantoPayoff:
 			callOrPut = 1;
 		case basketPutPayoff:
+		case basketPutQuantoPayoff:
 		{
 		   double basketFinal = 0.0, basketStart = 0.0, basketRef = 0.0;
+		   if (payoffTypeId == basketCallQuantoPayoff || payoffTypeId == basketPutQuantoPayoff) { basketRef=1.0; }
 		   for (j = 0, len = brel.size(); j<len; j++)	{
 			   const SpBarrierRelation &thisBrel(brel[j]);
 			   int    n     = ulIdNameMap[thisBrel.underlying];
 			   double w     = thisBrel.weight;
 			   thisRefLevel = startLevels[n] / thisBrel.moneyness;
-			   basketFinal += thesePrices[n] * w;
-			   basketStart += startLevels[n] * w;
-			   basketRef   += thisRefLevel   * w;
+			   if (payoffTypeId == basketCallQuantoPayoff || payoffTypeId == basketPutQuantoPayoff) { 
+				   basketFinal += thesePrices[n] / thisRefLevel * w;
+				   basketStart += startLevels[n] / thisRefLevel * w;
+			   }
+			   else {
+				   basketFinal += thesePrices[n] * w;
+				   basketStart += startLevels[n] * w;
+				   basketRef   += thisRefLevel   * w;
+			   }
 		   }
 		   finalAssetReturn = basketFinal / basketStart;
 		   optionPayoff     = callOrPut *(basketFinal / basketRef - (strike*basketStart / basketRef));
