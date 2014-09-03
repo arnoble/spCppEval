@@ -119,7 +119,14 @@ int _tmain(int argc, _TCHAR* argv[])
 						sprintf(charBuffer, "%s%s%s%s", "/isin/", cPtr, "@", szAllBufs[5]);
 					}
 					else { sprintf(charBuffer, "%s", cPtr); }
-					BbergData thisBbergData = getBbergBidOfferPrices(charBuffer, notEquityTicker ? bidAskFields : lastFields, thisDate, ref, session);
+					BbergData thisBbergData;
+					int counter=3;
+					char newDateStr[9];
+					strcpy(newDateStr, thisDate);
+					do {
+						thisBbergData = getBbergBidOfferPrices(charBuffer, notEquityTicker ? bidAskFields : lastFields, newDateStr, ref, session);
+						DatePlusDays(newDateStr, -1, newDateStr);
+					} while (counter-- > 0 && (thisBbergData.p[0] < 0.0 || thisBbergData.p[1] < 0.0) );
 					if (thisBbergData.p[0] > 0.0 && thisBbergData.p[1] > 0.0){
 						bidPrice += thisBbergData.p[0]; askPrice += thisBbergData.p[1];
 					}

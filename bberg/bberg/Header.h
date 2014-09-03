@@ -15,6 +15,7 @@
 #include <blpapi_message.h> 
 #include <blpapi_request.h> 
 #include <iostream> 
+#include <ctime>
 #include <map>
 using namespace BloombergLP;
 using namespace blpapi;
@@ -23,7 +24,30 @@ using namespace blpapi;
 typedef struct bbergData { double p[2]; } BbergData;
 
 
+// Adjust date by a number of days +/-
+void DatePlusDays(char *dateStr, int days,char *newDateStr)
+{
+	char yStr[5], mStr[3], dStr[3];
+	sscanf(dateStr, "%4c%2c%2c", yStr, mStr, dStr);
+	struct tm adate ={ 0, 0, 12 };  // nominal time midday (arbitrary).
+	struct tm *newDate;
+	const time_t ONE_DAY = 24 * 60 * 60;
+	// Set up the date structure
+	int year = atoi(yStr);
+	int month = atoi(mStr); 
+	int day = atoi(dStr);
+	adate.tm_year = year - 1900;
+	adate.tm_mon = month - 1;  // note: zero indexed
+	adate.tm_mday = day;       // note: not zero indexed
 
+	// Seconds since start of epoch
+	time_t date_seconds = mktime(&adate) + (days * ONE_DAY);
+
+	// Update caller's date
+	// Use localtime because mktime converts to UTC so may change date
+	newDate = localtime(&date_seconds);
+	strftime(newDateStr, 9, "%Y%m%d", newDate);
+}
 
 // find map key for given value
 std::string FindMapKeyIndx(std::map<std::string, int> &MyMap, int value) {
