@@ -42,7 +42,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		SomeCurve        anyCurve;
 		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
-		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut", "basketCallQuanto", "basketPutQuanto" };
+		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut", 
+			"basketCallQuanto", "basketPutQuanto","cappuccino" };
 		vector<int>::iterator intIterator, intIterator1;
 		for (int i = 0; i < maxUls; i++){
 			szAllPrices[i] = new char[bufSize];

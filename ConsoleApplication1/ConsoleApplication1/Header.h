@@ -143,7 +143,9 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 	return(riskCategory);
 }
 
-enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, basketCallQuantoPayoff, basketPutQuantoPayoff };
+enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, 
+	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff
+};
 enum { uFnLargest = 1, uFnLargestN };
 
 
@@ -672,7 +674,8 @@ public:
 		double                                 &finalAssetReturn,
 		const std::vector<int>                 &ulIds,
 		std::vector<bool>                      &useUl) {
-		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisAssetReturn,thisStrike;
+		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
+		double              cumReturn,w, basketFinal, basketStart, basketRef;
 		std::vector<double> optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
 
@@ -750,13 +753,12 @@ public:
 			callOrPut = 1;
 		case basketPutPayoff:
 		case basketPutQuantoPayoff:
-		{
-		   double basketFinal = 0.0, basketStart = 0.0, basketRef = 0.0;
+		   basketFinal = 0.0, basketStart = 0.0, basketRef = 0.0;
 		   if (payoffTypeId == basketCallQuantoPayoff || payoffTypeId == basketPutQuantoPayoff) { basketRef=1.0; }
 		   for (j = 0, len = brel.size(); j<len; j++)	{
 			   const SpBarrierRelation &thisBrel(brel[j]);
-			   int    n     = ulIdNameMap[thisBrel.underlying];
-			   double w     = thisBrel.weight;
+			   n     = ulIdNameMap[thisBrel.underlying];
+			   w     = thisBrel.weight;
 			   thisRefLevel = startLevels[n] / thisBrel.moneyness;
 			   if (payoffTypeId == basketCallQuantoPayoff || payoffTypeId == basketPutQuantoPayoff) { 
 				   basketFinal += thesePrices[n] / thisRefLevel * w;
@@ -773,7 +775,27 @@ public:
 		   if (optionPayoff > cap){ optionPayoff =cap; }
 		   thisPayoff      += participation*(optionPayoff > 0.0 ? optionPayoff : 0.0);
 		   break;
-		}
+		case cappuccinoPayoff:
+			callOrPut = 1;
+			cumReturn = 0.0;
+			w          = 1.0 / brel.size();
+			basketFinal=0.0, basketStart=0.0, basketRef=0.0;
+			for (j=0, len=len = brel.size(); j<len; j++) {
+				const SpBarrierRelation &thisBrel(brel[j]);
+				n              = ulIdNameMap[thisBrel.underlying];
+				thisRefLevel   = startLevels[n] / thisBrel.moneyness;
+				thisFinalLevel = thesePrices[n];
+				basketFinal   += (thisFinalLevel / thisRefLevel) * w;
+				basketStart   += (startLevels[n] / thisRefLevel) * w;
+				cumReturn     += thisFinalLevel > thisRefLevel ? thisPayoff : thisFinalLevel / thisRefLevel - 1.0;
+			}
+			cumReturn        = cumReturn * w;
+			finalAssetReturn = basketFinal / basketStart;
+			optionPayoff     = callOrPut*cumReturn;
+			if (optionPayoff > cap){ optionPayoff =cap; }
+			thisPayoff       = participation*(optionPayoff > 0.0 ? optionPayoff : 0.0);
+			proportionHits   = thisPayoff > 0.0 ? 1.0 : 0.0;
+			break;			 
 		case fixedPayoff:
 			if (doFinalAssetReturn){
 				// DOME: just record worstPerformer for now
@@ -1162,7 +1184,7 @@ public:
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
 												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier]){
 													SpBarrier &ib(barrier[paidOutBarrier]);
-													couponValue   += (ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
+													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0:0.0)*ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
 											}
 										}
