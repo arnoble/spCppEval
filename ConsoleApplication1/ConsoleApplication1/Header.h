@@ -829,7 +829,7 @@ public:
 	}
 	// do any averaging
 	void doAveraging(const std::vector<double> &startLevels, std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, const std::vector<UlTimeseries> &ulPrices,
-		const int thisPoint, const int thisMonPoint) {
+		const int thisPoint, const int thisMonPoint, const int numUls) {
 		int k;
 		if (avgDays && brel.size()) {
 			switch (avgType) {
@@ -886,11 +886,11 @@ public:
 				for (k = 0; k < (avgDays - brel[0].runningAvgDays) && k < thisMonPoint; k++) {
 					if (k%avgFreq == 0){
 						while (k < thisMonPoint && (ulPrices.at(0).nonTradingDay.at(thisMonPoint - k))){ k++; };
-						std::vector<double> testPrices;
+						std::vector<double> testPrices(numUls);
 						for (int j = 0, len = brel.size(); j < len; j++) {
 							SpBarrierRelation thisBrel = brel[j];
 							int n = ulIdNameMap[thisBrel.underlying];
-							testPrices.push_back(ulPrices.at(n).price.at(thisMonPoint - k));
+							testPrices.at(n) = ulPrices.at(n).price.at(thisMonPoint - k);
 						}
 						numHits +=  (this ->* (this->isHit))(testPrices,true,startLevels) ? 1 : 0;
 						numPossibleHits += 1;
@@ -1166,7 +1166,7 @@ public:
 						// is barrier alive
 						if (b.endDays == thisMonDays) {
 							// averaging/lookback - will replace thesePrices with their averages
-							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint);
+							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls);
 							// is barrier hit
 							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || (b .* (b.isHit))(thesePrices, true, startLevels)){
 								barrierWasHit[thisBarrier] = true;
