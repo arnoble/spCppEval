@@ -1094,6 +1094,10 @@ public:
 				double                 finalAssetReturn  = 1.0e9;
 				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl);
 
+				/*
+				* BEWARE ... startLevels[] has same underlyings-order as ulPrices[], so make sure any comparison with them is in the same order
+				*        ... and watch out for useUlMap argument which tells callee function that array arguments are already in the correct synchronised order
+				*/
 				for (i = 0; i < numUl; i++) { startLevels.at(i) = ulPrices.at(i).price.at(thisPoint); }
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					SpBarrier& b(barrier.at(thisBarrier));
@@ -1134,11 +1138,11 @@ public:
 								ulNames.push_back(ulIdNameMap.at(b.brel.at(uI).underlying));
 							}
 							for (k=firstPoint; !barrierWasHit.at(thisBarrier) && k <= lastPoint; k++) {
-								std:: vector<double> thesePrices;
+								std::vector<double>    tempPrices;
 								for (j=0; j<numBrel; j++) {
-									thesePrices.push_back(ulPrices.at(ulNames[j]).price[k]);
+									tempPrices.push_back(ulPrices.at(ulNames[j]).price[k]);
 								}
-								barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(thesePrices, false, startLevels);
+								barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(tempPrices, false, startLevels);
 								if (barrierWasHit.at(thisBarrier)){
 									int jj=1;
 								}

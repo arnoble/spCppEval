@@ -170,6 +170,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// get underlyingids for this product from DB
+			// they can come in any order of UnderlyingId (this is deliberate to aviod the code becoming dependent on any ordering
 			vector<int> ulIds;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
 			sprintf(lineBuffer, "%s%d%s", "select distinct UnderlyingId from productbarrier join barrierrelation using (ProductBarrierId) where ProductId='", productId, "'");
