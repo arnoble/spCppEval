@@ -675,7 +675,7 @@ public:
 		const std::vector<int>                 &ulIds,
 		std::vector<bool>                      &useUl) {
 		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
-		double              cumReturn,w, basketFinal, basketStart, basketRef;
+		double              cumReturn,w, basketFinal, basketStart, basketRef,basketMoneyness;
 		std::vector<double> optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
 
@@ -753,25 +753,17 @@ public:
 			callOrPut = 1;
 		case basketPutPayoff:
 		case basketPutQuantoPayoff:
-		   basketFinal = 0.0, basketStart = 0.0, basketRef = 0.0;
-		   if (payoffTypeId == basketCallQuantoPayoff || payoffTypeId == basketPutQuantoPayoff) { basketRef=1.0; }
-		   for (j = 0, len = brel.size(); j<len; j++)	{
-			   const SpBarrierRelation &thisBrel(brel[j]);
-			   n     = ulIdNameMap[thisBrel.underlying];
-			   w     = thisBrel.weight;
-			   thisRefLevel = startLevels[n] / thisBrel.moneyness;
-			   if (payoffTypeId == basketCallQuantoPayoff || payoffTypeId == basketPutQuantoPayoff) { 
-				   basketFinal += thesePrices[n] / thisRefLevel * w;
-				   basketStart += startLevels[n] / thisRefLevel * w;
-			   }
-			   else {
-				   basketFinal += thesePrices[n] * w;
-				   basketStart += startLevels[n] * w;
-				   basketRef   += thisRefLevel   * w;
-			   }
-		   }
-		   finalAssetReturn = basketFinal / basketStart;
-		   optionPayoff     = callOrPut *(basketFinal / basketRef - (strike*basketStart / basketRef));
+			basketFinal = 0.0, basketMoneyness = 0.0;
+			for (j = 0, len = brel.size(); j<len; j++)	{
+				const SpBarrierRelation &thisBrel(brel[j]);
+				n     = ulIdNameMap[thisBrel.underlying];
+				w     = thisBrel.weight;
+				thisRefLevel     = startLevels[n] / thisBrel.moneyness;
+				basketFinal     += thesePrices[n] / thisRefLevel * w;
+				basketMoneyness +=  thisBrel.moneyness * w;
+			}
+		   finalAssetReturn = basketFinal;
+		   optionPayoff     = callOrPut *(basketFinal - strike);
 		   if (optionPayoff > cap){ optionPayoff =cap; }
 		   thisPayoff      += participation*(optionPayoff > 0.0 ? optionPayoff : 0.0);
 		   break;
