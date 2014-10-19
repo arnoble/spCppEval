@@ -352,6 +352,7 @@ public:
 		const date bProductStartDate(from_simple_string(productStartDateString));
 		avgWasHit.reserve(2000);
 		runningAvgDays = 0;
+		readyForAvgObs = false;
 		uBarrierLevel  = NULL;
 		startDays      = (bStartDate - bProductStartDate).days() - daysExtant;
 		endDays        = (bEndDate   - bProductStartDate).days() - daysExtant;
@@ -362,12 +363,15 @@ public:
 			moneyness    = ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
 			strike      /= moneyness;
 			// ...compute running averages
+			// ... we are either inside an in-progress averaging (avgDays>endDays), or the entire averaging period is in the past (endDays<0)
 			if (avgDays && avgDays > endDays){
 				double refSpot(ulTimeseries.price[lastIndx]);
 				setLevels(refSpot);
-				for (int i = 0; endDays + i < avgDays;i++){
-					if (!ulTimeseries.nonTradingDay[lastIndx - i]  && runningAvgDays%avgFreq == 0){
-						double p = ulTimeseries.price[lastIndx - i];
+				for (int indx = lastIndx+endDays-avgDays,stopIndx=lastIndx+(endDays<0 ? endDays:0); indx <= stopIndx;indx++){
+					if (runningAvgDays%avgFreq == 0){ readyForAvgObs = true; } // first obs on starting indx
+					if (!ulTimeseries.nonTradingDay[indx]  && readyForAvgObs){
+						readyForAvgObs = false;
+						double p = ulTimeseries.price[indx];
 						switch (avgType){
 						case 0: // level
 							runningAverage.push_back(p/refSpot);  // express fixings as %ofSpot; re-inflate later with prevailing Spot
@@ -391,6 +395,7 @@ public:
 	const std::string startDate, endDate;
 	int               startDays, endDays,runningAvgDays;
 	double            refLevel,barrierLevel, uBarrierLevel,strike, moneyness;
+	bool              readyForAvgObs;
 	std::vector<double> runningAverage;
 	std::vector<bool>   avgWasHit;
 	// set levels which are linked to prevailing spot level 'ulPrice'
@@ -832,10 +837,11 @@ public:
 				for (int j = 0, len = brel.size(); j < len; j++) {
 					const SpBarrierRelation& thisBrel = brel[j];
 					int n = ulIdNameMap[thisBrel.underlying];
+					double thisStartLevel = startLevels[n];
 					std::vector<double> avgObs;
 					// create vector of observations
 					for (k = 0; k < thisBrel.runningAverage.size(); k++) {
-						avgObs.push_back(thisBrel.runningAverage[k]);
+						avgObs.push_back(thisBrel.runningAverage[k] * thisStartLevel);
 					}
 					for (k = 0; k < (avgDays - thisBrel.runningAvgDays) && k < thisMonPoint; k++) {
 						if (k%avgFreq == 0){
