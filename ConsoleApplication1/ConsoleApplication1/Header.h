@@ -390,10 +390,12 @@ public:
 	const double      barrier, uBarrier,weight;
 	const std::string startDate, endDate;
 	int               startDays, endDays,runningAvgDays;
-	double            barrierLevel, uBarrierLevel,strike, moneyness;
+	double            refLevel,barrierLevel, uBarrierLevel,strike, moneyness;
 	std::vector<double> runningAverage;
 	std::vector<bool>   avgWasHit;
+	// set levels which are linked to prevailing spot level 'ulPrice'
 	void setLevels(const double ulPrice) {
+		refLevel      = ulPrice / moneyness;
 		barrierLevel  = barrier  * ulPrice / moneyness;
 		if (uBarrier != NULL) {	uBarrierLevel = uBarrier * ulPrice / moneyness;	}
 	}
@@ -531,16 +533,16 @@ public:
 		for (j=0; j < numBrel; j++){   // get returns
 			const SpBarrierRelation &thisBrel(brel[j]);
 			thisIndx     = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
-			thisRefLevel = startLevels[thisIndx] / thisBrel.moneyness;
-			theseReturns.push_back(thesePrices[thisIndx] / thisRefLevel);
+			// thisRefLevel = startLevels[thisIndx] / thisBrel.moneyness;
+			theseReturns.push_back(thesePrices[thisIndx] / thisBrel.refLevel);
 		}
 		sort(theseReturns.begin(), theseReturns.end(), std::greater<double>()); // sort DECENDING
 		nthLargestReturn = theseReturns[param1];
 		for (j=0; j<numBrel; j++){   // mark inactive barrierRelations
 			const SpBarrierRelation &thisBrel(brel[j]);
 			thisIndx         = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
-			thisRefLevel     = startLevels[thisIndx] / thisBrel.moneyness;
-			activeBrels.push_back(thesePrices[thisIndx] / thisRefLevel > nthLargestReturn);
+			// thisRefLevel     = startLevels[thisIndx] / thisBrel.moneyness;
+			activeBrels.push_back(thesePrices[thisIndx] / thisBrel.refLevel > nthLargestReturn);
 		}
 		/*
 		* test active barrierRelations
@@ -584,8 +586,8 @@ public:
 			thisIndx       = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
 			above          = thisBrel.above;
 			w              = thisBrel.weight;
-			thisRefLevel   = startLevels[thisIndx] / thisBrel.moneyness;
-			basketReturn  += (thesePrices[thisIndx] / thisRefLevel) * w;
+			// thisRefLevel   = startLevels[thisIndx] / thisBrel.moneyness;
+			basketReturn  += (thesePrices[thisIndx] / thisBrel.refLevel) * w;
 		}
 		double diff      = basketReturn - param1;
 		bool   thisTest  = above ? diff > 0 : diff < 0;
@@ -689,7 +691,7 @@ public:
 				// ...previously strike /= moneyness was only affecting the parameter value! and not the member variable
 				// thisStrike = thisBrel.strike * startLevels[n] / thisBrel.moneyness;
 				thisStrike   = thisBrel.strike * startLevels[n] ;
-				thisRefLevel = startLevels[n] / thisBrel.moneyness;
+				thisRefLevel = thisBrel.refLevel;  // startLevels[n] / thisBrel.moneyness;
 				if (payoffTypeId == lookbackCallPayoff || payoffTypeId == lookbackPutPayoff) {
 					thisAssetReturn = lookbackLevel[n] / thisRefLevel;
 				}
@@ -753,7 +755,7 @@ public:
 			for (j = 0, len = brel.size(); j < len; j++)	{
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n     = ulIdNameMap[thisBrel.underlying];
-				thisRefLevel     = startLevels[n] / thisBrel.moneyness;
+				thisRefLevel     = thisBrel.refLevel;  // startLevels[n] / thisBrel.moneyness;
 				basketPerfs.push_back(thesePrices[n] / thisRefLevel);
 			}
 			if (productShape == "Rainbow"){
