@@ -351,8 +351,6 @@ public:
 		const date bEndDate(from_simple_string(endDate));
 		const date bProductStartDate(from_simple_string(productStartDateString));
 		avgWasHit.reserve(2000);
-		runningAverage = 0.0;
-		runningAvgObs  = 0;
 		runningAvgDays = 0;
 		uBarrierLevel  = NULL;
 		startDays      = (bStartDate - bProductStartDate).days() - daysExtant;
@@ -365,24 +363,22 @@ public:
 			strike      /= moneyness;
 			// ...compute running averages
 			if (avgDays && avgDays > endDays){
-				setLevels(ulTimeseries.price[lastIndx]);
+				double refSpot(ulTimeseries.price[lastIndx]);
+				setLevels(refSpot);
 				for (int i = 0; endDays + i < avgDays;i++){
-					if (!ulTimeseries.nonTradingDay[lastIndx - i]  && runningAvgObs%avgFreq == 0){
+					if (!ulTimeseries.nonTradingDay[lastIndx - i]  && runningAvgDays%avgFreq == 0){
 						double p = ulTimeseries.price[lastIndx - i];
 						switch (avgType){
 						case 0: // level
-							runningAverage += p;
+							runningAverage.push_back(p/refSpot);  // express fixings as %ofSpot; re-inflate later with prevailing Spot
 							break;
 						case 1: // proportional
 							avgWasHit.push_back( above ? (p>barrierLevel && (uBarrierLevel == NULL || p<uBarrierLevel) ? true : false) : (p<barrierLevel && (uBarrierLevel == NULL || p>uBarrierLevel) ? true : false));
 							break;
 						}
-						runningAvgObs  += 1;
 					}
 					runningAvgDays += 1;
 				}
-				runningAverage /= ulTimeseries.price[lastIndx];   // express fixings as %ofSpot; re-inflate later with prevailing Spot
-				if (runningAvgObs){ runningAverage /= runningAvgObs; }
 			}
 		}
 		else {
@@ -393,10 +389,10 @@ public:
 	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
 	const double      barrier, uBarrier,weight;
 	const std::string startDate, endDate;
-	int               startDays, endDays, runningAvgObs,runningAvgDays;
+	int               startDays, endDays,runningAvgDays;
 	double            barrierLevel, uBarrierLevel,strike, moneyness;
-	double            runningAverage;
-	std::vector<bool> avgWasHit;
+	std::vector<double> runningAverage;
+	std::vector<bool>   avgWasHit;
 	void setLevels(const double ulPrice) {
 		barrierLevel  = barrier  * ulPrice / moneyness;
 		if (uBarrier != NULL) {	uBarrierLevel = uBarrier * ulPrice / moneyness;	}
@@ -675,8 +671,8 @@ public:
 		const std::vector<int>                 &ulIds,
 		std::vector<bool>                      &useUl) {
 		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
-		double              cumReturn,w, basketFinal, basketStart, basketRef,basketMoneyness;
-		std::vector<double> optionPayoffs; optionPayoffs.reserve(10);
+		double              cumReturn,w, basketFinal, basketStart, basketRef;
+		std::vector<double> basketPerfs,optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
 
 		switch (payoffTypeId) {
@@ -753,14 +749,19 @@ public:
 			callOrPut = 1;
 		case basketPutPayoff:
 		case basketPutQuantoPayoff:
-			basketFinal = 0.0, basketMoneyness = 0.0;
-			for (j = 0, len = brel.size(); j<len; j++)	{
+			basketFinal = 0.0;
+			for (j = 0, len = brel.size(); j < len; j++)	{
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n     = ulIdNameMap[thisBrel.underlying];
-				w     = thisBrel.weight;
 				thisRefLevel     = startLevels[n] / thisBrel.moneyness;
-				basketFinal     += thesePrices[n] / thisRefLevel * w;
-				basketMoneyness +=  thisBrel.moneyness * w;
+				basketPerfs.push_back(thesePrices[n] / thisRefLevel);
+			}
+			if (productShape == "Rainbow"){
+				sort(basketPerfs.begin(), basketPerfs.end(), std::greater<double>()); // sort DECENDING
+			}
+			for (j=0, len = brel.size(); j<len; j++) {
+				const SpBarrierRelation &thisBrel(brel[j]);
+				basketFinal   += basketPerfs[j] * thisBrel.weight;
 			}
 		   finalAssetReturn = basketFinal;
 		   optionPayoff     = callOrPut *(basketFinal - strike);
@@ -775,7 +776,7 @@ public:
 			for (j=0, len=len = brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n              = ulIdNameMap[thisBrel.underlying];
-				thisRefLevel   = startLevels[n] / thisBrel.moneyness;
+				thisRefLevel   = startLevels[n] * thisBrel.strike;
 				thisFinalLevel = thesePrices[n];
 				basketFinal   += (thisFinalLevel / thisRefLevel) * w;
 				basketStart   += (startLevels[n] / thisRefLevel) * w;
@@ -829,11 +830,10 @@ public:
 				for (int j = 0, len = brel.size(); j < len; j++) {
 					const SpBarrierRelation& thisBrel = brel[j];
 					int n = ulIdNameMap[thisBrel.underlying];
-					double runningAverageLevel = thisBrel.runningAverage * startLevels.at(n);
 					std::vector<double> avgObs;
 					// create vector of observations
-					for (k = 0; k < thisBrel.runningAvgObs; k++) {
-						avgObs.push_back(runningAverageLevel);
+					for (k = 0; k < thisBrel.runningAverage.size(); k++) {
+						avgObs.push_back(thisBrel.runningAverage[k]);
 					}
 					for (k = 0; k < (avgDays - thisBrel.runningAvgDays) && k < thisMonPoint; k++) {
 						if (k%avgFreq == 0){
@@ -1202,7 +1202,7 @@ public:
 											if (couponPaidOut){
 												daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod;
 											}
-											double numFixedCoupons = floor(daysElapsed / couponPeriod);
+											double numFixedCoupons = /* floor */ (daysElapsed / couponPeriod);
 											double periodicRate    = exp(log(b.forwardRate) * (daysPerEvery/365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
 											thisPayoff += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
