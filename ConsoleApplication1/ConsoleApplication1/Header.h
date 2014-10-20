@@ -1242,19 +1242,19 @@ public:
 														couponValue += payoffOther;
 													}
 													// only store a hit if this barrier is in the future
-													if (thisMonDays>0){
+													//if (thisMonDays>0){
 														bOther.storePayoff(thisDateString, payoffOther, 1.0, finalAssetReturn,doFinalAssetReturn);
-													}
+													//}
 												}
 											}
 										}
 									}
 								}
 								// only store a hit if this barrier is in the future
-								if (thisMonDays>0){
+								//if (thisMonDays>0){
 									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, barrierWasHit[thisBarrier] ? b.proportionHits:0.0, finalAssetReturn, doFinalAssetReturn);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
-								}
+								//}
 							}
 							else {
 								// in case you want to see why not hit
@@ -1265,9 +1265,11 @@ public:
 				}
 				// collect statistics for this product episode
 				if (!doAccruals){
+					// count NUMBER of couponHits, and update running count for that NUMBER  
 					int thisNumCouponHits=0;
 					for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-						if (!barrier[thisBarrier].capitalOrIncome && barrierWasHit[thisBarrier]){ thisNumCouponHits += 1; }
+						SpBarrier &b(barrier[thisBarrier]);
+						if (!b.capitalOrIncome && (b.hasBeenHit || barrierWasHit[thisBarrier])){ thisNumCouponHits += 1; }
 					}
 					numCouponHits.at(thisNumCouponHits) += 1;
 				}
@@ -1330,7 +1332,7 @@ public:
 		}
 		else {
 			int numAllEpisodes(0);
-			bool hasProportionalAvg(false);   // no couponHistogram
+			bool hasProportionalAvg(false);   // no couponHistogram, which only shows coupon-counts
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				if (barrier.at(thisBarrier).capitalOrIncome) {
 					numAllEpisodes += barrier.at(thisBarrier).hit.size();
@@ -1387,7 +1389,7 @@ public:
 					int                 numInstances    = b.hit.size();
 					double              sumProportion   = b.sumProportion;
 					double              thisYears       = b.yearsToBarrier;
-					double              prob            = sumProportion / numAllEpisodes;
+					double              prob            = sumProportion / (b.endDays<0 ? 1 : numAllEpisodes); // expired barriers have only 1 episode ... the doAccruals .evaluate()
 					double              thisProbDefault = probDefault(hazardCurve, thisYears);
 					for (i = 0; i < b.hit.size(); i++){
 						thisAmount = b.hit[i].amount;
