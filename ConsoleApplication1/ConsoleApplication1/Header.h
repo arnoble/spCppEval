@@ -1208,10 +1208,10 @@ public:
 											double daysElapsed  = (bThisDate - bStartDate).days() + daysExtant;
 											double couponPeriod = daysPerEvery*couponEvery;
 											if (couponPaidOut){
-												daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod;
+												daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod; // floor() so as to include accrued stub
 											}
-											double numFixedCoupons = /* floor */ (daysElapsed / couponPeriod);
-											double periodicRate    = exp(log(b.forwardRate) * (daysPerEvery/365.25));
+											double numFixedCoupons = floor(daysElapsed / couponPeriod);
+											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / 365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
 											thisPayoff += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
 										}
