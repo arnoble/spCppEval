@@ -36,8 +36,31 @@ static wchar_t* charToWChar(const char* text)
 	return wa;
 }
 
+// calculate averaging days and freq
+void buildAveragingInfo(const char* avgTenorText, const char* avgFreqText, int &avgDays, int &avgFreq) {
+	std::map<char, int> avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
+	std::map<char, int>::iterator curr, end;
 
+	int tenorPeriodDays = 0;
+	char avgChar1 = avgTenorText[0];
+	int numTenor  = (avgChar1 - '0');
+	char avgChar2 = tolower(avgTenorText[1]);
+	/* one way to do it
+	for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
+	if (curr->first == avgChar2){ found = true; tenorPeriodDays = curr->second; }
+	}*/
+	if (avgTenor.find(avgChar2) != avgTenor.end()){
+		tenorPeriodDays = avgTenor[avgChar2];
+	}
+	else { throw std::out_of_range("map_at()"); }
 
+	avgDays = numTenor * tenorPeriodDays;  // maybe add 1 since averaging invariably includes both end dates
+	avgChar2 = tolower(avgFreqText[0]);
+	if (avgTenor.find(avgChar2) != avgTenor.end()){
+		avgFreq = avgTenor[avgChar2];
+	}
+	else { throw std::out_of_range("map_at()"); }
+}
 
 // cds functions
 double interpCurve(std::vector<double> curveTimes, std::vector<double> curveValues,double point){
@@ -327,9 +350,9 @@ class SpBarrierRelation {
 
 public:
 	SpBarrierRelation(const int underlying,
-		double              barrier,
-		double              uBarrier,
-		const bool          isAbsolute,
+		double              _barrier,
+		double              _uBarrier,
+		const bool          _isAbsolute,
 		const std::string   startDate,
 		const std::string   endDate,
 		const bool          above,
@@ -341,25 +364,50 @@ public:
 		const int           avgType, 
 		const int           avgDays,
 		const int           avgFreq,
+		const int           avgInDays,
+		const int           avgInFreq,
 		const std::string   productStartDateString)
-		: underlying(underlying), barrier(barrier), uBarrier(uBarrier), isAbsolute(isAbsolute),
+		: underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		strike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq)
+		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq)
 	{
-		using namespace boost::gregorian;
-		const date bStartDate(from_simple_string(startDate));
-		const date bEndDate(from_simple_string(endDate));
-		const date bProductStartDate(from_simple_string(productStartDateString));
+		const boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(startDate));
+		const boost::gregorian::date bEndDate(boost::gregorian::from_simple_string(endDate));
+		const boost::gregorian::date bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 		avgWasHit.reserve(2000);
 		runningAvgDays = 0;
 		readyForAvgObs = false;
 		uBarrierLevel  = NULL;
 		startDays      = (bStartDate - bProductStartDate).days() - daysExtant;
 		endDays        = (bEndDate   - bProductStartDate).days() - daysExtant;
+		barrier        = originalBarrier;
+		uBarrier       = originalUbarrier;
+		strike         = originalStrike;
+		int lastIndx(ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
+		double lastPrice(ulTimeseries.price[lastIndx]);
+
 		// post-strike initialisation
-		if (daysExtant){
+		if (daysExtant){				
+			// averagingIn
+			if (avgInDays>0) {
+					double sumSoFar  = 0.0;
+					int count        = 0;
+					std::vector<double>  theseAvgPrices; // debug
+					for (int k=lastIndx - daysExtant; count < avgInDays && k <= lastIndx; count++, k++) {
+						if (count%avgInFreq == 0){
+							std::string  thisDate = ulTimeseries.date[k]; // debug
+							while (k <= lastIndx && ulTimeseries.nonTradingDay[k]){ count++; k++; thisDate = ulTimeseries.date[k]; }
+							sumSoFar               += ulTimeseries.price[k];
+							numAvgInSofar += 1;
+							theseAvgPrices.push_back(ulTimeseries.price[k]); // debug
+						}
+					}
+					avgInSofar      = sumSoFar / numAvgInSofar / lastPrice;
+					countAvgInSofar = count;
+			} // averagingIn
+
+
 			// ...compute moneyness
-			int lastIndx(ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
 			moneyness    = ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
 			strike      /= moneyness;
 			// ...compute running averages
@@ -391,13 +439,41 @@ public:
 	};
 	const bool        above, at,isAbsolute;
 	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
-	const double      barrier, uBarrier,weight;
+	const double      originalStrike,originalBarrier, originalUbarrier,weight;
 	const std::string startDate, endDate;
-	int               startDays, endDays,runningAvgDays;
-	double            refLevel,barrierLevel, uBarrierLevel,strike, moneyness;
+	int               count,j,k,startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0;
+	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness;
 	bool              readyForAvgObs;
 	std::vector<double> runningAverage;
 	std::vector<bool>   avgWasHit;
+
+	// do any averagingIn
+	void doAveragingIn(const double ulPrice,   // prevailing (possibly simulated) spot level
+						const int thisPoint,   // current product starting point in global timeseries
+						const int lastPoint,   // last point in global timeseries
+						const UlTimeseries&  ulTimeseries
+		){
+		if (avgInDays > 0) {
+			double sumAvg  = avgInSofar*numAvgInSofar*ulPrice;
+			double numAvg  = numAvgInSofar;
+			std::vector<double> theseAvgInObs; // DEBUG
+			if (countAvgInSofar < avgInDays){
+				for (count=countAvgInSofar, k=thisPoint; count <= avgInDays && k<lastPoint; count++, k++) {
+					if (count%avgFreq == 0){
+						while (k<lastPoint && ulTimeseries.nonTradingDay[k]){ count++; k++; }
+						double thisPrice = ulTimeseries.price[k];
+						sumAvg    += thisPrice;
+						numAvg    += 1;
+						theseAvgInObs.push_back(thisPrice); // DEBUG
+					}
+				}
+			}
+			double avgInMoneyness = sumAvg / numAvg / ulPrice;
+			moneyness = 1.0 / avgInMoneyness; // refLevel for average STRIKE options will need to MULTIPLY by moneyness (rather than the usual case of DIVIDE)
+			strike = originalStrike * avgInMoneyness;
+		}
+	}
+
 	// set levels which are linked to prevailing spot level 'ulPrice'
 	void setLevels(const double ulPrice) {
 		refLevel      = ulPrice / moneyness;
@@ -439,8 +515,8 @@ public:
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
-		isAnd(nature == "and"), avgDays(avgDays), avgType(avgType),
-		avgFreq(avgFreq), isMemory(isMemory), isAbsolute(isAbsolute), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
+		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
+		isMemory(isMemory), isAbsolute(isAbsolute), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
@@ -469,14 +545,15 @@ public:
 		hit.reserve(100000);
 	};
 	// public members: DOME consider making private, in case we implement their content some other way
-	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgType, avgFreq, daysExtant;
+	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute;
 	const double                    payoff,participation, param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
 	bool                            hasBeenHit, isExtremum, isContinuous, proportionalAveraging, isLargestN;
 	int                             endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
-	double                          variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0, proportionHits, sumProportion, forwardRate;
+	double                          variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
+	double                          proportionHits, sumProportion, forwardRate;
 	bool                            (SpBarrier::*isHit)(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <double>            fars; // final asset returns
 	std::vector <SpBarrierRelation> brel;
@@ -830,11 +907,13 @@ public:
 	// do any averaging
 	void doAveraging(const std::vector<double> &startLevels, std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, const std::vector<UlTimeseries> &ulPrices,
 		const int thisPoint, const int thisMonPoint, const int numUls) {
-		int k;
+		int j,k,len,count;
+
+		// averaging OUT
 		if (avgDays && brel.size()) {
 			switch (avgType) {
 			case 0: //averageLevels
-				for (int j = 0, len = brel.size(); j < len; j++) {
+				for (j = 0, len = brel.size(); j < len; j++) {
 					const SpBarrierRelation& thisBrel = brel[j];
 					int n = ulIdNameMap[thisBrel.underlying];
 					double thisStartLevel = startLevels[n];
@@ -876,7 +955,7 @@ public:
 				if (daysExtant){
 					for (int i = 0, numObs = brel[0].avgWasHit.size(); i < numObs; i++) {
 						bool wasHit = true;
-						for (int j = 0, len = brel.size(); j < len; j++) {
+						for (j = 0, len = brel.size(); j < len; j++) {
 							wasHit = wasHit && brel[j].avgWasHit[i];
 						}
 						numHits         += wasHit ? 1 : 0;
@@ -887,7 +966,7 @@ public:
 					if (k%avgFreq == 0){
 						while (k < thisMonPoint && (ulPrices.at(0).nonTradingDay.at(thisMonPoint - k))){ k++; };
 						std::vector<double> testPrices(numUls);
-						for (int j = 0, len = brel.size(); j < len; j++) {
+						for (j = 0, len = brel.size(); j < len; j++) {
 							SpBarrierRelation thisBrel = brel[j];
 							int n = ulIdNameMap[thisBrel.underlying];
 							testPrices.at(n) = ulPrices.at(n).price.at(thisMonPoint - k);
@@ -1106,6 +1185,7 @@ public:
 					for (unsigned int uI = 0; uI < numBrel; uI++){
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
 						int thisName = ulIdNameMap.at(thisBrel.underlying);
+						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint,ulPrices.at(thisName));
 						thisBrel.setLevels(startLevels.at(thisName));
 						// cater for extremum barriers, where typically averaging does not apply to barrier hit test
 						// ...so set barrierWasHit[thisBarrier] if the extremum condition is met

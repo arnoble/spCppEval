@@ -265,7 +265,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			enum {
 				colProductBarrierId = 0, colProductId,
 				colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
-				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colProductBarrierLast
+				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colProductBarrierLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
@@ -274,32 +274,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			map<char, int>::iterator curr, end;
 			// ...parse each productbarrier row
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-				int tenorPeriodDays = 0;
-				int avgDays = 0;
-				int numTenor = 0;
-				int avgFreq = 0;
+				int avgDays = 0, avgInDays = 0;
+				int avgFreq = 0, avgInFreq = 0;
 				bool isMemory = atoi(szAllPrices[colMemory]) == 1;;
 				if (strlen(szAllPrices[colAvgTenor]) && strlen(szAllPrices[colAvgFreq])){
-					char avgChar1 = szAllPrices[colAvgTenor][0];
-					numTenor = (avgChar1 - '0');
-					char avgChar2 = tolower(szAllPrices[colAvgTenor][1]);
-					/* one way to do it
-					for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
-						if (curr->first == avgChar2){ found = true; tenorPeriodDays = curr->second; }
-					}*/
-					if (avgTenor.find(avgChar2) != avgTenor.end()){
-						tenorPeriodDays = avgTenor[avgChar2];
-					}
-					else { throw std::out_of_range("map_at()"); }
-
-					avgDays = numTenor * tenorPeriodDays ;  // maybe add 1 since averaging invariably includes both end dates
-					avgChar2 = tolower(szAllPrices[colAvgFreq][0]);
-					if (avgTenor.find(avgChar2) != avgTenor.end()){
-						avgFreq = avgTenor[avgChar2];
-					}
-					else { throw std::out_of_range("map_at()"); }
-
-
+					buildAveragingInfo(szAllPrices[colAvgTenor], szAllPrices[colAvgFreq], avgDays, avgFreq);
+				}
+				if (strlen(szAllPrices[colAvgInTenor]) && strlen(szAllPrices[colAvgInFreq])){
+					buildAveragingInfo(szAllPrices[colAvgInTenor], szAllPrices[colAvgInFreq], avgInDays, avgInFreq);
 				}
 				int barrierId = atoi(szAllPrices[colProductBarrierId]);
 				int avgType = atoi(szAllPrices[colAvgType]);
@@ -378,7 +360,8 @@ int _tmain(int argc, _TCHAR* argv[])
 					if (uid) {
 						// create barrierRelation
 						thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
-							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), avgType, avgDays, avgFreq, productStartDateString));
+							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), 
+							avgType, avgDays, avgFreq, avgInDays, avgInFreq, productStartDateString));
 					}
 					// next barrierRelation record
 					retcode = mydb1.fetch(false);
