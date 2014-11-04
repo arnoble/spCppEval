@@ -169,7 +169,7 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, 
 	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff
 };
-enum { uFnLargest = 1, uFnLargestN };
+enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
 
 
 
@@ -798,7 +798,8 @@ public:
 				optionPayoffs.push_back(p);
 			}
 			switch (underlyingFunctionId) {
-			case uFnLargest:
+			case uFnSmallest:
+			case uFnLargest :
 				if (productShape == "Himalaya"){
 					double bestUlReturn;
 					int bestUlIndx=0;
@@ -811,8 +812,15 @@ public:
 					useUl[ulIdNameMap[brel[bestUlIndx].underlying]] = false;
 				}
 				else {
-					for (optionPayoff = 0.0, j = 0, len = optionPayoffs.size(); j<len; j++) {
-						if (optionPayoffs[j] > optionPayoff) { optionPayoff = optionPayoffs[j]; }
+					if (underlyingFunctionId == uFnSmallest){
+						for (optionPayoff = INFINITY, j = 0, len = optionPayoffs.size(); j<len; j++) {
+							if (optionPayoffs[j] < optionPayoff) { optionPayoff = optionPayoffs[j]; }
+						}
+					}
+					else {
+						for (optionPayoff = 0.0, j = 0, len = optionPayoffs.size(); j<len; j++) {
+							if (optionPayoffs[j] > optionPayoff) { optionPayoff = optionPayoffs[j]; }
+						}
 					}
 				}
 				break;
