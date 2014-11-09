@@ -27,13 +27,13 @@ int _tmain(int argc, _TCHAR* argv[])
 		const int        maxBufs(100);
 		const int        bufSize(1000);
 		char             lineBuffer[bufSize], charBuffer[bufSize], resultBuffer[bufSize];
-		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: 'dbServer:'spIPRL|newSp  'prices:'y/n  'curves:'y/n 'cds:'y/n 'static:'y/n> 'tickerfeed:'y/n>" << endl;  exit(0); }
+		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: 'dbServer:'spCloud|newSp  'prices:'y/n  'curves:'y/n 'cds:'y/n 'static:'y/n> 'tickerfeed:'y/n>" << endl;  exit(0); }
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 34;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 1000;
 		size_t numChars;
 		char *thisDate  = WcharToChar(argv[3], &numChars);
 		string anyString(thisDate); if (anyString.find("-") != string::npos){ std::cout << "Usage: enter date as YYYYMMDD " << endl;  exit(0); }
-		char dbServer[100]; strcpy(dbServer,"spIPRL");  // newSp for local PC
+		char dbServer[100]; strcpy(dbServer,"spCloud");  // newSp for local PC
 		bool doPrices(true), doCDS(true), doCurves(true), doStatic(true), doTickerfeed(true);
 		for (int i=4; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
@@ -56,6 +56,11 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 
 
+		// open database
+		cerr << "opening database connectino with: " << dbServer ;
+		MyDB  mydb((char **)szAllBufs, dbServer), mydb1((char **)szAllBufs, dbServer), mydb2((char **)szAllBufs, dbServer);
+		cerr << "OPENED database connectino with: " << dbServer;
+
 
 		// Bberg Setup Session parameters: port, buffer size, etc...
 		SessionOptions sessionOptions;
@@ -76,9 +81,6 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 
-
-		// open database
-		MyDB  mydb((char **)szAllBufs, dbServer), mydb1((char **)szAllBufs, dbServer), mydb2((char **)szAllBufs, dbServer);
 
 		// get list of productIds
 		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId from product where ProductId>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0'"); 	mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);

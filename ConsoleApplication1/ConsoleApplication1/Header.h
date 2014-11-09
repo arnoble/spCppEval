@@ -216,11 +216,14 @@ public:
 			"The driver reported the following diagnostics whilst running "
 			"%s\n\n",
 			fn);
-		do
-		{
-			ret = SQLGetDiagRec(type, handle, ++i, state, &native, text, sizeof(text), &len);
-			if (SQL_SUCCEEDED(ret))
-				printf("%s:%ld:%ld:%s\n", state, i, native, text);
+
+		do	{
+			ret = SQLGetDiagRec(type, handle, ++i, &state[0], &native, &text[0], (SQLSMALLINT) sizeof(text), &len);
+			if (SQL_SUCCEEDED(ret)) {
+				text[len] = '\0';
+				state[5] = '\0';
+				printf("%c%c%c%c%c:%d:%s:%d\n", state[0], state[1], state[2], state[3], state[4], native, text, len);
+			}
 		} while (ret == SQL_SUCCESS);
 	}
 	// open connection to DataSource newSp

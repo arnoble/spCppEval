@@ -202,9 +202,9 @@ public:
 		SQLHANDLE handle,
 		SQLSMALLINT type)
 	{
-		SQLINTEGER  i = 0;
+		SQLSMALLINT i = 0;
 		SQLINTEGER  native;
-		SQLWCHAR    state[7];
+		SQLWCHAR    state[6];
 		SQLWCHAR    text[256];
 		SQLSMALLINT len;
 		SQLRETURN   ret;
@@ -213,11 +213,13 @@ public:
 			"The driver reported the following diagnostics whilst running "
 			"%s\n\n",
 			fn);
-		do
-		{
-			ret = SQLGetDiagRec(type, handle, ++i, state, &native, text, sizeof(text), &len);
-			if (SQL_SUCCEEDED(ret))
-				printf("%s:%ld:%ld:%s\n", state, i, native, text);
+		do	{
+			ret = SQLGetDiagRec(type, handle, ++i, &state[0], &native, &text[0], (SQLSMALLINT) sizeof(text), &len);
+			if (SQL_SUCCEEDED(ret)) {
+				text[len] = '\0';
+				state[5] = '\0';
+				printf("%c%c%c%c%c:%d:%s:%d\n", state[0], state[1], state[2], state[3], state[4], native, text, len);
+			}
 		} while (ret == SQL_SUCCESS);
 	}
 	// open connection to DataSource newSp
@@ -235,15 +237,15 @@ public:
 		// Connect to Data Source
 		fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
 		if (!SQL_SUCCEEDED(fsts))	{
-			extract_error("SQLAllocHandle for connect", hDBC, SQL_HANDLE_DBC);
+			extract_error("SQLConnect ", *hDBC, SQL_HANDLE_DBC);
 			exit(1);
 		}
 		return fsts;
 	}
-	// open connection to DataSource spIPRL
-	SQLRETURN dbConnIPRL(SQLHENV hEnv, SQLHDBC* hDBC) {
-		SQLWCHAR              szDSN[]    = L"spIPRL";       // Data Source Name buffer
-		SQLWCHAR              szUID[]    = L"C85693_anoble";		   // User ID buffer
+	// open connection to DataSource spCloud
+	SQLRETURN dbConnCloud(SQLHENV hEnv, SQLHDBC* hDBC) {
+		SQLWCHAR              szDSN[]    = L"spCloud";       // Data Source Name buffer
+		SQLWCHAR              szUID[]    = L"anoble";		   // User ID buffer
 		SQLWCHAR              szPasswd[] = L"Ragtin_Mor14";   // Password buffer
 		SQLRETURN             fsts;
 
@@ -255,7 +257,7 @@ public:
 		// Connect to Data Source
 		fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
 		if (!SQL_SUCCEEDED(fsts))	{
-			extract_error("SQLAllocHandle for connect", hDBC, SQL_HANDLE_DBC);
+			extract_error("SQLConnect ", *hDBC, SQL_HANDLE_DBC);
 			exit(1);
 		}
 		return fsts;
@@ -264,7 +266,7 @@ public:
 
 	MyDB(char **bindBuffer,const std::string dataSource) : bindBuffer(bindBuffer){
 		SQLAllocEnv(&hEnv);
-		fsts = dataSource == "spIPRL" ? dbConnIPRL(hEnv, &hDBC) : dbConn(hEnv, &hDBC);              // connect
+		fsts = dataSource == "spCloud" ? dbConnCloud(hEnv, &hDBC) : dbConn(hEnv, &hDBC);              // connect
 		if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO) { exit(1); }
 	};
 	~MyDB(){
