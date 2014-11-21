@@ -265,7 +265,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			enum {
 				colProductBarrierId = 0, colProductId,
 				colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
-				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colProductBarrierLast
+				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colStrikeReset,colProductBarrierLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
@@ -276,7 +276,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 				int avgDays = 0, avgInDays = 0;
 				int avgFreq = 0, avgInFreq = 0;
-				bool isMemory = atoi(szAllPrices[colMemory]) == 1;;
+				bool isMemory      = atoi(szAllPrices[colMemory]     ) == 1;
+				
 				if (strlen(szAllPrices[colAvgTenor]) && strlen(szAllPrices[colAvgFreq])){
 					buildAveragingInfo(szAllPrices[colAvgTenor], szAllPrices[colAvgFreq], avgDays, avgFreq);
 				}
@@ -286,6 +287,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				int barrierId = atoi(szAllPrices[colProductBarrierId]);
 				int avgType = atoi(szAllPrices[colAvgType]);
 				bool isAbsolute = atoi(szAllPrices[colIsAbsolute]) == 1;
+				bool isStrikeReset = atoi(szAllPrices[colStrikeReset]) == 1;
 				capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
 				nature = szAllPrices[colNature];
 				payoff = atof(szAllPrices[colPayoff]) / 100.0;
@@ -303,7 +305,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				*/
 				spr.barrier.push_back(SpBarrier(barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
-					avgFreq, isMemory, isAbsolute, daysExtant, bProductStartDate, doFinalAssetReturn,midPrice));
+					avgFreq, isMemory, isAbsolute, isStrikeReset,daysExtant, bProductStartDate, doFinalAssetReturn,midPrice));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 				// update vector of monitoring dates
 				// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers

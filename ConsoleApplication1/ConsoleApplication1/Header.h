@@ -510,6 +510,7 @@ public:
 		const int	            avgFreq,
 		const bool              isMemory,
 		const bool              isAbsolute,
+		const bool              isStrikeReset,
 		const int               daysExtant,
 		const boost::gregorian::date bProductStartDate,
 		const bool              doFinalAssetReturn,
@@ -519,7 +520,7 @@ public:
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
-		isMemory(isMemory), isAbsolute(isAbsolute), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
+		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
@@ -549,7 +550,7 @@ public:
 	};
 	// public members: DOME consider making private, in case we implement their content some other way
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
-	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute;
+	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset;
 	const double                    payoff,participation, param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
@@ -1197,7 +1198,13 @@ public:
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
 						int thisName = ulIdNameMap.at(thisBrel.underlying);
 						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint,ulPrices.at(thisName));
-						thisBrel.setLevels(startLevels.at(thisName));
+						if (b.isStrikeReset){
+							int brelStartPoint = thisPoint + thisBrel.startDays; if (brelStartPoint < 0){ brelStartPoint  = 0; } if (brelStartPoint >= totalNumDays){ brelStartPoint  = totalNumDays-1; }
+							thisBrel.setLevels(ulPrices.at(thisName).price.at(brelStartPoint));
+						}
+						else {
+							thisBrel.setLevels(startLevels.at(thisName));
+						}
 						// cater for extremum barriers, where typically averaging does not apply to barrier hit test
 						// ...so set barrierWasHit[thisBarrier] if the extremum condition is met
 						// check to see if extremumBarriers hit
