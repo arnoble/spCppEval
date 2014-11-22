@@ -21,7 +21,7 @@ using namespace BloombergLP;
 using namespace blpapi;
 
 // *************** STRUCTS
-typedef struct bbergData { double p[2]; } BbergData;
+typedef struct bbergData { std::string date;  double p[2]; } BbergData;
 
 
 // Adjust date by a number of days +/-
@@ -103,6 +103,7 @@ BbergData getBbergBidOfferPrices(char *ticker, char **fields, char *thisDate, bl
 						for (int j = 0; j <2; ++j) {
 							if (f.hasElement(fields[j])){
 								thePrices.p[j] = f.getElementAsFloat64(fields[j]);
+								thePrices.date = f.getElementAsString("date");
 								std::cout << f.getElementAsString("date") << "\t" << thePrices.p[j] << std::endl;
 								// in case we only get 1 price
 								if (j == 0){                    thePrices.p[1] =thePrices.p[0]; }

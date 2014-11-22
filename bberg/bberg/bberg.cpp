@@ -106,6 +106,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				// get prices ... there may be more than one where a product has several ISINs eg #524
 				std::cout << "\ngetting prices for " << id << std::endl;
 				double bidPrice(0.0), askPrice(0.0);
+				std::string  pricingDateString("");
 				char *cPtr(NULL);
 				bool notEquityTicker = tickerString.find("Equity") == std::string::npos;
 				if (notEquityTicker) {
@@ -130,6 +131,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						DatePlusDays(newDateStr, -1, newDateStr);
 					} while (counter-- > 0 && (thisBbergData.p[0] < 0.0 || thisBbergData.p[1] < 0.0) );
 					if (thisBbergData.p[0] > 0.0 && thisBbergData.p[1] > 0.0){
+						pricingDateString = thisBbergData.date;
 						bidPrice += thisBbergData.p[0]; askPrice += thisBbergData.p[1];
 					}
 					else {
@@ -141,8 +143,12 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 					else { cPtr = NULL; }
 				}
+
 				if (gotAllPrices){
-					sprintf(charBuffer, "%s%.2lf%s%.2lf%s%d%s", "update product set bid='", bidPrice, "',ask='", askPrice, "' where productid='", id, "';");
+					//sprintf(charBuffer, "%s%.2lf%s%.2lf%s%d%s", "update product set bid='", bidPrice, "',ask='", askPrice, "' where productid='", id, "';");
+					sprintf(charBuffer, "%s%.2lf%s%.2lf%s%s%s%d%s", 
+						"update product set bid='", bidPrice, "',ask='", askPrice, "',bidaskdate='", pricingDateString.c_str(), "' where productid='", id, "';");
+					//std::cerr << "Prices date for " << id << " is " << pricingDateString << std::endl;
 					mydb1.prepare((SQLCHAR *)charBuffer, 1);
 					if (doTickerfeed){
 						sprintf(charBuffer, "%s%.2lf%s%.2lf%s%d%s", "insert into tickerfeed (bid,ask,productid,datetime) values ('", bidPrice, "','", askPrice, "','", id, "',now());");
