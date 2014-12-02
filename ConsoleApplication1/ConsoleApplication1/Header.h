@@ -1103,7 +1103,8 @@ public:
 		MyDB                      &mydb,
 		double                    &accruedCoupon,
 		const bool                doAccruals,
-		const bool                doFinalAssetReturn){
+		const bool                doFinalAssetReturn,
+		const bool                doDebug){
 		int                 totalNumReturns  = totalNumDays - 1;
 		char                lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                 i, j, k, len, thisIteration;
@@ -1468,6 +1469,7 @@ public:
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
 			for (int analyseCase = 0; analyseCase < 2; analyseCase++) {
+				if (doDebug){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 				bool     applyCredit = analyseCase == 1;
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
 				bool     foundEarliest = false;
@@ -1481,6 +1483,7 @@ public:
 				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
 				int    numCapitalInstances(0), numStrPosInstances(0), numPosInstances(0), numNegInstances(0);
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+					if (doDebug){ std::cerr << "Starting analyseResults  for barrier \n" << thisBarrier << std::endl; }
 					const SpBarrier&    b(barrier.at(thisBarrier));
 					double              thisBarrierSumPayoffs(0.0), thisAmount;
 					std::vector<double> thisBarrierPayoffs; thisBarrierPayoffs.reserve(100000);
@@ -1562,6 +1565,7 @@ public:
 				// ...second assumes annualised returns have equal duration
 				bool doWinLoseAnnualised = true; // as you want
 				if (analyseCase == 0) {
+					if (doDebug){ std::cerr << "Starting analyseResults WinLose for case \n" << analyseCase << std::endl; }
 					sprintf(lineBuffer, "%s%d%s", "delete from winlose where productid='", productId, "';");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					double winLoseMinRet       =  doWinLoseAnnualised ? -0.20 : 0.9;
@@ -1601,13 +1605,16 @@ public:
 
 				// pctiles and other calcs
 				if (numMcIterations > 1 && analyseCase == 0) {
+					if (doDebug){ std::cerr << "Starting analyseResults PcTile for case \n" << analyseCase << std::endl; }
+
 					// pctiles
 					double bucketSize = productShape == "Supertracker" ? 0.05 : 0.01;
 					double minReturn = allAnnRets[0];
 					std::vector<double>    returnBucket;
 					std::vector<double>    bucketProb;
 					for (i = j = 0; i < numAnnRets; i++) {
-						if (allAnnRets[i] <= minReturn) { j += 1; }
+						double thisRet = allAnnRets[i];
+						if (thisRet <= minReturn || thisRet > 1.0) { j += 1; }  // final bucket for any return above 100%pa
 						else { returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets); j = 0; minReturn += bucketSize; }
 					}
 					returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets);
@@ -1625,6 +1632,8 @@ public:
 
 
 				// eShortfall, esVol
+				if (doDebug){ std::cerr << "Starting analyseResults SavingToDatabase for case \n" << analyseCase << std::endl; }
+
 				const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
 				int numShortfall(    floor(confLevel    *numAnnRets));
 				int numShortfallTest(floor(confLevelTest*numAnnRets));

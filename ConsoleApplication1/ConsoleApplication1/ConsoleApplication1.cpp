@@ -12,12 +12,12 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	try{
 		// initialise
-		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR'   'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd>" << endl;  exit(0); }
+		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR' 'debug'  'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd>" << endl;  exit(0); }
 		int              historyStep = 1;
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 363;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 363;
 		int              numMcIterations = argc > 3 ? _ttoi(argv[3]) : 100;
-		bool             forceIterations(false);
+		bool             forceIterations(false), doDebug(false);
 		char             lineBuffer[1000], charBuffer[1000];
 		char             startDate[11]      = "";
 		char             endDate[11]        = "";
@@ -30,7 +30,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations" )){ forceIterations    = true; }
 			if (strstr(thisArg, "doFAR"           )){ doFinalAssetReturn = true; }
-			if (sscanf(thisArg, "startDate:%s",  lineBuffer)){ strcpy(startDate, lineBuffer); }
+			if (strstr(thisArg, "debug"           )){ doDebug            = true; }
+			if (sscanf(thisArg, "startDate:%s", lineBuffer)){ strcpy(startDate, lineBuffer); }
 			if (sscanf(thisArg, "endDate:%s",    lineBuffer)){ strcpy(endDate,   lineBuffer); }
 			if (sscanf(thisArg, "dbServer:%s",   lineBuffer)){ strcpy(dbServer,  lineBuffer); }
 		}
@@ -438,11 +439,11 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true,false);
+				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true,false,doDebug);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, thisNumIterations*numBarriers>100000 ? 100000/numBarriers : thisNumIterations, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn);
+				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug);
 			// tidy up
 
 		} // for each product

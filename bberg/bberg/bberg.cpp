@@ -27,23 +27,25 @@ int _tmain(int argc, _TCHAR* argv[])
 		const int        maxBufs(100);
 		const int        bufSize(1000);
 		char             lineBuffer[bufSize], charBuffer[bufSize], resultBuffer[bufSize];
-		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: 'dbServer:'spCloud|newSp  'prices:'y/n  'curves:'y/n 'cds:'y/n 'static:'y/n> 'tickerfeed:'y/n>" << endl;  exit(0); }
+		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: 'dbServer:'spCloud|newSp  'prices:'y/n  'curves:'y/n 'cds:'y/n 'static:'y/n> 'tickerfeed:'n/y 'currentPrices:'n/y>" << endl;  exit(0); }
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 34;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 1000;
 		size_t numChars;
 		char *thisDate  = WcharToChar(argv[3], &numChars);
 		string anyString(thisDate); if (anyString.find("-") != string::npos){ std::cout << "Usage: enter date as YYYYMMDD " << endl;  exit(0); }
 		char dbServer[100]; strcpy(dbServer,"spCloud");  // newSp for local PC
-		bool doPrices(true), doCDS(true), doCurves(true), doStatic(true), doTickerfeed(true);
+		bool doPrices(true), doCDS(true), doCurves(true), doStatic(true), doTickerfeed(false), doCurrentPrices(false);
 		for (int i=4; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
-			if (sscanf(thisArg, "prices:%s",     lineBuffer)){ doPrices     = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "cds:%s",        lineBuffer)){ doCDS        = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "static:%s",     lineBuffer)){ doStatic     = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "curves:%s",     lineBuffer)){ doCurves     = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "tickerfeed:%s", lineBuffer)){ doTickerfeed = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "dbServer:%s",   lineBuffer)){ strcpy(dbServer, lineBuffer); }
+			if (sscanf(thisArg, "prices:%s",        lineBuffer)){ doPrices        = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "cds:%s",           lineBuffer)){ doCDS           = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "static:%s",        lineBuffer)){ doStatic        = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "curves:%s",        lineBuffer)){ doCurves        = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "tickerfeed:%s",    lineBuffer)){ doTickerfeed    = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "currentPrices:%s", lineBuffer)){ doCurrentPrices = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "dbServer:%s",      lineBuffer)){ strcpy(dbServer, lineBuffer); }
 		}
+		char *pricePrefix = doCurrentPrices ? "current" : "";
 
 		// init
 		SQLHENV          hEnv = NULL;		  // Env Handle from SQLAllocEnv()
@@ -93,7 +95,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		//
 		// get BID,ASK prices for productIds
 		//
-		if (!doDebug && doPrices){
+		if (!doDebug && (doPrices || doCurrentPrices) ){
 			char *bidAskFields[] ={ "PX_BID", "PX_ASK" };
 			char *lastFields[]   ={ "PX_LAST", "PX_LAST" };
 			sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where Isin != ''  and productid>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0' and strikedate<now() order by ProductId; ");
@@ -146,8 +148,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 				if (gotAllPrices){
 					//sprintf(charBuffer, "%s%.2lf%s%.2lf%s%d%s", "update product set bid='", bidPrice, "',ask='", askPrice, "' where productid='", id, "';");
-					sprintf(charBuffer, "%s%.2lf%s%.2lf%s%s%s%d%s", 
-						"update product set bid='", bidPrice, "',ask='", askPrice, "',bidaskdate='", pricingDateString.c_str(), "' where productid='", id, "';");
+					sprintf(charBuffer, "%s%s%s%.2lf%s%s%s%.2lf%s%s%s%s%s%d%s", 
+						"update product set ", pricePrefix, "bid='", bidPrice, "',", pricePrefix, "ask='", askPrice, "',", pricePrefix, "bidaskdate='", pricingDateString.c_str(), "' where productid='", id, "';");
 					//std::cerr << "Prices date for " << id << " is " << pricingDateString << std::endl;
 					mydb1.prepare((SQLCHAR *)charBuffer, 1);
 					if (doTickerfeed){
