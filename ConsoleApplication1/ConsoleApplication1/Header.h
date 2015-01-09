@@ -1104,7 +1104,8 @@ public:
 		double                    &accruedCoupon,
 		const bool                doAccruals,
 		const bool                doFinalAssetReturn,
-		const bool                doDebug){
+		const bool                doDebug,
+		const time_t              startTime){
 		int                 totalNumReturns  = totalNumDays - 1;
 		char                lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                 i, j, k, len, thisIteration;
@@ -1680,8 +1681,10 @@ public:
 				else { winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0; }
 				if (winLose > 1000.0){ winLose = 1000.0; }
 				double expectedPayoff = sumPayoffs / numAnnRets;
-				
+				int    secsTaken = difftime(time(0), startTime);
+
 				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", expectedPayoff );
+				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='", secsTaken);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='",       ePosPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedLossPayoff='",       eNegPayoff);

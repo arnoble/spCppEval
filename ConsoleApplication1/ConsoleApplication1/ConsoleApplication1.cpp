@@ -12,8 +12,8 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	try{
 		// initialise
-		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR' 'debug'  'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd>" << endl;  exit(0); }
-		int              historyStep = 1;
+		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR' 'debug'  'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
+		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 363;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 363;
 		int              numMcIterations = argc > 3 ? _ttoi(argv[3]) : 100;
@@ -31,14 +31,16 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "forceIterations" )){ forceIterations    = true; }
 			if (strstr(thisArg, "doFAR"           )){ doFinalAssetReturn = true; }
 			if (strstr(thisArg, "debug"           )){ doDebug            = true; }
-			if (sscanf(thisArg, "startDate:%s", lineBuffer)){ strcpy(startDate, lineBuffer); }
-			if (sscanf(thisArg, "endDate:%s",    lineBuffer)){ strcpy(endDate,   lineBuffer); }
-			if (sscanf(thisArg, "dbServer:%s",   lineBuffer)){ strcpy(dbServer,  lineBuffer); }
+			if (sscanf(thisArg, "startDate:%s",  lineBuffer)){ strcpy(startDate, lineBuffer); }
+			else if (sscanf(thisArg, "endDate:%s",    lineBuffer)){ strcpy(endDate,   lineBuffer); }
+			else if (sscanf(thisArg, "dbServer:%s",   lineBuffer)){ strcpy(dbServer,  lineBuffer); }
+			else if (sscanf(thisArg, "minSecsTaken:%s", lineBuffer)){ minSecsTaken = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "maxSecsTaken:%s", lineBuffer)){ maxSecsTaken = atoi(lineBuffer); }
 		}
 		const int        maxUls(100);
 		const int        bufSize(1000);
 		SQLHENV          hEnv = NULL;		    // Env Handle from SQLAllocEnv()
-		SQLHDBC          hDBC = NULL;         // Connection handle
+		SQLHDBC          hDBC = NULL;           // Connection handle
 		RETCODE          retcode;
 		SomeCurve        anyCurve;
 		char             **szAllPrices = new char*[maxUls];
@@ -56,7 +58,15 @@ int _tmain(int argc, _TCHAR* argv[])
 		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
 
 		// get list of productIds
-		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId from product where ProductId>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0'"); 	mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
+		sprintf(lineBuffer, "%s%d%s%d%s", "select p.ProductId from product p join cashflows c using (ProductId) where p.ProductId>='", startProductId, "' and p.ProductId<='", stopProductId, "' and Matured='0' and ProjectedReturn=1 "); 	
+		if (minSecsTaken){
+			sprintf(lineBuffer, "%s%s%d",lineBuffer, " and SecsTaken>=", minSecsTaken);
+		}
+		if (maxSecsTaken){
+			sprintf(lineBuffer, "%s%s%d", lineBuffer, " and SecsTaken<=", maxSecsTaken);
+		}
+		
+		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			int x(atoi(szAllPrices[0])); allProductIds.push_back(x);
 			retcode = mydb.fetch(false);
@@ -439,11 +449,11 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true,false,doDebug);
+				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true,false,doDebug,startTime);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, thisNumIterations*numBarriers>100000 ? 100000/numBarriers : thisNumIterations, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug);
+				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug,startTime);
 			// tidy up
 
 		} // for each product
