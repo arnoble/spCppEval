@@ -374,8 +374,12 @@ public:
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
 		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq)
 	{
+		/*
 		const boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(startDate));
 		const boost::gregorian::date bEndDate(boost::gregorian::from_simple_string(endDate));
+		*/
+		bStartDate = boost::gregorian::from_simple_string(startDate);
+		bEndDate   = boost::gregorian::from_simple_string(endDate);
 		const boost::gregorian::date bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 		avgWasHit.reserve(2000);
 		runningAvgDays = 0;
@@ -449,6 +453,7 @@ public:
 	bool              readyForAvgObs;
 	std::vector<double> runningAverage;
 	std::vector<bool>   avgWasHit;
+	boost::gregorian::date bStartDate,bEndDate;
 
 	// do any averagingIn
 	void doAveragingIn(const double ulPrice,   // prevailing (possibly simulated) spot level
@@ -511,6 +516,7 @@ public:
 		const bool              isMemory,
 		const bool              isAbsolute,
 		const bool              isStrikeReset,
+		const bool              isStopLoss,
 		const int               daysExtant,
 		const boost::gregorian::date bProductStartDate,
 		const bool              doFinalAssetReturn,
@@ -520,11 +526,12 @@ public:
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
-		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
+		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
 		endDays = (bEndDate - bProductStartDate).days() - daysExtant;
+		startDays = endDays;
 		yearsToBarrier         = endDays / 365.25;
 		sumPayoffs             = 0.0;
 		variableCoupon         = 0.0;
@@ -550,12 +557,12 @@ public:
 	};
 	// public members: DOME consider making private, in case we implement their content some other way
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
-	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset;
+	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss ;
 	const double                    payoff,participation, param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
 	bool                            hasBeenHit, isExtremum, isContinuous, proportionalAveraging, isLargestN;
-	int                             endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
+	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
 	double                          variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          proportionHits, sumProportion, forwardRate;
 	bool                            (SpBarrier::*isHit)(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
@@ -1268,7 +1275,7 @@ public:
 					for (int thisBarrier = 0; !matured && thisBarrier<numBarriers; thisBarrier++){
 						SpBarrier &b(barrier[thisBarrier]);
 						// is barrier alive
-						if (b.endDays == thisMonDays) {
+						if (b.endDays == thisMonDays || (b.isContinuous && thisMonDays <= b.endDays && thisMonDays >= b.startDays)) {
 							// averaging/lookback - will replace thesePrices with their averages
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls);
 							// is barrier hit
@@ -1310,7 +1317,7 @@ public:
 											if (couponPaidOut){
 												daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod; // floor() so as to include accrued stub
 											}
-											double numFixedCoupons = floor(daysElapsed / couponPeriod);
+											double numFixedCoupons = /*floor*/(daysElapsed / couponPeriod); // allow fractional coupons
 											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / 365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
 											thisPayoff += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);

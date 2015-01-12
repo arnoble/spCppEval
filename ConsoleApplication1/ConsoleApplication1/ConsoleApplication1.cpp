@@ -43,6 +43,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		SQLHDBC          hDBC = NULL;           // Connection handle
 		RETCODE          retcode;
 		SomeCurve        anyCurve;
+		time_t           startTime;
 		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
 		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut", 
@@ -52,8 +53,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			szAllPrices[i] = new char[bufSize];
 		}
 		srand(time(0)); // reseed rand
-		time_t startTime = time(0);
-
+	
 		// open database
 		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
 
@@ -84,6 +84,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
 
+			// init
+			startTime = time(0);
 			productId = allProductIds.at(productIndx);
 		
 			// get general info:  productType, productShape, barrierType
@@ -114,7 +116,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get product table data
 			enum {
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
-				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductCollateralised, colProductLast
+				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck,colProductLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -126,6 +128,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]   ) == 1;
 			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
 			bool collateralised     = atoi(szAllPrices[colProductCollateralised]) == 1;
+			bool currencyStruck     = atoi(szAllPrices[colProductCurrencyStruck]) == 1;
+			
 			productStartDateString  = szAllPrices[colProductStrikeDate];
 			productCcy              = szAllPrices[colProductCcy];
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
@@ -183,11 +187,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get underlyingids for this product from DB
 			// they can come in any order of UnderlyingId (this is deliberate to aviod the code becoming dependent on any ordering
 			vector<int> ulIds;
+			vector<string> ulCcys;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
-			sprintf(lineBuffer, "%s%d%s", "select distinct UnderlyingId from productbarrier join barrierrelation using (ProductBarrierId) where ProductId='", productId, "'");
-			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			sprintf(lineBuffer, "%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy from productbarrier join barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='", productId, "'");
+			mydb.prepare((SQLCHAR *)lineBuffer, 2);
 			retcode = mydb.fetch(true);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+				ulCcys.push_back(szAllPrices[1]);
 				uid = atoi(szAllPrices[0]);
 				if (find(ulIds.begin(), ulIds.end(), uid) == ulIds.end()) {      // build list of uids
 					ulIds.push_back(uid);
@@ -198,6 +204,23 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			numUl = ulIds.size();
 
+			//** currencyStruck deals will have nonZero values for $crossRateUids
+			vector<int> crossRateUids ; for (i=0; i<numUl; i++) { crossRateUids.push_back(0); }
+			if (currencyStruck){
+				for (i=0; i < numUl; i++) {
+					if (productCcy != ulCcys[i]){
+						sprintf(lineBuffer, "%s%s%s%s%s", "select UnderlyingId from underlying where name=concat('", ulCcys[i].c_str(), "','", productCcy.c_str(), "')");
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						retcode = mydb.fetch(true);
+						if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+							crossRateUids[i] = atoi(szAllPrices[0]);
+						}
+					}
+				}
+			}
+
+
+
 			// read underlying prices
 			vector<double>   ulReturns[maxUls];
 			for (i = 0; i < numUl; i++) {
@@ -207,14 +230,24 @@ int _tmain(int argc, _TCHAR* argv[])
 				ulOriginalPrices[i].nonTradingDay.reserve(10000);
 			}
 			char ulSql[10000]; // enough for around 100 underlyings...
+			char crossRateBuffer[100];
 			// ...form sql joins
 			sprintf(ulSql, "%s", "select p0.Date Date");
-			for (i = 0; i<numUl; i++) { sprintf(lineBuffer, "%s%d%s%d", ",p", i, ".price Price", i); strcat(ulSql, lineBuffer); }
+			for (i = 0; i<numUl; i++) { 
+				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", "*p",(numUl + i),".price");}
+				sprintf(lineBuffer, "%s%d%s%s%s%d", ",p", i, ".price", (crossRateUids[i] ? crossRateBuffer : ""), " Price", i); strcat(ulSql, lineBuffer);
+			}
 			strcat(ulSql, " from prices p0 ");
-			if (numUl > 1) { for (i = 1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s", " join prices p", i, " using (Date) "); strcat(ulSql, lineBuffer); } }
+			for (i = 1; i < numUl; i++) { 
+				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", " join prices p",(numUl + i)," using (Date) "); }
+				sprintf(lineBuffer, "%s%d%s%s", " join prices p", i, " using (Date) ", (crossRateUids[i] ? crossRateBuffer : "")); strcat(ulSql, lineBuffer);
+			}
 			sprintf(lineBuffer, "%s%d%s", " where p0.underlyingId = '", ulIds.at(0), "'");
 			strcat(ulSql, lineBuffer);
-			if (numUl > 1) { for (i = 1; i < numUl; i++) { sprintf(lineBuffer, "%s%d%s%d%s", " and p", i, ".underlyingId='", ulIds.at(i), "'"); strcat(ulSql, lineBuffer); } }
+			for (i = 1; i < numUl; i++) { 
+				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s%d%s", " and p",(numUl + i),".underlyingid='",crossRateUids[i],"'" ); }
+				sprintf(lineBuffer, "%s%d%s%d%s%s", " and p", i, ".underlyingId='", ulIds.at(i), "'", (crossRateUids[i] ? crossRateBuffer : "")); strcat(ulSql, lineBuffer);
+			}
 			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
 			else if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
@@ -276,7 +309,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			enum {
 				colProductBarrierId = 0, colProductId,
 				colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
-				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colStrikeReset,colProductBarrierLast
+				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colStrikeReset, colStopLoss, colProductBarrierLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
@@ -297,8 +330,9 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				int barrierId = atoi(szAllPrices[colProductBarrierId]);
 				int avgType = atoi(szAllPrices[colAvgType]);
-				bool isAbsolute = atoi(szAllPrices[colIsAbsolute]) == 1;
+				bool isAbsolute   = atoi(szAllPrices[colIsAbsolute]) == 1;
 				bool isStrikeReset = atoi(szAllPrices[colStrikeReset]) == 1;
+				bool isStopLoss    = atoi(szAllPrices[colStopLoss]) == 1;
 				capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
 				nature = szAllPrices[colNature];
 				payoff = atof(szAllPrices[colPayoff]) / 100.0;
@@ -316,22 +350,9 @@ int _tmain(int argc, _TCHAR* argv[])
 				*/
 				spr.barrier.push_back(SpBarrier(barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
-					avgFreq, isMemory, isAbsolute, isStrikeReset,daysExtant, bProductStartDate, doFinalAssetReturn,midPrice));
+					avgFreq, isMemory, isAbsolute, isStrikeReset,isStopLoss, daysExtant, bProductStartDate, doFinalAssetReturn,midPrice));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
-				// update vector of monitoring dates
-				// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
-				double thisEndDays = thisBarrier.getEndDays();
-				if (thisEndDays <0){
-					if (find(accrualMonDateIndx.begin(), accrualMonDateIndx.end(), thisEndDays) == accrualMonDateIndx.end()) {
-						accrualMonDateIndx.push_back(thisEndDays);
-					}
-				}
-				else {
-					if (find(monDateIndx.begin(), monDateIndx.end(), thisEndDays) == monDateIndx.end()) {
-						monDateIndx.push_back(thisEndDays);
-					}
-				}
-
+	
 				// get barrier relations from DB
 				enum {
 					brcolBarrierRelationId = 0, brcolProductBarrierId,
@@ -356,7 +377,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					startDateString            = szAllPrices[brcolStartDate];
 					endDateString              = szAllPrices[brcolEndDate];
 					anyTypeId                  = atoi(szAllPrices[brcolBarrierTypeId]);
-					thisBarrier.isContinuous   = barrierTypeMap[anyTypeId] == "continuous";
+					thisBarrier.isContinuous   = _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuous") == 0;
 					// express absolute levels as %ofSpot
 					double thisStrikeDatePrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
 					// ...DOME only works with single underlying, for now...the issue is whether to add FixedStrike fields to each brel
@@ -419,8 +440,41 @@ int _tmain(int argc, _TCHAR* argv[])
 						isExtremumBarrier = true;
 					}
 				}
-				thisBarrier.isExtremum = isExtremumBarrier;
+				thisBarrier.isExtremum = !thisBarrier.isStopLoss && isExtremumBarrier;
 
+				// update vector of monitoring dates
+				double thisEndDays = thisBarrier.getEndDays();
+				if (thisEndDays <0){
+					if (find(accrualMonDateIndx.begin(), accrualMonDateIndx.end(), thisEndDays) == accrualMonDateIndx.end()) {
+						accrualMonDateIndx.push_back(thisEndDays);
+					}
+				}
+				else {
+					// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
+					if (thisBarrier.isExtremum || !thisBarrier.isContinuous){
+						if (find(monDateIndx.begin(), monDateIndx.end(), thisEndDays) == monDateIndx.end()) {
+							monDateIndx.push_back(thisEndDays);
+						}
+					}
+					else {  // daily monitoring
+						for (i = 0; i < thisBarrier.brel.size(); i++) {
+							const SpBarrierRelation &thisBrel(thisBarrier.brel[i]);
+							if (thisBrel.startDate != thisBrel.endDate) {
+								int startDays      = (thisBrel.bStartDate - bProductStartDate).days() - daysExtant;
+								int endDays        = (thisBrel.bEndDate - bProductStartDate).days() - daysExtant;
+								if (startDays < thisBarrier.startDays){
+									thisBarrier.startDays = startDays;
+								}
+								for (j=startDays; j <= endDays; j++){
+									if (find(monDateIndx.begin(), monDateIndx.end(), j) == monDateIndx.end()) {
+										monDateIndx.push_back(j);
+									}
+								}
+							}
+						}
+
+					}
+				}	
 
 
 				// next barrier record
