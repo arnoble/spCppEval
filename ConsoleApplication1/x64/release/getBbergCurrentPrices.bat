@@ -1,4 +1,5 @@
 rem
+rem
 rem  get current price for a list of products
 rem
 FOR /F "TOKENS=1 eol=/ DELIMS=/ " %%A IN ('DATE/T') DO SET dd=%%A
