@@ -39,8 +39,6 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		const int        maxUls(100);
 		const int        bufSize(1000);
-		SQLHENV          hEnv = NULL;		    // Env Handle from SQLAllocEnv()
-		SQLHDBC          hDBC = NULL;           // Connection handle
 		RETCODE          retcode;
 		SomeCurve        anyCurve;
 		time_t           startTime;

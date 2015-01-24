@@ -197,8 +197,27 @@ private:
 	SQLLEN    cbModel;		               // Model buffer bytes recieved
 	HSTMT     hStmt;
 	char     **bindBuffer;
+	std::string dataSource;
 
 public:
+	// makeDbConnection();
+	bool makeDbConnection(){
+		if (dataSource == "spCloud"){
+			fsts = dbConn(hEnv, &hDBC, L"spCloud", L"anoble", L"Ragtin_Mor14");
+		}
+		else if (dataSource == "newSp"){
+			fsts =  dbConn(hEnv, &hDBC, L"newSp", L"root", L"ragtinmor");
+		}
+		else if (dataSource == "spIPRL"){
+			fsts =  dbConn(hEnv, &hDBC, L"spIPRL", L"C85693_anoble", L"Ragtin_Mor14");
+		}
+		else {
+			std::cerr << "Unknown database " << dataSource << "\n";
+			exit(101);
+		}
+		// if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO) { exit(1); }
+		return SQL_SUCCESS || SQL_SUCCESS_WITH_INFO;
+	}
 	// get info on SQL error
 	void extract_error(
 		char *fn,
@@ -269,30 +288,21 @@ public:
 		return fsts;
 	}
 
-	MyDB(char **bindBuffer, const std::string dataSource) : bindBuffer(bindBuffer){
+	MyDB(char **bindBuffer, const std::string dataSource) : dataSource(dataSource), bindBuffer(bindBuffer){
 		SQLAllocEnv(&hEnv);
-		if (dataSource == "spCloud"){
-			fsts = dbConn(hEnv, &hDBC, L"spCloud", L"anoble", L"Ragtin_Mor14");
-		}
-		else if (dataSource == "newSp"){
-			fsts =  dbConn(hEnv, &hDBC, L"newSp", L"root", L"ragtinmor");            
-		}
-		else if (dataSource == "spIPRL"){
-			fsts =  dbConn(hEnv, &hDBC, L"spIPRL", L"C85693_anoble", L"Ragtin_Mor14");
-		}
-		else {
-			std::cerr << "Unknown database " << dataSource << "\n";
-			exit(101);
-		}
-		if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO) { exit(1); }
+		if (!makeDbConnection()) {
+			std::cerr << "Failed to connect to " << dataSource << "\n";
+			exit(102);
+		};
 	};
 	~MyDB(){
-		SQLDisconnect(hDBC);           // Disconnect from datasource
+		SQLDisconnect(hDBC);  // Disconnect from datasource
 		SQLFreeConnect(hDBC); // Free the allocated connection handle
-		SQLFreeEnv(hEnv);    // Free the allocated ODBC environment handle
+		SQLFreeEnv(hEnv);     // Free the allocated ODBC environment handle
 	}
 	void prepare(SQLCHAR* thisSQL,int numCols) {
-		/* DEBUG ONLY 
+		int numAttempts = 0;
+		/* DEBUG ONLY
 		if (strlen((char*)thisSQL)>MAX_SP_BUF){
 			std::cerr << "String len:" << strlen((char*)thisSQL) << " will overflow\n";
 			exit(102);
@@ -301,10 +311,29 @@ public:
 		if (hStmt != NULL) {
 			SQLFreeStmt(hStmt, SQL_DROP);
 		}
-		fsts  =  SQLAllocStmt(hDBC, &hStmt); 	 // Allocate memory for statement handle
-		fsts  =  SQLPrepareA(hStmt, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
-		fsts  =  SQLExecute(hStmt);                                     // Execute the SQL statement
-		if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute get basic info ", hStmt, SQL_HANDLE_STMT);	exit(1); }
+		do {
+			fsts  =  SQLAllocStmt(hDBC, &hStmt); 	                        // Allocate memory for statement handle
+			fsts  =  SQLPrepareA(hStmt, thisSQL, SQL_NTS);                  // Prepare the SQL statement	
+			fsts  =  SQLExecute(hStmt);                                     // Execute the SQL statement
+			if (!SQL_SUCCEEDED(fsts))	{
+				extract_error("prepare() failed to SQLExecute ... trying to re-connect", hStmt, SQL_HANDLE_STMT);
+				// try a new connection...in case of MySQL server restart, or failed internet connection
+				SQLDisconnect(hDBC);  // Disconnect from datasource
+				SQLFreeConnect(hDBC); // Free the allocated connection handle
+				if (!makeDbConnection()) {
+					std::cerr << "prepare() failed to re-connect to " << dataSource << "\n";
+					exit(103);
+				};
+				std::cerr << "prepare() re-connected OK to " << dataSource << " ...continuing\n";
+			}
+			numAttempts += 1;
+		} while (!SQL_SUCCEEDED(fsts) && numAttempts<3);
+		
+		if (numAttempts >= 3) {
+			std::cerr << "prepare() failed too many times with " << dataSource << " ...exiting\n";
+			exit(104);
+		};
+
 		for (int i = 0; i < numCols;i++){
 			SQLBindCol(hStmt, i+1, SQL_C_CHAR, bindBuffer[i], bufSize, &cbModel); // bind columns
 		}
