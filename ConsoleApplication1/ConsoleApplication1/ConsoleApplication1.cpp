@@ -498,6 +498,9 @@ int _tmain(int argc, _TCHAR* argv[])
 				hazardCurve.push_back(dpCurve[j]);
 			}
 
+			// possibly impose user-defined view of expectedReturn: only need to bump ulReturns
+
+
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
