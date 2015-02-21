@@ -61,7 +61,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			sprintf(lineBuffer, "%s%s%d",lineBuffer, " and SecsTaken>=", minSecsTaken);
 		}
 		if (maxSecsTaken){
-			sprintf(lineBuffer, "%s%s%d", lineBuffer, " and SecsTaken<=", maxSecsTaken);
+			sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " and (WhenEvaluated is null or SecsTaken<=", maxSecsTaken,")");
 		}
 		
 		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
