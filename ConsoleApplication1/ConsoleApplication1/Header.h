@@ -1517,8 +1517,8 @@ public:
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0);
 
 				// ** process barrier results
-				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
-				int    numCapitalInstances(0), numStrPosInstances(0), numPosInstances(0), numNegInstances(0);
+				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
+				int    numCapitalInstances(0), numStrPosInstances(0), numPosInstances(0), numNegInstances(0), numParInstances(0);
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					if (doDebug){ std::cerr << "Starting analyseResults  for barrier \n" << thisBarrier << std::endl; }
 					const SpBarrier&    b(barrier.at(thisBarrier));
@@ -1570,6 +1570,7 @@ public:
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
 							sumAnnRets += thisAnnRet;
+							if (thisAmount == 1.0     ) { sumParAnnRets += thisAnnRet; numParInstances++; }
 							if (thisAmount >  midPrice) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
 							if (thisAmount >= midPrice) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
 							else                        { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
@@ -1751,6 +1752,8 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='",      probGain);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='",probStrictGain);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='",      probLoss);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecPar='",         numParInstances ? sumParAnnRets / (double)numParInstances : 0.0);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probPar='",       (double)numParInstances / (double)numAnnRets);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",    eShortfall*100.0);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='",eShortfallDepo*100.0);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
