@@ -398,10 +398,11 @@ public:
 		const int           avgFreq,
 		const int           avgInDays,
 		const int           avgInFreq,
+		const std::string   avgInAlgebra,
 		const std::string   productStartDateString)
 		: underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq)
+		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq), avgInAlgebra(avgInAlgebra)
 	{
 		/*
 		const boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(startDate));
@@ -421,21 +422,20 @@ public:
 		strike         = originalStrike;
 		int lastIndx(ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
 		double lastPrice(ulTimeseries.price[lastIndx]);
-
+		
 		// post-strike initialisation
 		if (daysExtant){				
 			// averagingIn
 			if (avgInDays>0) {
 					double sumSoFar  = 0.0;
 					int count        = 0;
-					std::vector<double>  theseAvgPrices; // debug
 					for (int k=lastIndx - daysExtant; count < avgInDays && k <= lastIndx; count++, k++) {
 						if (count%avgInFreq == 0){
 							std::string  thisDate = ulTimeseries.date[k]; // debug
 							while (k <= lastIndx && ulTimeseries.nonTradingDay[k]){ count++; k++; thisDate = ulTimeseries.date[k]; }
 							sumSoFar               += ulTimeseries.price[k];
 							numAvgInSofar += 1;
-							theseAvgPrices.push_back(ulTimeseries.price[k]); // debug
+							theseAvgPrices.push_back(ulTimeseries.price[k]/lastPrice); 
 						}
 					}
 					avgInSofar      = sumSoFar / numAvgInSofar / lastPrice;
@@ -476,13 +476,64 @@ public:
 	const bool        above, at,isAbsolute;
 	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
 	const double      originalStrike,originalBarrier, originalUbarrier,weight;
-	const std::string startDate, endDate;
+	const std::string startDate, endDate, avgInAlgebra;
 	int               count,j,k,startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0;
 	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness;
 	bool              readyForAvgObs;
 	std::vector<double> runningAverage;
 	std::vector<bool>   avgWasHit;
 	boost::gregorian::date bStartDate,bEndDate;
+	std::vector<double>  theseAvgPrices;
+
+
+	// ** handle AvgInAlgebra
+	// ... parse algebra and evaluate it on data
+	// ... rerurns a number
+	double evalAlgebra(const std::vector<double> data, std::string algebra){
+		if (data.size() == 0 || algebra.length() == 0){ return 0.0; }
+
+		// algebra, once tokenised, is evaluated in reverse polish
+		int i,len,j;
+		int numValues = data.size();
+		char buffer[100]; sprintf(buffer,"%s", algebra.c_str());
+		char *token = std::strtok(buffer, "_");
+		std::vector<std::string> tokens;
+		while (token != NULL) {
+			tokens.push_back(token);
+			token = std::strtok(NULL, "_");
+		}
+
+		int numTokens = tokens.size();
+		double result = 0.0;
+		std::vector<double> stack;    for (i=0; i<numValues; i++){ stack.push_back(data[i]); }
+		double extremum;
+
+		for (i=0; i < numTokens; i++){
+			if (tokens[i] == "min"){
+				extremum = +INFINITY;
+				for (j=0,len=stack.size(); j < len; j++){
+					if (stack[j] < extremum){ extremum = stack[j]; }
+				}
+				stack.clear();
+				stack.push_back(extremum);
+			}
+			else if (tokens[i] == "max"){
+				extremum = -INFINITY;
+				for (j=0, len=stack.size(); j < len; j++){
+					if (stack[j] > extremum){ extremum = stack[j]; }
+				}
+				stack.clear();
+				stack.push_back(extremum);
+			}
+			else {
+				stack.push_back(atof(tokens[i].c_str()));
+			}
+		}
+		return stack[0];
+	}
+
+
+
 
 	// do any averagingIn
 	void doAveragingIn(const double ulPrice,   // prevailing (possibly simulated) spot level
@@ -493,19 +544,19 @@ public:
 		if (avgInDays > 0) {
 			double sumAvg  = avgInSofar*numAvgInSofar*ulPrice;
 			double numAvg  = numAvgInSofar;
-			std::vector<double> theseAvgInObs; // DEBUG
+			std::vector<double> theseAvgInObs(theseAvgPrices); 
 			if (countAvgInSofar < avgInDays){
 				for (count=countAvgInSofar, k=thisPoint; count <= avgInDays && k<lastPoint; count++, k++) {
-					if (count%avgFreq == 0){
+					if (count%avgInFreq == 0){
 						while (k<lastPoint && ulTimeseries.nonTradingDay[k]){ count++; k++; }
 						double thisPrice = ulTimeseries.price[k];
 						sumAvg    += thisPrice;
 						numAvg    += 1;
-						theseAvgInObs.push_back(thisPrice); // DEBUG
+						theseAvgInObs.push_back(thisPrice/ulPrice);
 					}
 				}
 			}
-			double avgInMoneyness = sumAvg / numAvg / ulPrice;
+			double avgInMoneyness = theseAvgInObs.size() && avgInAlgebra.length() ? evalAlgebra(theseAvgInObs, avgInAlgebra) : sumAvg / numAvg / ulPrice;
 			moneyness = 1.0 / avgInMoneyness; // refLevel for average STRIKE options will need to MULTIPLY by moneyness (rather than the usual case of DIVIDE)
 			strike = originalStrike * avgInMoneyness;
 		}

@@ -77,7 +77,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int              i, j, len, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId;
 			double           barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId,issuePrice, bidPrice, askPrice, midPrice;
-			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description;
+			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description,avgInAlgebra;
 			bool             capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
@@ -307,7 +307,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			enum {
 				colProductBarrierId = 0, colProductId,
 				colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
-				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colStrikeReset, colStopLoss, colProductBarrierLast
+				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colStrikeReset, colStopLoss, colAvgInAlgebra, colProductBarrierLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
@@ -336,6 +336,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				payoff = atof(szAllPrices[colPayoff]) / 100.0;
 				settlementDate = szAllPrices[colSettlementDate];
 				description = szAllPrices[colDescription];
+				avgInAlgebra = szAllPrices[colAvgInAlgebra];
 				thisPayoffId = atoi(szAllPrices[colPayoffId]); thisPayoffType = payoffType[thisPayoffId];
 				participation = atof(szAllPrices[colParticipation]);
 				strike = atof(szAllPrices[colStrike]);
@@ -393,7 +394,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						// create barrierRelation
 						thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
 							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), 
-							avgType, avgDays, avgFreq, avgInDays, avgInFreq, productStartDateString));
+							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString));
 					}
 					// next barrierRelation record
 					retcode = mydb1.fetch(false);
