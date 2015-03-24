@@ -996,7 +996,7 @@ public:
 	}
 	void storePayoff(const std::string thisDateString, const double amount, const double proportion, const double finalAssetReturn,const bool doFinalAssetReturn){
 		sumPayoffs     += amount;
-		if (amount >  midPrice){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
+		if (amount >  1.0     ){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
 		if (amount >= midPrice){ sumPosPayoffs    += amount; numPosPayoffs++; }
 		else{                    sumNegPayoffs    += amount; numNegPayoffs++; }
 		sumProportion  += proportion;
@@ -1622,7 +1622,7 @@ public:
 							allAnnRets.push_back(thisAnnRet);
 							sumAnnRets += thisAnnRet;
 							if (thisAmount == 1.0     ) { sumParAnnRets += thisAnnRet; numParInstances++; }
-							if (thisAmount >  midPrice) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
+							if (thisAmount >  1.0     ) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
 							if (thisAmount >= midPrice) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
 							else                        { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
 						}
@@ -1739,11 +1739,10 @@ public:
 				double riskCategory   = calcRiskCategory(cesrBuckets,scaledVol,1.0);  
 				double riskScore1to10 = calcRiskCategory(cubeBuckets, scaledVol, 0.0);
 				// WinLose
-				double sumNegRet(0.0), sumPosRet(0.0), sumStrPosRet(0.0),sumBelowDepo(0.0);
-				int    numNegRet(0), numPosRet(0), numStrPosRet(0), numBelowDepo(0);
+				double sumNegRet(0.0), sumPosRet(0.0),sumBelowDepo(0.0);
+				int    numNegRet(0), numPosRet(0), numBelowDepo(0);
 				for (j = 0; j<numAnnRets; j++) {
 					double ret = allAnnRets[j];
-					if (ret>0){           sumStrPosRet += ret;  numStrPosRet++; }
 					if (ret<0){           sumNegRet    += ret;  numNegRet++;    }
 					else {                sumPosRet    += ret;  numPosRet++;    }
 					if (ret < depoRate) { sumBelowDepo += ret;  numBelowDepo++; }
@@ -1756,10 +1755,11 @@ public:
 				double esVolNegRet    = (log(1 + averageReturn) - log(1 + eNegRet)) / ESnorm(probNegRet);
 				double strPosDuration(sumStrPosDurations / numStrPosPayoffs), posDuration(sumPosDurations / numPosPayoffs), negDuration(sumNegDurations / numNegPayoffs);
 				double ecGain         = 100.0*(numPosPayoffs ? exp(log(sumPosPayoffs / midPrice / numPosPayoffs) / posDuration) - 1.0 : 0.0);
+				
 				double ecStrictGain   = 100.0*(numStrPosPayoffs ? exp(log(sumStrPosPayoffs / midPrice / numStrPosPayoffs) / strPosDuration) - 1.0 : 0.0);
 				double ecLoss         = -100.0*(numNegPayoffs ? exp(log(sumNegPayoffs / midPrice / numNegPayoffs) / negDuration) - 1.0 : 0.0);
 				double probGain       = numPosRet ? ((double)numPosRet) / numAnnRets : 0;
-				double probStrictGain = numStrPosRet ? ((double)numStrPosRet) / numAnnRets : 0;
+				double probStrictGain = numStrPosPayoffs ? ((double)numStrPosPayoffs) / numCapitalInstances : 0;
 				double probLoss       = 1 - probGain;
 				double eGainRet       = ecGain * probGain;
 				double eLossRet       = ecLoss * probLoss;
