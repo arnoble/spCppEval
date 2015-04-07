@@ -399,10 +399,11 @@ public:
 		const int           avgInDays,
 		const int           avgInFreq,
 		const std::string   avgInAlgebra,
-		const std::string   productStartDateString)
+		const std::string   productStartDateString,
+		const bool          isContinuousALL)
 		: underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq), avgInAlgebra(avgInAlgebra)
+		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq), avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL)
 	{
 		/*
 		const boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(startDate));
@@ -473,7 +474,7 @@ public:
 			moneyness      = 1.0;
 		}
 	};
-	const bool        above, at,isAbsolute;
+	const bool        above, at, isAbsolute, isContinuousALL;
 	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
 	const double      originalStrike,originalBarrier, originalUbarrier,weight;
 	const std::string startDate, endDate, avgInAlgebra;
@@ -1302,7 +1303,7 @@ public:
 							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0           ){ firstPoint  = 0; }
 							int lastPoint  = thisPoint + thisBrel.endDays;   if (lastPoint  > totalNumDays-1){ lastPoint   = totalNumDays-1; }
 							const std::vector<double>&  thisTimeseries = ulPrices.at(thisName).price;
-							if (thisBrel.above) {
+							if ((thisBrel.above && !thisBrel.isContinuousALL) || (!thisBrel.above && thisBrel.isContinuousALL)) {
 								for (k = firstPoint, thisExtremum = -1.0e20; k <= lastPoint; k++) {
 									if (thisTimeseries[k]>thisExtremum){ thisExtremum = thisTimeseries[k]; }
 								}

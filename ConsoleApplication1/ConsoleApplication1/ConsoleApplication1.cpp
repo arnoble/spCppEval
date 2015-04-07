@@ -364,9 +364,9 @@ int _tmain(int argc, _TCHAR* argv[])
 				retcode = mydb1.fetch(false);
 				// ...parse each barrierrelation row
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					double weight         = atof(szAllPrices[brcolWeight]);
-					double strikeOverride = atof(szAllPrices[brcolStrikeOverride]);
-					bool   isAbsolute     = atoi(szAllPrices[brcolIsAbsolute]) == 1;
+					double weight           = atof(szAllPrices[brcolWeight]);
+					double strikeOverride   = atof(szAllPrices[brcolStrikeOverride]);
+					bool   isAbsolute       = atoi(szAllPrices[brcolIsAbsolute]) == 1;
 					uid      = atoi(szAllPrices[brcolUnderlyingId]);
 					barrier  = atof(szAllPrices[brcolBarrier]);
 					uBarrier = atof(szAllPrices[brcolUpperBarrier]);
@@ -376,6 +376,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					startDateString            = szAllPrices[brcolStartDate];
 					endDateString              = szAllPrices[brcolEndDate];
 					anyTypeId                  = atoi(szAllPrices[brcolBarrierTypeId]);
+					bool   isContinuousALL     = _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuousall") == 0;
 					thisBarrier.isContinuous   = _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuous") == 0;
 					// express absolute levels as %ofSpot
 					double thisStrikeDatePrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
@@ -394,7 +395,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						// create barrierRelation
 						thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
 							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), 
-							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString));
+							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString,isContinuousALL));
 					}
 					// next barrierRelation record
 					retcode = mydb1.fetch(false);
