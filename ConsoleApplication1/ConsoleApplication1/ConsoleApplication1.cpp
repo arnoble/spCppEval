@@ -12,7 +12,7 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	try{
 		// initialise
-		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR' 'debug'  'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
+		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR' 'debug'  'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 363;
 		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 363;
@@ -32,10 +32,11 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "doFAR"           )){ doFinalAssetReturn = true; }
 			if (strstr(thisArg, "debug"           )){ doDebug            = true; }
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer)){ strcpy(startDate, lineBuffer); }
-			else if (sscanf(thisArg, "endDate:%s",    lineBuffer)){ strcpy(endDate,   lineBuffer); }
-			else if (sscanf(thisArg, "dbServer:%s",   lineBuffer)){ strcpy(dbServer,  lineBuffer); }
-			else if (sscanf(thisArg, "minSecsTaken:%s", lineBuffer)){ minSecsTaken = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "maxSecsTaken:%s", lineBuffer)){ maxSecsTaken = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "endDate:%s",      lineBuffer)){ strcpy(endDate,   lineBuffer); }
+			else if (sscanf(thisArg, "dbServer:%s",     lineBuffer)){ strcpy(dbServer,  lineBuffer); }
+			else if (sscanf(thisArg, "minSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "maxSecsTaken:%s", lineBuffer)){ maxSecsTaken  = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "historyStep:%s",  lineBuffer)){ historyStep   = atoi(lineBuffer); }
 		}
 		const int        maxUls(100);
 		const int        bufSize(1000);
@@ -371,13 +372,14 @@ int _tmain(int argc, _TCHAR* argv[])
 					barrier  = atof(szAllPrices[brcolBarrier]);
 					uBarrier = atof(szAllPrices[brcolUpperBarrier]);
 					if (uBarrier > 999999 && uBarrier < 1000001.0) { uBarrier = NULL; } // using 1000000 as a quasiNULL, since C++ SQLFetch ignores NULL columns
-					above                      = atoi(szAllPrices[brcolAbove]) == 1;
-					at                         = atoi(szAllPrices[brcolAt]) == 1;
-					startDateString            = szAllPrices[brcolStartDate];
-					endDateString              = szAllPrices[brcolEndDate];
-					anyTypeId                  = atoi(szAllPrices[brcolBarrierTypeId]);
-					bool   isContinuousALL     = _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuousall") == 0;
-					thisBarrier.isContinuous   = _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuous") == 0;
+					above                         = atoi(szAllPrices[brcolAbove]) == 1;
+					at                            = atoi(szAllPrices[brcolAt]) == 1;
+					startDateString               = szAllPrices[brcolStartDate];
+					endDateString                 = szAllPrices[brcolEndDate];
+					anyTypeId                     = atoi(szAllPrices[brcolBarrierTypeId]);
+					bool   isContinuousALL        = _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuousall"  ) == 0;
+					thisBarrier.isContinuousGroup = thisBarrier.isContinuousGroup || _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuousgroup") == 0;
+					thisBarrier.isContinuous      = thisBarrier.isContinuous      || _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuous") == 0;
 					// express absolute levels as %ofSpot
 					double thisStrikeDatePrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
 					// ...DOME only works with single underlying, for now...the issue is whether to add FixedStrike fields to each brel

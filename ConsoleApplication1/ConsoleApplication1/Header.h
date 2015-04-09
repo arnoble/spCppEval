@@ -618,6 +618,7 @@ public:
 		variableCoupon         = 0.0;
 		isExtremum             = false;
 		isContinuous           = false;
+		isContinuousGroup      = false;
 		hasBeenHit             = false;
 		proportionHits         = 1.0;
 		sumProportion          = 0.0;
@@ -642,7 +643,7 @@ public:
 	const double                    payoff,participation, param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
-	bool                            hasBeenHit, isExtremum, isContinuous, proportionalAveraging, isLargestN;
+	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
 	double                          variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          proportionHits, sumProportion, forwardRate;
@@ -1303,6 +1304,9 @@ public:
 							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0           ){ firstPoint  = 0; }
 							int lastPoint  = thisPoint + thisBrel.endDays;   if (lastPoint  > totalNumDays-1){ lastPoint   = totalNumDays-1; }
 							const std::vector<double>&  thisTimeseries = ulPrices.at(thisName).price;
+							// 'Continuous'    means ONE-touch  so Above needs MAX  and !Above needs MIN
+							// 'ContinuousALL' means  NO-touch  so Above needs MIN  and !Above needs MAX
+							// ... so we need MAX in these cases
 							if ((thisBrel.above && !thisBrel.isContinuousALL) || (!thisBrel.above && thisBrel.isContinuousALL)) {
 								for (k = firstPoint, thisExtremum = -1.0e20; k <= lastPoint; k++) {
 									if (thisTimeseries[k]>thisExtremum){ thisExtremum = thisTimeseries[k]; }
@@ -1317,8 +1321,8 @@ public:
 							theseExtrema.push_back(thisExtremum);
 						}
 					}
-					if (b.isExtremum) {
-						if (b.isAnd && numBrel>1 && b.brel[0].above) {  // for product 536, all underlyings must be above their barriers on some common date
+					if (b.isExtremum && (!doAccruals || b.endDays<0)) {
+						if (b.isContinuousGroup && numBrel>1 ) {  // eg product 536, all underlyings must be above their barriers on some common date
 							int firstPoint = thisPoint + b.brel[0].startDays; if (firstPoint < 0){ firstPoint  = 0; }
 							int lastPoint  = thisPoint + b.brel[0].endDays;   if (lastPoint  > totalNumDays - 1){ lastPoint   = totalNumDays - 1; }
 							std::vector<int> ulNames;
@@ -1339,7 +1343,9 @@ public:
 						else {
 							barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(theseExtrema, false, startLevels);
 						}
-						if (doAccruals){ b.hasBeenHit = barrierWasHit[thisBarrier]; }  // for post-strike deals, record if barriers have already been hit
+						if (doAccruals && b.yearsToBarrier<=0.0){     // for post-strike deals, record if barriers have already been hit
+							b.hasBeenHit = barrierWasHit[thisBarrier]; 
+						}
 					}
 				}
 
@@ -1360,9 +1366,11 @@ public:
 							// averaging/lookback - will replace thesePrices with their averages
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls);
 							// is barrier hit
-							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || (b .* (b.isHit))(thesePrices, true, startLevels)){
+							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || (!b.isExtremum && (b .* (b.isHit))(thesePrices, true, startLevels))){
 								barrierWasHit[thisBarrier] = true;
-								if (doAccruals){ b.hasBeenHit = true; }  // for post-strike deals, record if barriers have already been hit
+								if (doAccruals){         // for post-strike deals, record if barriers have already been hit
+									b.hasBeenHit = true; 
+								}  
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds,useUl);
 								if (b.capitalOrIncome){
 									if (thisMonDays>0){
@@ -1374,7 +1382,7 @@ public:
 										// add forwardValue of paidOutCoupons
 										if (couponPaidOut) {
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
-												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier]){
+												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] && barrier[paidOutBarrier].yearsToBarrier>=0.0){
 													SpBarrier &ib(barrier[paidOutBarrier]);
 													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0:0.0)*ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
