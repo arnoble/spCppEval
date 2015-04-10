@@ -1274,7 +1274,7 @@ public:
 				couponValue                    = 0.0;
 				double                 thisPayoff;
 				double                 finalAssetReturn  = 1.0e9;
-				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl);
+				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl), overrideThesePrices(numUl);
 
 				/*
 				* BEWARE ... startLevels[] has same underlyings-order as ulPrices[], so make sure any comparison with them is in the same order
@@ -1562,6 +1562,8 @@ public:
 			
 
 			// process results
+			const double tol = 1.0e-6;
+			const double unwindPayoff = 0.1;
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
@@ -1587,7 +1589,7 @@ public:
 					int                 numInstances    = b.hit.size();
 					double              sumProportion   = b.sumProportion;
 					double              thisYears       = b.yearsToBarrier;
-					double              prob            = sumProportion / (b.endDays<0 ? 1 : numAllEpisodes); // expired barriers have only 1 episode ... the doAccruals .evaluate()
+					double              prob            = sumProportion / numAllEpisodes; // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
 					double              thisProbDefault = probDefault(hazardCurve, thisYears);
 					for (i = 0; i < b.hit.size(); i++){
 						thisAmount = b.hit[i].amount;
@@ -1610,7 +1612,7 @@ public:
 
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount = thisBarrierPayoffs[i];
-							double thisAnnRet = exp(log(thisAmount / midPrice) / thisYears) - 1.0;
+							double thisAnnRet = exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0; // assume once investor has lost 90% it is unwound...
 							
 							// maybe save finalAssetReturns
 							if (doFinalAssetReturn && !applyCredit && totalFarCounter<400000){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
@@ -1630,7 +1632,7 @@ public:
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
 							sumAnnRets += thisAnnRet;
-							const double tol = 1.0e-6;
+							
 							if (thisAnnRet > -tol &&  thisAnnRet < tol) { sumParAnnRets += thisAnnRet; numParInstances++; }
 							if (thisAnnRet >  0.0 ) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
 							if (thisAnnRet > -tol ) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
@@ -1741,7 +1743,11 @@ public:
 				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall))     / ESnorm(confLevel);
 				double esVolTest = (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest);
 				double scaledVol = esVol * sqrt(duration);
-				double geomReturn(0.0);	for (i = 0; i < numAnnRets; i++){ double thisPayoff = allPayoffs[i]; geomReturn += log((thisPayoff<0.1 ? 0.1 : thisPayoff) / midPrice); }
+				double geomReturn(0.0);	
+				for (i = 0; i < numAnnRets; i++){ 
+					double thisPayoff = allPayoffs[i]; 
+					geomReturn += log((thisPayoff<unwindPayoff ? unwindPayoff : thisPayoff) / midPrice);
+				}
 				geomReturn = exp(geomReturn / sumDuration) - 1;
 				double sharpeRatio = scaledVol > 0.0 ? (geomReturn / scaledVol>1000.0 ? 1000.0 : geomReturn / scaledVol) : 1000.0;
 				std::vector<double> cesrBuckets = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };

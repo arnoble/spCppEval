@@ -436,13 +436,13 @@ int _tmain(int argc, _TCHAR* argv[])
 				// DOME: for now ANY barrier with a brel which has different Start/End dates
 				// NOTE: different brels can have different start dates
 				// DOME:  need to check all brels have the same endDate
-				bool isExtremumBarrier = false;
+					bool isExtremumBarrier = false;
 				for (i = 0; i < thisBarrier.brel.size(); i++) {
 					if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate) {
 						isExtremumBarrier = true;
 					}
 				}
-				thisBarrier.isExtremum = !thisBarrier.isStopLoss && isExtremumBarrier;
+				thisBarrier.isExtremum = !thisBarrier.isStopLoss && isExtremumBarrier;  // force stopLoss barriers to be monitored daily, rather than be treated as an extremum, so stopLoss barriers do not need special processing in the simulator
 
 				// update vector of monitoring dates
 				double thisEndDays = thisBarrier.getEndDays();
