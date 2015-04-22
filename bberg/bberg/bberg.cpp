@@ -179,7 +179,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					double  thePrice = -1.0;
 					getBbergPrices(tickerString, "PX_LAST", thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
 					thePrice = atof(resultBuffer);
-					if (thePrice > 0.0){
+					if (1 /* thePrice > 0.0 */){   // now we can have negative rates...
 						sprintf(charBuffer, "%s%s%s%.4lf%s%s%s%s%s",
 							"update ",thisName," set rate='", thePrice, "' where Tenor='", tenor, "' and ccy='", ccy, "';");
 						mydb1.prepare((SQLCHAR *)charBuffer, 1);
