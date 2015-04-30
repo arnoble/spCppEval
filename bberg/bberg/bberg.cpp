@@ -179,7 +179,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					double  thePrice = -1.0;
 					getBbergPrices(tickerString, "PX_LAST", thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
 					thePrice = atof(resultBuffer);
-					if (1 /* thePrice > 0.0 */){   // now we can have negative rates...
+					if (1 /* thePrice > 0.0 */ ){    // advent of negative rates
 						sprintf(charBuffer, "%s%s%s%.4lf%s%s%s%s%s",
 							"update ",thisName," set rate='", thePrice, "' where Tenor='", tenor, "' and ccy='", ccy, "';");
 						mydb1.prepare((SQLCHAR *)charBuffer, 1);
@@ -234,7 +234,9 @@ int _tmain(int argc, _TCHAR* argv[])
 					// get CDS rates
 					if (strcmp(cdsBberg, "")){
 						strcpy(resultBuffer, "");
-						getBbergPrices(cdsBberg, "PX_LAST", thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
+						// if no CDS use DRSK-implied CDS
+						anyString = strstr(cdsBberg, "Corp") != NULL ? "PX_LAST" : "RSK_BB_IMPLIED_CDS_SPREAD";
+						getBbergPrices(cdsBberg, anyString.c_str(), thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
 						if (strcmp(resultBuffer, "")){
 							sprintf(charBuffer, "%s%s%s%d%s%s%s", "update cdsspread set Spread='", resultBuffer, "' where institutionid='", institutionId, "' and Maturity='", mat, "';");
 							mydb1.prepare((SQLCHAR *)charBuffer, 1);

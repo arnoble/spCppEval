@@ -125,7 +125,7 @@ BbergData getBbergBidOfferPrices(char *ticker, char **fields, char *thisDate, bl
 	return(thePrices);
 }
 
-void getBbergPrices(char *ticker, char *field, char *startDate, char *endDate, blpapi::Service &ref, blpapi::Session &session, char *reqType,char *result){
+void getBbergPrices(char *ticker, const char *field, char *startDate, char *endDate, blpapi::Service &ref, blpapi::Session &session, char *reqType,char *result){
 
 	bool  histDataRequest = strcmp(reqType, "HistoricalDataRequest") == 0;
 	blpapi::Request request = ref.createRequest(reqType);
