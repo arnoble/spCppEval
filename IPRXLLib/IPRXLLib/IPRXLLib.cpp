@@ -24,9 +24,11 @@ double __stdcall IPR_optionPrice(double &CallPutFlag, double &S, double &K, doub
 	double p1 = (u - exp(r * dt)) / (u - d);     //probability of up jump
 	double p2 = 1 - p1;                          // probability of down jump
 	double *Smat[1002];                          // stock prices
-	for (i=0; i < N + 2; i++){ Smat[i] = new double[N+2]; }
 	double *Cmat[1002];                     // call prices
-	for (i=0; i < N + 2; i++){ Cmat[i] = new double[N+2]; }
+	for (i=0; i < N + 2; i++){ 
+		Smat[i] = new double[N + 2]; 
+		Cmat[i] = new double[N + 2];
+	}
 	Smat[1][1] = S0;
 	for (i = 1; i <= N; i++)	{
 		Smat[1][i + 1] = Smat[1][i] * u;
@@ -42,10 +44,10 @@ double __stdcall IPR_optionPrice(double &CallPutFlag, double &S, double &K, doub
 	}
 
 	//return (Smat[N+1][N + 1]);
-
+	double dtPV = exp(-r * dt);
 	for (i = N; i >= 1; i--) {
 		for (j = 1; j <= i; j++) {
-			pv = exp(-r * dt) * (p2 * Cmat[j][i + 1] + p1 * Cmat[j + 1][i + 1]);
+			pv = dtPV * (p2 * Cmat[j][i + 1] + p1 * Cmat[j + 1][i + 1]);
 			immediateVal = CallPutFlag * (Smat[j][i] - K);
 			if (ExerciseType == 2.0) {
 				Cmat[j][i] = pv > immediateVal ? pv : immediateVal;
@@ -55,7 +57,14 @@ double __stdcall IPR_optionPrice(double &CallPutFlag, double &S, double &K, doub
 			}
 		}
 	}
-	return (Cmat[1][1]);
+
+	// tidy up
+	double ans = Cmat[1][1];
+	for (i=0; i < N + 2; i++){
+		delete Smat[i];
+		delete Cmat[i];
+	}
+	return (ans);
 
 
 //	return 123.45;

@@ -204,10 +204,11 @@ int _tmain(int argc, _TCHAR* argv[])
 		char   *fieldName[] = { "SPrating", "MarketCap", "Currency", "TierOne", "Moody", "Fitch", "drsk1yprobdefault" };
 		if (!doDebug  && doCDS) {
 			if (!doDebug) {
+				// now get info for each institution
 				sprintf(lineBuffer, "%s%s%d%s%d%s",
 					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
-					" product p join institution cp on (p.CounterpartyId=cp.InstitutionId) left join cdsspread cds using (institutionid)  where p.ProductId >='",
-					startProductId, "' and p.ProductId <= '", stopProductId, "' order by institutionId,maturity;");
+					" product p join institution i on (p.CounterpartyId=i.InstitutionId),institution cp left join cdsspread cds using (institutionid)  where p.ProductId >='",
+					startProductId, "' and p.ProductId <= '", stopProductId, "' and i.entityname like concat('%',cp.entityname,'%') order by institutionId,maturity;");
 				mydb.prepare((SQLCHAR *)lineBuffer, 5); 	retcode = mydb.fetch(true);
 				int     institutionId = -1;
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
@@ -217,7 +218,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					char *cpBberg = szAllBufs[4];
 					double  thePrice = -1.0;
 					// first record - get static data for institution
-					if (institutionId != atoi(szAllBufs[0])){
+					if (doStatic && (institutionId != atoi(szAllBufs[0]))){
 						institutionId = atoi(szAllBufs[0]);
 						for (int i = 0; strcmp(fields[i], ""); i++){
 							strcpy(resultBuffer, "");
