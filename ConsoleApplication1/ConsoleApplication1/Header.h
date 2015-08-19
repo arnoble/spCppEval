@@ -992,7 +992,8 @@ public:
 		
 		// finally, make sure payoffs cannot be negative...(a deal could be entered with a put struck at 500%
 		// ...DOME: do dealCapture validation to prevent this sort of thing...will be complicated by absolute barriers
-		if (thisPayoff<0.0){ thisPayoff = 0.0; }
+		// ALLOW negative payoffs, for example negative coupons    
+		// if (thisPayoff<0.0){ thisPayoff = 0.0; }
 
 		return(thisPayoff);
 	}
