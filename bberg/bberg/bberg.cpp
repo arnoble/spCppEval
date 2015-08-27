@@ -32,6 +32,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              stopProductId = argc > 2 ? _ttoi(argv[2]) : 1000;
 		size_t numChars;
 		char *thisDate = WcharToChar(argv[3], &numChars);
+		char isoDate[11]; sprintf(isoDate,"%c%c%c%c%c%c%c%c%c%c%c%c", thisDate[0], thisDate[1], thisDate[2], thisDate[3], '-', thisDate[4], thisDate[5], '-', thisDate[6], thisDate[7],'\0' );
 		string anyString(thisDate); if (anyString.find("-") != string::npos){ std::cout << "Usage: enter date as YYYYMMDD " << endl;  exit(0); }
 		char dbServer[100]; strcpy(dbServer, "spCloud");  // newSp for local PC
 		bool doPrices(true), doCDS(true), doCurves(true), doStatic(true), doTickerfeed(false), doCurrentPrices(false);
@@ -239,7 +240,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						anyString = strstr(cdsBberg, "Corp") != NULL ? "PX_LAST" : "RSK_BB_IMPLIED_CDS_SPREAD";
 						getBbergPrices(cdsBberg, anyString.c_str(), thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
 						if (strcmp(resultBuffer, "")){
-							sprintf(charBuffer, "%s%s%s%d%s%s%s", "update cdsspread set Spread='", resultBuffer, "' where institutionid='", institutionId, "' and Maturity='", mat, "';");
+							sprintf(charBuffer, "%s%s%s%s%s%d%s%s%s", "update cdsspread set Spread='", resultBuffer, "',LastDataDate='",isoDate,"' where institutionid='", institutionId, "' and Maturity='", mat, "';");
 							mydb1.prepare((SQLCHAR *)charBuffer, 1);
 						}
 						strcpy(cdsBberg, ""); // some institutions have no CDS...so MySQL will return a NULL, leaving cdsBberg at its old value, typically for the previous institution 
@@ -312,8 +313,8 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(lineBuffer, "%s%s%s", lineBuffer, subNameBuffer, ") and Spread is not null group by Maturity order by Maturity;");
 				mydb1.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb1.fetch(true);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-					sprintf(charBuffer, "%s%d%s%s%s%s%s",
-						"replace into cdsspread values (", institutionId, ",", szAllBufs[0], ",", szAllBufs[1], ",'');");
+					sprintf(charBuffer, "%s%d%s%s%s%s%s%s%s",
+						"replace into cdsspread values (", institutionId, ",", szAllBufs[0], ",", szAllBufs[1], ",'','", isoDate, "');");
 					mydb2.prepare((SQLCHAR *)charBuffer, 1);
 					retcode = mydb1.fetch(false);
 				}
