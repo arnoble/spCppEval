@@ -203,7 +203,7 @@ public:
 	// makeDbConnection();
 	bool makeDbConnection(){
 		if (dataSource == "spCloud"){
-			fsts = dbConn(hEnv, &hDBC, L"spCloud", L"anoble", L"Ragtin_Mor14");
+			fsts = dbConn(hEnv, &hDBC, L"spCloud", L"anoble", L"Ragtin_Mor14_Lucian");
 		}
 		else if (dataSource == "newSp"){
 			fsts =  dbConn(hEnv, &hDBC, L"newSp", L"root", L"ragtinmor");
