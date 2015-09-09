@@ -672,7 +672,9 @@ public:
 			const SpBarrierRelation &thisBrel(brel[j]);
 			thisIndx    = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
 			bool   above;          above       = thisBrel.above;
-			double thisUlPrice;    thisUlPrice = thesePrices[thisIndx];
+			// if barrierRelation ends on a different date you can pass in ulPrices and thisMonPoint...
+			// ... and access ulPrices[thisIndex].price.at(thisMonPoint - (endDays - thisBrel.endDays))
+			double thisUlPrice;    thisUlPrice = thesePrices[thisIndx] ; 
 			double diff;           diff        = thisUlPrice - thisBrel.barrierLevel;
 			bool   thisTest;       thisTest    = above ? diff > 0 : diff < 0;
 			//std::cout << j << "Diff:" << diff << "Price:" << thisUlPrice << "Barrier:" << thisBrel.barrierLevel << std::endl;
