@@ -478,7 +478,7 @@ public:
 	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
 	const double      originalStrike,originalBarrier, originalUbarrier,weight;
 	const std::string startDate, endDate, avgInAlgebra;
-	int               count,j,k,startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0;
+	int               count, j, k, startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0, endDaysDiff=0;
 	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness;
 	bool              readyForAvgObs;
 	std::vector<double> runningAverage;
@@ -647,7 +647,7 @@ public:
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
 	double                          variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          proportionHits, sumProportion, forwardRate;
-	bool                            (SpBarrier::*isHit)(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
+	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <double>            fars; // final asset returns
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
@@ -660,7 +660,7 @@ public:
 	// VANILLA test if barrier is hit
 	// ...set useUlMap to false if you have more thesePrices than numUnderlyings...for example product #217 has barriers with brels keyed to the same underlying
 	//     so that a barrier can have multiple barrierRelations on the same underlying
-	bool isHitVanilla(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+	bool isHitVanilla(const int thisMonPoint,const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
 		int j, thisIndx;
 		bool isHit  = isAnd;
 		double thisRefLevel, nthLargestReturn;
@@ -672,9 +672,9 @@ public:
 			const SpBarrierRelation &thisBrel(brel[j]);
 			thisIndx    = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
 			bool   above;          above       = thisBrel.above;
-			// if barrierRelation ends on a different date you can pass in ulPrices and thisMonPoint...
-			// ... and access ulPrices[thisIndex].price.at(thisMonPoint - (endDays - thisBrel.endDays))
 			double thisUlPrice;    thisUlPrice = thesePrices[thisIndx] ; 
+			// if barrierRelation ends on a different date...
+			if (thisBrel.endDaysDiff != 0){ thisUlPrice = ulPrices[thisIndx].price.at(thisMonPoint - thisBrel.endDaysDiff); }
 			double diff;           diff        = thisUlPrice - thisBrel.barrierLevel;
 			bool   thisTest;       thisTest    = above ? diff > 0 : diff < 0;
 			//std::cout << j << "Diff:" << diff << "Price:" << thisUlPrice << "Barrier:" << thisBrel.barrierLevel << std::endl;
@@ -693,7 +693,7 @@ public:
 	// LargestN test if barrier is hit
 	// ...set useUlMap to false if you have more thesePrices than numUnderlyings...for example product #217 has barriers with brels keyed to the same underlying
 	//     so that a barrier can have multiple barrierRelations on the same underlying
-	bool isHitLargestN(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+	bool isHitLargestN(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
 		int j, thisIndx;
 		bool isHit  = isAnd;
 		double thisRefLevel, nthLargestReturn;
@@ -747,7 +747,7 @@ public:
 
 
 	// basket test if barrier is hit
-	bool isHitBasket(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+	bool isHitBasket(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
 		int j, thisIndx;
 		bool isHit  = isAnd;
 		bool above;
@@ -782,7 +782,7 @@ public:
 	// VANILLA test if barrier is hit
 	// ...set useUlMap to false if you have more thesePrices than numUnderlyings...for example product #217 has barriers with brels keyed to the same underlying
 	//     so that a barrier can have multiple barrierRelations on the same underlying
-	bool isHitOld(const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+	bool isHitOld(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
 		int j, thisIndx;
 		bool isHit  = isAnd;
 		double thisRefLevel, nthLargestReturn;
@@ -1075,7 +1075,7 @@ public:
 							int n = ulIdNameMap[thisBrel.underlying];
 							testPrices.at(n) = ulPrices.at(n).price.at(thisMonPoint - k);
 						}
-						numHits +=  (this ->* (this->isHit))(testPrices,true,startLevels) ? 1 : 0;
+						numHits +=  (this ->* (this->isHit))(thisMonPoint, ulPrices, testPrices, true, startLevels) ? 1 : 0;
 						numPossibleHits += 1;
 					}
 				}
@@ -1244,7 +1244,16 @@ public:
 		}
 
 
-
+		// see if any brels have endDays shorter than barrier endDays
+		for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+			SpBarrier& b(barrier.at(thisBarrier));
+			int numBrel = b.brel.size();
+			std::vector<double>	theseExtrema; theseExtrema.reserve(10);
+			for (unsigned int uI = 0; uI < numBrel; uI++){
+				SpBarrierRelation& thisBrel(b.brel.at(uI));
+				thisBrel.endDaysDiff  = b.endDays - thisBrel.endDays;
+			}
+		}
 
 
 
@@ -1337,14 +1346,14 @@ public:
 								for (j=0; j<numBrel; j++) {
 									tempPrices.push_back(ulPrices.at(ulNames[j]).price[k]);
 								}
-								barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(tempPrices, false, startLevels);
+								barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(k,ulPrices, tempPrices, false, startLevels);
 								if (barrierWasHit.at(thisBarrier)){
 									int jj=1;
 								}
 							}					
 						}
 						else {
-							barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(theseExtrema, false, startLevels);
+							barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(k,ulPrices, theseExtrema, false, startLevels);
 						}
 						if (doAccruals && b.yearsToBarrier<=0.0){     // for post-strike deals, record if barriers have already been hit
 							b.hasBeenHit = barrierWasHit[thisBarrier]; 
@@ -1369,7 +1378,7 @@ public:
 							// averaging/lookback - will replace thesePrices with their averages
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls);
 							// is barrier hit
-							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || (!b.isExtremum && (b .* (b.isHit))(thesePrices, true, startLevels))){
+							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || (!b.isExtremum && (b .* (b.isHit))(thisMonPoint,ulPrices, thesePrices, true, startLevels))){
 								barrierWasHit[thisBarrier] = true;
 								if (doAccruals){         // for post-strike deals, record if barriers have already been hit
 									b.hasBeenHit = true; 
@@ -1457,7 +1466,7 @@ public:
 							}
 							else {
 								// in case you want to see why not hit
-								// b.isHit(thesePrices,true,startLevels);
+								// b.isHit(thisMonPoint,ulPrices,thesePrices,true,startLevels);
 							}
 						}
 					}
