@@ -1394,7 +1394,8 @@ public:
 										// add forwardValue of paidOutCoupons
 										if (couponPaidOut) {
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
-												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] && barrier[paidOutBarrier].yearsToBarrier>=0.0){
+												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] && 
+													(barrier[paidOutBarrier].yearsToBarrier >= 0.0 || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
 													SpBarrier &ib(barrier[paidOutBarrier]);
 													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0:0.0)*ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
