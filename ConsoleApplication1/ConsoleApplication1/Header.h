@@ -598,6 +598,7 @@ public:
 		const bool              isAbsolute,
 		const bool              isStrikeReset,
 		const bool              isStopLoss,
+		const bool              isForfeitCoupons,
 		const int               daysExtant,
 		const boost::gregorian::date bProductStartDate,
 		const bool              doFinalAssetReturn,
@@ -607,7 +608,7 @@ public:
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
-		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
+		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
@@ -639,7 +640,7 @@ public:
 	};
 	// public members: DOME consider making private, in case we implement their content some other way
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
-	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss ;
+	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons;
 	const double                    payoff,participation, param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType;
 	const std::vector<int>          ulIdNameMap;
@@ -1259,9 +1260,8 @@ public:
 
 
 		// main MC loop
-		int anyOldCounter(0);
 		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.1; thisIteration++) {
-			// anyOldCounter = 0;
+			
 			// start a product on each TRADING date
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
 				// wind forwards to next trading date
@@ -1401,7 +1401,8 @@ public:
 												}
 											}
 										}
-										thisPayoff += couponValue + accruedCoupon;
+										// add accumulated couponValue, unless b.forfeitCoupons is set
+										if (!b.isForfeitCoupons){ thisPayoff += couponValue + accruedCoupon; }
 										if (couponFrequency.size()) {  // add fixed coupon
 											/*
 											boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(allDates.at(thisMonPoint)));
