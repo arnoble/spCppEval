@@ -113,7 +113,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				double bidPrice(0.0), askPrice(0.0);
 				std::string  pricingDateString("");
 				char *cPtr(NULL);
-				bool notEquityTicker = tickerString.find("Equity") == std::string::npos;
+				bool notEquityTicker = !(tickerString.find("Equity") != std::string::npos || tickerString.find("@") != std::string::npos);
 				if (notEquityTicker) {
 					cPtr = strtok(szAllBufs[4], ",");
 				}
