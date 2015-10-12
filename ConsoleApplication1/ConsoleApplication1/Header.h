@@ -1630,7 +1630,6 @@ public:
 							
 							// maybe save finalAssetReturns
 							if (doFinalAssetReturn && !applyCredit && totalFarCounter<400000){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
-								if (farCounter){ strcat(farBuffer, ","); }
 								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i], ")");
 								farCounter += 1;
 								if (farCounter == 100){
