@@ -55,9 +55,12 @@ void buildAveragingInfo(const char* avgTenorText, const char* avgFreqText, int &
 	else { throw std::out_of_range("map_at()"); }
 
 	avgDays = numTenor * tenorPeriodDays;  // maybe add 1 since averaging invariably includes both end dates
-	avgChar2 = tolower(avgFreqText[0]);
+	int avgFreqLen = strlen(avgFreqText);
+	int avgFreqStride = 1;
+	if (avgFreqLen > 1){ char buf[10];  strncpy(buf, avgFreqText, avgFreqLen-1); avgFreqStride = atoi(buf); }
+	avgChar2 = tolower(avgFreqText[avgFreqLen-1]);
 	if (avgTenor.find(avgChar2) != avgTenor.end()){
-		avgFreq = avgTenor[avgChar2];
+		avgFreq = avgTenor[avgChar2] * avgFreqStride;
 	}
 	else { throw std::out_of_range("map_at()"); }
 }
