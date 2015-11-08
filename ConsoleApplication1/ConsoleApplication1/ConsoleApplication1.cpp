@@ -115,7 +115,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get product table data
 			enum {
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
-				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck,colProductLast
+				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
+				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -128,7 +129,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
 			bool collateralised     = atoi(szAllPrices[colProductCollateralised]) == 1;
 			bool currencyStruck     = atoi(szAllPrices[colProductCurrencyStruck]) == 1;
+			int  benchmarkId        = atoi(szAllPrices[colProductBenchmarkId]);
 			
+
 			productStartDateString  = szAllPrices[colProductStrikeDate];
 			productCcy              = szAllPrices[colProductCcy];
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
@@ -188,7 +191,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<int> ulIds;
 			vector<string> ulCcys;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
-			sprintf(lineBuffer, "%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy from productbarrier join barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='", productId, "'");
+			sprintf(lineBuffer, "%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy from productbarrier join barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='", 
+				productId, "' ");
+			if (benchmarkId){
+				sprintf(charBuffer, "%s%d%s%d%s", " union (select ", benchmarkId, ",u.ccy from product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
+				strcat(lineBuffer, charBuffer);
+			}
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
 			retcode = mydb.fetch(true);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
@@ -504,11 +512,11 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true,false,doDebug,startTime);
+				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true,false,doDebug,startTime,benchmarkId);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, thisNumIterations*numBarriers>100000 ? 100000/numBarriers : thisNumIterations, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug,startTime);
+				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId);
 			// tidy up
 
 		} // for each product

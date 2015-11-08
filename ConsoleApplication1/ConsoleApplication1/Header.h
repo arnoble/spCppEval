@@ -653,6 +653,7 @@ public:
 	double                          proportionHits, sumProportion, forwardRate;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <double>            fars; // final asset returns
+	std::vector <double>            bmrs; // benchmark returns
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
 
@@ -1003,7 +1004,7 @@ public:
 
 		return(thisPayoff);
 	}
-	void storePayoff(const std::string thisDateString, const double amount, const double proportion, const double finalAssetReturn,const bool doFinalAssetReturn){
+	void storePayoff(const std::string thisDateString, const double amount, const double proportion, const double finalAssetReturn, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn ){
 		sumPayoffs     += amount;
 		if (amount >  midPrice){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
 		if (amount >= midPrice){ sumPosPayoffs    += amount; numPosPayoffs++; }
@@ -1011,6 +1012,7 @@ public:
 		sumProportion  += proportion;
 		hit.push_back(SpPayoff(thisDateString, amount));
 		if (doFinalAssetReturn){ fars.push_back(finalAssetReturn); }
+		if (storeBenchmarkReturn){ bmrs.push_back(benchmarkReturn); }
 	}
 	// do any averaging
 	void doAveraging(const std::vector<double> &startLevels, std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, const std::vector<UlTimeseries> &ulPrices,
@@ -1201,10 +1203,11 @@ public:
 		const bool                doAccruals,
 		const bool                doFinalAssetReturn,
 		const bool                doDebug,
-		const time_t              startTime){
+		const time_t              startTime,
+		const int                 benchmarkId){
 		int                 totalNumReturns  = totalNumDays - 1;
 		char                lineBuffer[MAX_SP_BUF], charBuffer[1000];
-		int                 i, j, k, len, thisIteration;
+		int                 i, j, k, len, thisIteration,n;
 		double              couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
 		std::vector<double> stdevRatioPctChanges;
 		int                 numIncomeBarriers(0);
@@ -1289,6 +1292,7 @@ public:
 				couponValue                    = 0.0;
 				double                 thisPayoff;
 				double                 finalAssetReturn  = 1.0e9;
+				double                 benchmarkReturn   = 1.0e9;
 				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl), overrideThesePrices(numUl);
 
 				/*
@@ -1387,20 +1391,29 @@ public:
 									b.hasBeenHit = true; 
 								}  
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds,useUl);
+								// ***********
+								// capitalBarrier hit ... so product terminates
+								// ***********
 								if (b.capitalOrIncome){
-									if (thisMonDays>0){
+									if (thisMonDays > 0){
 										// DOME: just because a KIP barrier is hit does not mean the put option is ITM
 										// ...currently all payoffs for this barrier are measured...so we currently do not report when KIP is hit AND option is ITM
 										// ...could just use this predicate around the next block: 
 										// if(!(thisBarrier.payoffType === 'put' && thisBarrier.Participation<0 && optionPayoff === 0) ){
+										// ** maybe record benchmark performance
+										if (benchmarkId){
+											n      = ulIdNameMap[benchmarkId];
+											benchmarkReturn = thesePrices[n] / startLevels[n];
+										}
+										// END 
 										matured = true;
 										// add forwardValue of paidOutCoupons
 										if (couponPaidOut) {
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
-												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] && 
+												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] &&
 													(barrier[paidOutBarrier].yearsToBarrier >= 0.0 || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
 													SpBarrier &ib(barrier[paidOutBarrier]);
-													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0:0.0)*ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
+													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
 											}
 										}
@@ -1410,7 +1423,7 @@ public:
 											/*
 											boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(allDates.at(thisMonPoint)));
 											if ((bThisDate - allBdates.at(thisMonPoint)).days() != 0.0){
-												int jj=1;
+											int jj=1;
 											}
 											*/
 											boost::gregorian::date &bThisDate(allBdates.at(thisMonPoint));
@@ -1456,7 +1469,7 @@ public:
 													}
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
-														bOther.storePayoff(thisDateString, payoffOther, 1.0, finalAssetReturn,doFinalAssetReturn);
+														bOther.storePayoff(thisDateString, payoffOther, 1.0, finalAssetReturn,doFinalAssetReturn,0,false);
 													//}
 												}
 											}
@@ -1465,7 +1478,8 @@ public:
 								}
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
-									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, barrierWasHit[thisBarrier] ? b.proportionHits:0.0, finalAssetReturn, doFinalAssetReturn);
+									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, barrierWasHit[thisBarrier] ? b.proportionHits:0.0, 
+										finalAssetReturn, doFinalAssetReturn, benchmarkReturn,benchmarkId>0 && matured);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}
 							}
@@ -1590,7 +1604,7 @@ public:
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
-				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets;
+				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,bmAnnRets;
 				int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0);
@@ -1648,6 +1662,7 @@ public:
 							allPayoffs.push_back(thisAmount);
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
+							if (benchmarkId){ bmAnnRets.push_back(exp(log(b.bmrs[i]) / thisYears) - 1.0); }
 							sumAnnRets += thisAnnRet;
 							
 							if (thisAnnRet > -tol &&  thisAnnRet < tol) { sumParAnnRets += thisAnnRet; numParInstances++; }
@@ -1713,6 +1728,24 @@ public:
 
 				}
 
+				// benchmark underperformance
+				double benchmarkProbUnderperf, benchmarkCondUnderperf;
+				if (benchmarkId) {
+					double cumValue = 0.0;
+					int    cumCount = 0;
+					for (i=0; i<numAnnRets; i++) {
+						double anyDouble = allAnnRets[i] - bmAnnRets[i];
+						if (anyDouble < 0.0){
+							cumCount += 1;
+							cumValue -= anyDouble;
+						}
+					}
+					if (cumCount) {
+						benchmarkProbUnderperf = ((double)cumCount) / numAnnRets;
+						benchmarkCondUnderperf = cumValue / cumCount;
+					}
+				}
+
 
 				// ** process overall product results
 				const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
@@ -1771,6 +1804,7 @@ public:
 				std::vector<double> cubeBuckets ={ 0.0, 0.026, 0.052, 0.078, 0.104, 0.130, 0.156, 0.182, 0.208, 0.234, 0.260, 0.40 };
 				double riskCategory   = calcRiskCategory(cesrBuckets,scaledVol,1.0);  
 				double riskScore1to10 = calcRiskCategory(cubeBuckets, scaledVol, 0.0);
+
 				// WinLose
 				double sumNegRet(0.0), sumPosRet(0.0),sumBelowDepo(0.0);
 				int    numNegRet(0), numPosRet(0), numBelowDepo(0);
@@ -1841,6 +1875,8 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",    eShortfall*100.0);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='",eShortfallDepo*100.0);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbShortfall='", benchmarkProbUnderperf);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondShortfall='", benchmarkCondUnderperf*100.0);
 				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
 
 				sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
