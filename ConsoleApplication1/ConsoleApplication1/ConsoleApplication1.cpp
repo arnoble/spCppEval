@@ -10,13 +10,15 @@ using namespace std;
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+	size_t numChars;
 	try{
 		// initialise
-		if (argc < 4){ cout << "Usage: startId stopId numIterations <optionalArguments: 'doFAR' 'debug'  'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'debug'  'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
-		int              startProductId  = argc > 1 ? _ttoi(argv[1]) : 363;
-		int              stopProductId   = argc > 2 ? _ttoi(argv[2]) : 363;
-		int              numMcIterations = argc > 3 ? _ttoi(argv[3]) : 100;
+		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
+		int              startProductId ;
+		int              stopProductId ; 
+		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             forceIterations(false), doDebug(false);
 		char             lineBuffer[1000], charBuffer[1000];
 		char             startDate[11]      = "";
@@ -24,9 +26,13 @@ int _tmain(int argc, _TCHAR* argv[])
 		bool             doFinalAssetReturn = false;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 
+		// build list of productIds
+		if (!commaSepList == 1) {
+			startProductId = argc > 1 ? _ttoi(argv[1]) : 363;
+			stopProductId  = argc > 2 ? _ttoi(argv[2]) : 363;
+		}
 		// process optional argumants
-		for (int i=4; i<argc; i++){
-			size_t numChars;
+		for (int i=4 - commaSepList; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations" )){ forceIterations    = true; }
 			if (strstr(thisArg, "doFAR"           )){ doFinalAssetReturn = true; }
@@ -57,7 +63,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
 
 		// get list of productIds
-		sprintf(lineBuffer, "%s%d%s%d%s", "select p.ProductId from product p join cashflows c using (ProductId) where p.ProductId>='", startProductId, "' and p.ProductId<='", stopProductId, "' and Matured='0' and ProjectedReturn=1 "); 	
+		if (commaSepList == 1) {
+			sprintf(charBuffer, "%s%s%s", " where p.ProductId in (", WcharToChar(argv[1], &numChars),") ");
+		} else {
+			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
+		}
+		sprintf(lineBuffer, "%s%s%s", "select p.ProductId from product p join cashflows c using (ProductId) ",charBuffer, " and Matured='0' and ProjectedReturn=1 ");
 		if (minSecsTaken){
 			sprintf(lineBuffer, "%s%s%d",lineBuffer, " and SecsTaken>=", minSecsTaken);
 		}
@@ -70,6 +81,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int x(atoi(szAllPrices[0])); allProductIds.push_back(x);
 			retcode = mydb.fetch(false);
 		}
+		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
 		// loop through each product
 		for (int productIndx = 0; productIndx < allProductIds.size(); productIndx++) {
