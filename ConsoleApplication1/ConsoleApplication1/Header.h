@@ -1204,7 +1204,8 @@ public:
 		const bool                doFinalAssetReturn,
 		const bool                doDebug,
 		const time_t              startTime,
-		const int                 benchmarkId){
+		const int                 benchmarkId,
+		const double              hurdleReturn){
 		int                 totalNumReturns  = totalNumDays - 1;
 		char                lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                 i, j, k, len, thisIteration,n;
@@ -1479,7 +1480,7 @@ public:
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
 									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, barrierWasHit[thisBarrier] ? b.proportionHits:0.0, 
-										finalAssetReturn, doFinalAssetReturn, benchmarkReturn,benchmarkId>0 && matured);
+										finalAssetReturn, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}
 							}
@@ -1662,7 +1663,7 @@ public:
 							allPayoffs.push_back(thisAmount);
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
-							if (benchmarkId){ bmAnnRets.push_back(exp(log(b.bmrs[i]) / thisYears) - 1.0); }
+							bmAnnRets.push_back(benchmarkId>0 ? exp(log(b.bmrs[i]) / thisYears) - 1.0 : hurdleReturn);
 							sumAnnRets += thisAnnRet;
 							
 							if (thisAnnRet > -tol &&  thisAnnRet < tol) { sumParAnnRets += thisAnnRet; numParInstances++; }
