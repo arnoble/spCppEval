@@ -1730,23 +1730,31 @@ public:
 				}
 
 				// benchmark underperformance
-				double benchmarkProbUnderperf, benchmarkCondUnderperf;
-				if (benchmarkId) {
-					double cumValue = 0.0;
-					int    cumCount = 0;
-					for (i=0; i<numAnnRets; i++) {
-						double anyDouble = allAnnRets[i] - bmAnnRets[i];
-						if (anyDouble < 0.0){
-							cumCount += 1;
-							cumValue -= anyDouble;
-						}
+				double benchmarkProbUnderperf, benchmarkCondUnderperf, benchmarkProbOutperf, benchmarkCondOutperf;
+				double cumValue = 0.0, cumValue1 = 0.0;
+				int    cumCount = 0, cumCount1 = 0;
+				for (i=0; i<numAnnRets; i++) {
+					double anyDouble = allAnnRets[i] - bmAnnRets[i];
+					if (anyDouble < 0.0){
+						cumCount += 1;
+						cumValue -= anyDouble;
 					}
-					if (cumCount) {
-						benchmarkProbUnderperf = ((double)cumCount) / numAnnRets;
-						benchmarkCondUnderperf = cumValue / cumCount;
+					else {
+						cumCount1 += 1;
+						cumValue1 += anyDouble;
 					}
 				}
+				if (cumCount) {
+					benchmarkProbUnderperf = ((double)cumCount) / numAnnRets;
+					benchmarkCondUnderperf = cumValue / cumCount;
+				}
+				if (cumCount1) {
+					benchmarkProbOutperf = ((double)cumCount1) / numAnnRets;
+					benchmarkCondOutperf = cumValue1 / cumCount1;
+				}
 
+
+				
 
 				// ** process overall product results
 				const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
@@ -1878,6 +1886,8 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbShortfall='", benchmarkProbUnderperf);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondShortfall='", benchmarkCondUnderperf*100.0);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbOutperf='", benchmarkProbOutperf);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondOutperf='", benchmarkCondOutperf*100.0);
 				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
 
 				sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
