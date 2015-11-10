@@ -1605,10 +1605,10 @@ public:
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
-				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,bmAnnRets;
+				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,bmAnnRets,bmRelLogRets;
 				int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
-				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0);
+				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
 
 				// ** process barrier results
 				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
@@ -1663,7 +1663,10 @@ public:
 							allPayoffs.push_back(thisAmount);
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
-							bmAnnRets.push_back(benchmarkId>0 ? exp(log(b.bmrs[i]) / thisYears) - 1.0 : hurdleReturn);
+							double bmRet = benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears) - 1.0 : hurdleReturn;
+							bmAnnRets.push_back(bmRet);
+							sumYearsToBarrier += thisYears;
+							bmRelLogRets.push_back(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) - log(1 + bmRet)*thisYears);
 							sumAnnRets += thisAnnRet;
 							
 							if (thisAnnRet > -tol &&  thisAnnRet < tol) { sumParAnnRets += thisAnnRet; numParInstances++; }
@@ -1731,28 +1734,37 @@ public:
 
 				// benchmark underperformance
 				double benchmarkProbUnderperf, benchmarkCondUnderperf, benchmarkProbOutperf, benchmarkCondOutperf;
+				double bmRelUnderperfPV, bmRelOutperfPV, bmRelCAGR, cumUnderperfPV, cumOutperfPV;
 				double cumValue = 0.0, cumValue1 = 0.0;
 				int    cumCount = 0, cumCount1 = 0;
+				cumUnderperfPV = 0.0;
+				cumOutperfPV   = 0.0;
+				bmRelCAGR      = 0.0;
 				for (i=0; i<numAnnRets; i++) {
 					double anyDouble = allAnnRets[i] - bmAnnRets[i];
 					if (anyDouble < 0.0){
-						cumCount += 1;
-						cumValue -= anyDouble;
+						cumCount       += 1;
+						cumValue       -= anyDouble;
+						cumUnderperfPV += exp(bmRelLogRets[i]);
 					}
 					else {
-						cumCount1 += 1;
-						cumValue1 += anyDouble;
+						cumCount1    += 1;
+						cumValue1    += anyDouble;
+						cumOutperfPV += exp(bmRelLogRets[i]);
 					}
+					bmRelCAGR += bmRelLogRets[i];
 				}
 				if (cumCount) {
 					benchmarkProbUnderperf = ((double)cumCount) / numAnnRets;
 					benchmarkCondUnderperf = cumValue / cumCount;
+					bmRelUnderperfPV       = cumUnderperfPV / cumCount;
 				}
 				if (cumCount1) {
 					benchmarkProbOutperf = ((double)cumCount1) / numAnnRets;
 					benchmarkCondOutperf = cumValue1 / cumCount1;
+					bmRelOutperfPV       = cumOutperfPV / cumCount1;
 				}
-
+				bmRelCAGR = exp(bmRelCAGR / sumYearsToBarrier) - 1.0;
 
 				
 
