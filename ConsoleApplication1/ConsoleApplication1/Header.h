@@ -1205,6 +1205,7 @@ public:
 		const bool                doDebug,
 		const time_t              startTime,
 		const int                 benchmarkId,
+		const double              contBenchmarkTER,
 		const double              hurdleReturn){
 		int                 totalNumReturns  = totalNumDays - 1;
 		char                lineBuffer[MAX_SP_BUF], charBuffer[1000];
@@ -1663,7 +1664,7 @@ public:
 							allPayoffs.push_back(thisAmount);
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
-							double bmRet = benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears) - 1.0 : hurdleReturn;
+							double bmRet = benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn;
 							bmAnnRets.push_back(bmRet);
 							sumYearsToBarrier += thisYears;
 							bmRelLogRets.push_back(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) - log(1 + bmRet)*thisYears);
