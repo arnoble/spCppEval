@@ -24,6 +24,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		char             startDate[11]      = "";
 		char             endDate[11]        = "";
 		bool             doFinalAssetReturn = false;
+		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 
 		// build list of productIds
@@ -87,17 +88,19 @@ int _tmain(int argc, _TCHAR* argv[])
 		for (int productIndx = 0; productIndx < allProductIds.size(); productIndx++) {
 			int              oldProductBarrierId = 0, productBarrierId = 0;
 			int              numBarriers = 0, thisIteration = 0;
-			int              i, j, len, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
+			int              i, j, len, len1, anyInt, anyInt1, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId;
-			double           barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId,issuePrice, bidPrice, askPrice, midPrice;
-			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, description,avgInAlgebra;
+			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, issuePrice, bidPrice, askPrice, midPrice;
+			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, 
+				description, avgInAlgebra, productTimepoints, productPercentiles;
 			bool             capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
 
 			// init
-			startTime = time(0);
-			productId = allProductIds.at(productIndx);
+			maxBarrierDays = 0.0;
+			startTime      = time(0);
+			productId      = allProductIds.at(productIndx);
 		
 			// get general info:  productType, productShape, barrierType
 			// ...productType
@@ -128,7 +131,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			enum {
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
-				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,colProductLast
+				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
+				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductLast
 			};
 			sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -141,6 +145,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
 			bool collateralised     = atoi(szAllPrices[colProductCollateralised]) == 1;
 			bool currencyStruck     = atoi(szAllPrices[colProductCurrencyStruck]) == 1;
+			bool doTimepoints       = atoi(szAllPrices[colProductDoTimepoints]) == 1;
+			bool doPaths            = atoi(szAllPrices[colProductDoPaths]) == 1;
 			int  benchmarkId        = atoi(szAllPrices[colProductBenchmarkId]);
 			double hurdleReturn     = atof(szAllPrices[colProductHurdleReturn])/100.0;
 			double contBenchmarkTER = -log(1.0 - atof(szAllPrices[colProductHurdleReturn]) / 100.0);
@@ -153,6 +159,40 @@ int _tmain(int argc, _TCHAR* argv[])
 			AMC                     = atof(szAllPrices[colProductAMC]);
 			productShapeId          = atoi(szAllPrices[colProductShapeId]);
 			productShape			= productShapeMap[productShapeId];
+			// assemble timepoints request
+			productTimepoints		= szAllPrices[colProductTimepoints];
+			vector<string> timepoints;
+			vector<int>    tempTimepointDays;
+			splitCommaSepName(timepoints, productTimepoints);
+			if (timepoints.size() > 0) {
+				for (i=0, len=timepoints.size(); i<len; i++){
+					len1               = timepoints[i].size() - 1;
+					char tenorChar     = tolower(timepoints[i].at(len1));
+					string tenorLength = timepoints[i].substr(0, len1);
+					anyInt = atoi(tenorLength.c_str()) * avgTenor[tenorChar];
+					if (std::find(tempTimepointDays.begin(), tempTimepointDays.end(), anyInt) == tempTimepointDays.end()) { tempTimepointDays.push_back(anyInt); }
+				}
+			}
+
+			// assemble percentile request
+			productPercentiles		= szAllPrices[colProductPercentiles];
+			vector<string> uPercentiles;
+			vector<double> simPercentiles;
+			splitCommaSepName(uPercentiles, productPercentiles);
+			if (uPercentiles.size() > 0) {
+				for (i=0, len=uPercentiles.size(); i<len; i++){
+					anyDouble = atof(uPercentiles[i].c_str())/100.0;
+					if (std::find(simPercentiles.begin(), simPercentiles.end(), anyDouble) == simPercentiles.end()) { simPercentiles.push_back(anyDouble); }
+				}
+			}
+			
+			if (doTimepoints && simPercentiles.size() > 0 && tempTimepointDays.size() > 0){
+				if (std::find(simPercentiles.begin(), simPercentiles.end(), 0.0)   == simPercentiles.end())  simPercentiles.push_back(0.0);
+				if (std::find(simPercentiles.begin(), simPercentiles.end(), 0.999) == simPercentiles.end())  simPercentiles.push_back(0.999);
+				sort(simPercentiles.begin(), simPercentiles.end());
+			}
+
+
 			issuePrice              = atof(szAllPrices[colProductIssuePrice]);
 			midPrice                = ((bidPrice > 99.999) && (askPrice > 99.999) && (bidPrice < 100.001) && (askPrice < 100.001)) ? 1.0 : (bidPrice + askPrice) / (2.0*issuePrice);
 			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
@@ -168,7 +208,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			retcode = mydb.fetch(true);
 			string counterpartyName = szAllPrices[0];
 			vector<string> counterpartyNames;
-			splitCounterpartyName(counterpartyNames, counterpartyName);
+			splitCommaSepName(counterpartyNames, counterpartyName);
 			sprintf(charBuffer, "%s%s%s", "'", counterpartyNames.at(0).c_str(), "'");
 			for (i = 1; i < counterpartyNames.size(); i++){
 				sprintf(charBuffer, "%s%s%s%s", charBuffer, ",'", counterpartyNames.at(i).c_str(), "'");
@@ -336,7 +376,6 @@ int _tmain(int argc, _TCHAR* argv[])
 			sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
 			retcode = mydb.fetch(true);
-			map<char, int> avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
 			map<char, int>::iterator curr, end;
 			// ...parse each productbarrier row
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
@@ -495,11 +534,64 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 				}	
 
+				// any other init
+				int thisEndDaysInt = (int)thisEndDays;
+				if (doTimepoints && std::find(tempTimepointDays.begin(), tempTimepointDays.end(), thisEndDaysInt) == tempTimepointDays.end()) { tempTimepointDays.push_back(thisEndDaysInt); }
+				if (thisEndDays > maxBarrierDays){ maxBarrierDays = thisEndDays; }
 
 				// next barrier record
 				numBarriers += 1;
 				retcode = mydb.fetch(false);
 			}
+
+			// remove any timepointDays 
+			vector<int> timepointDays;
+			if (doTimepoints){
+				for (i=0; i<tempTimepointDays.size(); i++){
+					if (tempTimepointDays[i] <= maxBarrierDays){
+						timepointDays.push_back(tempTimepointDays[i]);
+					}
+				}
+			}
+			int numTimepoints  = timepointDays.size();
+			vector<string> timepointNames;
+			if (doTimepoints){
+				sort(timepointDays.begin(), timepointDays.end());
+				// space for timepoint stats [timepointDays][uid][]
+				for (i=0; i<numTimepoints; i++){
+					sprintf(lineBuffer,"%d%s",timepointDays[i],"d");
+					timepointNames.push_back(lineBuffer);
+				}
+				// put in any barrier names
+				for (i=0; i < numBarriers; i++) {
+					const SpBarrier&    b(spr.barrier.at(i));
+					int thisEndDays = (int)b.endDays;
+					bool done = false;
+					for (i=0; !done && i < timepointDays.size(); i++){
+						if (thisEndDays == timepointDays[i]){
+							done = true;
+							sprintf(lineBuffer, "%s %s", timepointNames.at(i).c_str(), b.description.c_str());
+							timepointNames[i] = lineBuffer;
+						}
+					}
+				}
+				// init database
+				sprintf(lineBuffer, "%s%d", "delete from timepoints where userid=3 and productid=", productId);
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				sprintf(lineBuffer, "%s%d", "delete from path where userid=3 and productid=", productId);
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				/*
+				retcode = mydb.fetch(true);
+				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					cerr << "Problem deleting: " << lineBuffer << endl;
+				}
+				*/
+				
+			}
+
+
+
+
 
 
 			// further initialisation, given product info
@@ -525,11 +617,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, contBenchmarkTER,hurdleReturn);
+				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, contBenchmarkTER,hurdleReturn,
+				false, false, timepointDays, timepointNames, simPercentiles);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, thisNumIterations*numBarriers>100000 ? 100000/numBarriers : thisNumIterations, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId,contBenchmarkTER,hurdleReturn);
+				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId,contBenchmarkTER,hurdleReturn,
+				doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles);
 			// tidy up
 
 		} // for each product

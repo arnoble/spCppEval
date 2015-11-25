@@ -113,7 +113,7 @@ void bootstrapCDS(const std::vector<double> r, std::vector<double> &dpCurve, con
 
 
 // regex functions
-void splitCounterpartyName( std::vector<std::string> &out,std::string s){
+void splitCommaSepName(std::vector<std::string> &out, std::string s){
 
 	std::regex word_regex("([^,]+)");
 	auto words_begin = std::sregex_iterator(s.begin(), s.end(), word_regex);
@@ -1206,14 +1206,33 @@ public:
 		const time_t              startTime,
 		const int                 benchmarkId,
 		const double              contBenchmarkTER,
-		const double              hurdleReturn){
-		int                 totalNumReturns  = totalNumDays - 1;
-		char                lineBuffer[MAX_SP_BUF], charBuffer[1000];
-		int                 i, j, k, len, thisIteration,n;
-		double              couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
-		std::vector<double> stdevRatioPctChanges;
-		int                 numIncomeBarriers(0);
-		RETCODE             retcode;
+		const double              hurdleReturn,
+		const bool                doTimepoints, 
+		const bool                doPaths,
+		const std::vector<int>    timepointDays,
+		const std::vector<std::string> timepointNames,
+		const std::vector<double> simPercentiles){
+		int                      totalNumReturns  = totalNumDays - 1;
+		int                      numTimepoints    = timepointDays.size();
+		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
+		int                      i, j, k, len, thisIteration,n;
+		double                   couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
+		std::vector<double>      stdevRatioPctChanges;
+		std::vector< std::vector<double> > someTimepoints[100];
+		std::vector<double>           someLevels[100], somePaths[100]; 
+		std::vector< std::vector<  std::vector<double> > > timepointLevels;
+		std::vector< std::vector<double> >  timepointPaths;
+		for (i=0; i < numTimepoints; i++) {
+			timepointLevels.push_back(someTimepoints[i]);
+			for (j=0; j < numUls; j++) {
+				timepointLevels[i].push_back(someLevels[j]);
+			}
+		}
+		for (i=0; i < numUls; i++) {
+			timepointPaths.push_back(somePaths[i]);
+		}
+		int                      numIncomeBarriers(0);
+		RETCODE                  retcode;
 
 		// init
 		if (!doAccruals){
@@ -1230,7 +1249,7 @@ public:
 		// prebuild all nonparametric bootstrap samples in resampledIndexes
 		std::vector<std::vector <int>> resampledIndexs;
 		if (numMcIterations>1) {
-			// balancedResampling (and antithetic): ensures each real observation is sampled roughly equally; more effective than antithetic
+			// balacedResampling (and antithetic): ensures each real observation is sampled roughly equally; more effective than antithetic
 			int concatenatedBlocks = (int)floor(numMcIterations / 2.0) + 1;
 			std::vector<int> concatenatedSample; concatenatedSample.reserve(totalNumReturns*concatenatedBlocks);
 			for (i=0; i<concatenatedBlocks; i++) { 
@@ -1270,15 +1289,44 @@ public:
 		// main MC loop
 		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.1; thisIteration++) {
 			
-			// start a product on each TRADING date
+			// wind 'thisPoint' forwards to next TRADING date, so as to start a new product
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
-				// wind forwards to next trading date
 				while (allNonTradingDays.at(thisPoint) && thisPoint < lastPoint) {
 					thisPoint += 1;
 				}
 				if (thisPoint >= lastPoint){ continue; }
 
-				// initialise product
+				// possibly track timepoints ulIds
+				if (doTimepoints){
+					for (i=0; i < numTimepoints; i++){
+						int thisTpDays = timepointDays[i];
+						for (j=0; j < numUls; j++){
+							double thisLevel = ulPrices[j].price[thisTpDays + thisPoint] / ulPrices[j].price[thisPoint];
+							timepointLevels[i][j].push_back(thisLevel);
+						}
+					}
+
+					// save path
+					if (doPaths){
+						for (i=0; i < numTimepoints; i++){
+							int thisTpDays = timepointDays[i];
+							bool firstTime = true;
+							std::string name = timepointNames[i];
+							sprintf(lineBuffer, "%s", "insert into path (PathId,UserId,ProductId,UnderlyingId,TimePointDays,Name,SimValue) values ");
+							for (j=0; j < numUls; j++){
+								int ulId = ulIds[j];
+								if (firstTime){ firstTime = false; }
+								else { strcat(lineBuffer, ","); }
+								double thisLevel = ulPrices[j].price[thisTpDays + thisPoint] / ulPrices[j].price[thisPoint];
+								sprintf(lineBuffer, "%s%s%d%s%d%s%d%s%d%s%s%s%lf%s", lineBuffer, "(", thisPoint, ",3,", productId, ",", ulId, ",", thisTpDays, ",'", name.c_str(), "',", thisLevel, ")");
+							}
+							mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						}
+					}
+				}
+
+
+				// initialise product eg record ulPrices at 'thisPoint'
 				std::vector<bool>      barrierWasHit(numBarriers);
 				std::string            startDateString = allDates.at(thisPoint);
 				/*
@@ -1731,6 +1779,32 @@ public:
 						winLoseMinRet += thisWinLoseClick;
 					}
 
+				}
+
+
+				// possibly track timepoints
+				if (doTimepoints && analyseCase == 0){
+					for (i=0; i < numTimepoints; i++){
+						int thisTpDays   = timepointDays[i];
+						std::string name = timepointNames[i];
+						for (j=0; j < numUls; j++){
+							bool firstTime      = true;
+							sprintf(lineBuffer, "%s", "insert into timepoints (UserId,ProductId,UnderlyingId,TimePointDays,Name,Percentile,SimValue) values ");
+							int ulId = ulIds[j];
+							sort(timepointLevels[i][j].begin(), timepointLevels[i][j].end());
+							int numTpLevels = timepointLevels[i][j].size();
+							// save simPercentiles
+							for (k=0, len=simPercentiles.size(); k < len; k++){
+								double pctile = simPercentiles[k];
+								if (firstTime){ firstTime = false; }
+								else { strcat(lineBuffer, ","); }
+								int thisIndx = floor(numTpLevels*simPercentiles[k]);
+								double value = timepointLevels[i][j][thisIndx];
+								sprintf(lineBuffer, "%s%s%d%s%d%s%d%s%s%s%lf%s%lf%s", lineBuffer, "(3,", productId, ",", ulId, ",", thisTpDays, ",'", name.c_str(), "',", pctile, ",", value, ")");
+							}
+							mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						}
+					}
 				}
 
 				// benchmark underperformance
