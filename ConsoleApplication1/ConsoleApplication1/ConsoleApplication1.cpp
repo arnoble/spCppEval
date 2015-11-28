@@ -85,7 +85,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
 		// loop through each product
-		for (int productIndx = 0; productIndx < allProductIds.size(); productIndx++) {
+		int numProducts = allProductIds.size();
+		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
 			int              oldProductBarrierId = 0, productBarrierId = 0;
 			int              numBarriers = 0, thisIteration = 0;
 			int              i, j, len, len1, anyInt, anyInt1, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
@@ -145,8 +146,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
 			bool collateralised     = atoi(szAllPrices[colProductCollateralised]) == 1;
 			bool currencyStruck     = atoi(szAllPrices[colProductCurrencyStruck]) == 1;
-			bool doTimepoints       = atoi(szAllPrices[colProductDoTimepoints]) == 1;
+			bool doTimepoints       = atoi(szAllPrices[colProductDoTimepoints])   == 1;
 			bool doPaths            = atoi(szAllPrices[colProductDoPaths]) == 1;
+			if ((doPaths || doTimepoints) && (numProducts > 1)){
+				doTimepoints = false;
+				doPaths      = false;
+				cerr << "We only doTimepoints/paths if #products is 1 ... if you need timepoints/paths please do each product singly as it can overburden the database..thanks" << endl;
+			};
 			int  benchmarkId        = atoi(szAllPrices[colProductBenchmarkId]);
 			double hurdleReturn     = atof(szAllPrices[colProductHurdleReturn])/100.0;
 			double contBenchmarkTER = -log(1.0 - atof(szAllPrices[colProductHurdleReturn]) / 100.0);
