@@ -1165,16 +1165,6 @@ public:
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), productShape(productShape),depositGteed(depositGteed), collateralised(collateralised), 
 		daysExtant(daysExtant),	midPrice(midPrice),baseCurve(baseCurve),ulIds(ulIds) {
-		
-		// ...prebuild all dates outside loop
-		int numAllDates = allDates.size();	allBdates.reserve(numAllDates);
-		for (int thisPoint = 0; thisPoint < numAllDates; thisPoint += 1) {	allBdates.push_back(boost::gregorian::from_simple_string(allDates.at(thisPoint))); }
-
-
-		for (int i=0; i < baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
-		numUls = ulIds.size();
-		for (int i=0; i < numUls; i++){ useUl.push_back(true); }
-		barrier.reserve(100); // for more efficient push_back
 	};
 
 	// public members: DOME consider making private
@@ -1183,6 +1173,19 @@ public:
 	std::vector <bool>              useUl;
 	std::vector <double>            baseCurveTenor, baseCurveSpread;
 	std::vector<boost::gregorian::date> allBdates;
+
+	// init
+	void init(){
+		// ...prebuild all dates outside loop
+		int numAllDates = allDates.size();	allBdates.reserve(numAllDates);
+		for (int thisPoint = 0; thisPoint < numAllDates; thisPoint += 1) { allBdates.push_back(boost::gregorian::from_simple_string(allDates.at(thisPoint))); }
+
+		for (int i=0; i < baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
+		numUls = ulIds.size();
+		for (int i=0; i < numUls; i++){ useUl.push_back(true); }
+		barrier.reserve(100); // for more efficient push_back
+	}
+
 
 	// evaluate product at this point in time
 	void evaluate(const int       totalNumDays, 
@@ -1247,23 +1250,25 @@ public:
 			b.forwardRate            = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, b.yearsToBarrier); // DOME: very crude for now
 		}
 
-		// prebuild all nonparametric bootstrap samples in resampledIndexes
+		// prebuild all nonparametric bootstrap samples (each of sixe productDays) in resampledIndexes
 		std::vector<std::vector <int>> resampledIndexs;
 		if (numMcIterations>1) {
 			// balacedResampling (and antithetic): ensures each real observation is sampled roughly equally; more effective than antithetic
+			// ... build concatenatedSample[] to contain a repeated sequence of integers, ranging from 0 to totalNumreturns-1, which will be used as indexes to select a random return 
 			int concatenatedBlocks = (int)floor(numMcIterations / 2.0) + 1;
-			std::vector<int> concatenatedSample; concatenatedSample.reserve(totalNumReturns*concatenatedBlocks);
-			for (i=0; i<concatenatedBlocks; i++) { 
+			std::vector<int> concatenatedSample; concatenatedSample.reserve((productDays-1)*concatenatedBlocks);
+			for (i=0; i<(productDays-1)*concatenatedBlocks;) {
 				for (j=0; j < totalNumReturns; j++) {
 					concatenatedSample.push_back(j);
+					i += 1;
 				}
 			}
 			int concatenatedLength = concatenatedSample.size();
 			// permutations will now give balanced sample
 			for (int bootSample=0; bootSample<numMcIterations; bootSample++) {
 				if (bootSample % 2 == 0) {
-					std::vector<int> oneBootstrapSample; oneBootstrapSample.reserve(totalNumReturns);
-					for (j=0; j<totalNumReturns; j++, concatenatedLength--) {
+					std::vector<int> oneBootstrapSample; oneBootstrapSample.reserve(productDays);
+					for (j=0; j<productDays; j++, concatenatedLength--) {
 						int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(concatenatedLength - 1));
 						oneBootstrapSample.push_back(concatenatedSample[thisIndx]);
 					}
@@ -1290,6 +1295,34 @@ public:
 		// main MC loop
 		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.1; thisIteration++) {
 			
+
+			// create new random sample for next iteration
+			if (numMcIterations>1){
+				bool useNewMethod(true);
+				if (useNewMethod){   // NEW adds representative to antithetic sampling
+					int thisAntithetic = (int)floor(thisIteration / 2.0);
+					std::vector<int> &thisTrace(resampledIndexs[thisAntithetic]);
+					bool useAntithetic = thisIteration % 2 == 0;
+					for (j = 1; j <= productDays; j++){
+						int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j-1] - 1 : thisTrace[j-1];
+						for (i = 0; i < numUl; i++) {
+							double thisReturn; thisReturn = ulReturns[i][thisIndx];
+							ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+						}
+					}
+				}
+				else{   // OLD method KEEP
+					for (j = 1; j < totalNumReturns; j++){
+						int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
+						for (i = 0; i < numUl; i++) {
+							double thisReturn; thisReturn = ulReturns[i][thisIndx];
+							ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+						}
+					}
+				}
+			}
+
+
 			// wind 'thisPoint' forwards to next TRADING date, so as to start a new product
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
 				while (allNonTradingDays.at(thisPoint) && thisPoint < lastPoint) {
@@ -1553,32 +1586,6 @@ public:
 				}
 			}
 
-			// create new random sample for next iteration
-			if (numMcIterations>1){
-				bool useNewMethod(true);				
-				if (useNewMethod){   // NEW representative and antithetic sampling
-					int thisAntithetic = (int)floor(thisIteration / 2.0);
-					std::vector<int> &thisTrace(resampledIndexs[thisAntithetic]);
-					bool useAntithetic = thisIteration % 2 == 0;
-					for (j = 1; j < totalNumReturns; j++){
-						int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j] - 1 : thisTrace[j];
-						for (i = 0; i < numUl; i++) {
-							double thisReturn; thisReturn = ulReturns[i][thisIndx];
-							ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
-						}
-					}
-				}
-				else{   // OLD method KEEP
-					for (j = 1; j < totalNumReturns; j++){
-						int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
-						for (i = 0; i < numUl; i++) {
-							double thisReturn; thisReturn = ulReturns[i][thisIndx];
-							ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
-						}
-					}
-				}
-
-			}
 			std::cout << ".";
 			if (thisIteration>750 && (thisIteration + 1) % 100 == 0){
 				double thisMean       = PayoffMean(barrier);

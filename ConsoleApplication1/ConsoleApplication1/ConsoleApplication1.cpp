@@ -568,17 +568,18 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// possibly pad future ulPrices for resampling into if there is not enough history
-			int daysPadding = maxBarrierDays + daysExtant - totalNumDays;
+			int daysPadding = maxBarrierDays + daysExtant - totalNumDays+1; 
 			boost::gregorian::date  bTempDate = bLastDataDate;
 			while (daysPadding>0){
 				bTempDate += boost::gregorian::days(1);
 				string tempString = boost::gregorian::to_iso_extended_string(bTempDate);
 				sprintf(charBuffer, "%s", tempString.c_str());
 				for (i = 0; i < numUl; i++) {
-					ulOriginalPrices.at(i).date.push_back(charBuffer);
-					ulOriginalPrices.at(i).price.push_back(0.0);
+					ulOriginalPrices.at(i).date.push_back(charBuffer);						ulPrices.at(i).date.push_back(charBuffer);
+					ulOriginalPrices.at(i).price.push_back(0.0);							ulPrices.at(i).price.push_back(0.0);
 					// DOME: crudely mimic-ing weekends
-					ulOriginalPrices.at(i).nonTradingDay.push_back((daysPadding % 6) || (daysPadding % 7));
+					char mimicTradingDay = (daysPadding % 6) || (daysPadding % 7);
+					ulOriginalPrices.at(i).nonTradingDay.push_back(mimicTradingDay);		ulPrices.at(i).nonTradingDay.push_back(mimicTradingDay);
 				}
 				daysPadding -= 1;
 			}
@@ -653,6 +654,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// possibly impose user-defined view of expectedReturn: only need to bump ulReturns
 
+			// initialise product, now we have all the state
+			spr.init();
 
 			// get accrued coupons
 			double accruedCoupon(0.0);
@@ -661,7 +664,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				false, false, timepointDays, timepointNames, simPercentiles,doPriips);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
-			spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, thisNumIterations*numBarriers>100000 ? 100000/numBarriers : thisNumIterations, historyStep, ulPrices, ulReturns,
+			spr.evaluate(totalNumDays, daysExtant, thisNumIterations == 1 ? totalNumDays - spr.productDays : daysExtant+1, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000,thisNumIterations), historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId,contBenchmarkTER,hurdleReturn,
 				doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips);
 			// tidy up
