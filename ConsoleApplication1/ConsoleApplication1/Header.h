@@ -1211,7 +1211,8 @@ public:
 		const bool                doPaths,
 		const std::vector<int>    timepointDays,
 		const std::vector<std::string> timepointNames,
-		const std::vector<double> simPercentiles){
+		const std::vector<double> simPercentiles,
+		const bool doPriips){
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
@@ -1648,10 +1649,10 @@ public:
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
-			for (int analyseCase = 0; analyseCase < 2; analyseCase++) {
+			for (int analyseCase = 0; analyseCase < (doPriips?1:2); analyseCase++) {
 				if (doDebug){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 				bool     applyCredit = analyseCase == 1;
-				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (applyCredit ? 0.02 : 1.0));
+				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
 				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,bmAnnRets,bmRelLogRets;
@@ -1848,7 +1849,38 @@ public:
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
 				double averageReturn = sumAnnRets / numAnnRets;
-				double vaR95         = 100.0*allPayoffs[floor(numAnnRets*0.05)];
+				double vaR975        = 100.0*allPayoffs[floor(numAnnRets*0.025)];
+
+				// SRRI vol
+				struct srriParams { double conf, normStds, normES; };
+
+				srriParams shortfallParams[] = { // in R,normalExpectedShorfall = vol*dnorm(qnorm(prob))/prob with prob=0.05 for 95%conf
+					{ 0.975,  1.96,   2.3378 },
+					{ 0.99,   2.326,  2.665 },
+					{ 0.999,  3.09,   3.367 },
+				};
+				i=0;
+				double srriConf, srriStds, srriConfRet, normES, cesrStrictVol;
+				// some products have an averageReturn somewhat to the left of the 2.5% VaR, so we need to use a more extreme percentile
+				do {
+					srriConf      = shortfallParams[i].conf;
+					srriStds      = shortfallParams[i].normStds;
+					normES        = shortfallParams[i].normES;
+					srriConfRet   = allAnnRets[floor(numAnnRets*(1 - srriConf))];
+					if (i == 0){ cesrStrictVol = -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn / 100) - log(1 + srriConfRet / 100)))); }
+					i += 1;
+				} while (srriConfRet>averageReturn && i<3);
+
+
+				//if(srriConfRet>historicalReturn) {srriConf = 1-1.0/numAnnRets;srriStds = -NormSInv(1.0/numAnnRets);  srriConfRet = annRetInstances[0];}
+				// replaced the following line with the next one as 'averageReturn' rather than 'historicalReturn' is how we do ESvol
+				// BUT DO NOT DELETE as 'historicalReturn' may be the better way: DOME
+				//var srriVol        = -100*(srriStds - Math.sqrt(srriStds*srriStds+4*0.5*(Math.log(1+historicalReturn/100) - Math.log(1+srriConfRet/100))));
+				double srriVol       = -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn / 100) - log(1 + srriConfRet / 100))));
+
+
+
+
 
 				// pctiles and other calcs
 				if (numMcIterations > 1 && analyseCase == 0) {
@@ -1953,8 +1985,10 @@ public:
 				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',WhenEvaluated='", charBuffer);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='",  probEarliest);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='",     probEarly);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='",           vaR95);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='",         esVol);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='",           vaR975);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRvol='",       srriVol);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRstrictVol='", cesrStrictVol);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',AverageAnnRet='", averageReturn);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolTest='",     esVolTest);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolBelowDepo='",esVolBelowDepo);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolNegRet='",   esVolNegRet);

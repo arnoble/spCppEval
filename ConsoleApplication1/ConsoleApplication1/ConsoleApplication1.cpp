@@ -13,17 +13,16 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'debug'  'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'debug' 'priips' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId ;
 		int              stopProductId ; 
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             forceIterations(false), doDebug(false);
+		bool             doFinalAssetReturn(false),forceIterations(false), doDebug(false), doPriips(false);
 		char             lineBuffer[1000], charBuffer[1000];
 		char             startDate[11]      = "";
 		char             endDate[11]        = "";
-		bool             doFinalAssetReturn = false;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 
@@ -35,15 +34,22 @@ int _tmain(int argc, _TCHAR* argv[])
 		// process optional argumants
 		for (int i=4 - commaSepList; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
-			if (strstr(thisArg, "forceIterations" )){ forceIterations    = true; }
-			if (strstr(thisArg, "doFAR"           )){ doFinalAssetReturn = true; }
-			if (strstr(thisArg, "debug"           )){ doDebug            = true; }
+			if (strstr(thisArg, "forceIterations"   )){ forceIterations    = true; }
+			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
+			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
+			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer)){ strcpy(startDate, lineBuffer); }
 			else if (sscanf(thisArg, "endDate:%s",      lineBuffer)){ strcpy(endDate,   lineBuffer); }
 			else if (sscanf(thisArg, "dbServer:%s",     lineBuffer)){ strcpy(dbServer,  lineBuffer); }
 			else if (sscanf(thisArg, "minSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s", lineBuffer)){ maxSecsTaken  = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "historyStep:%s",  lineBuffer)){ historyStep   = atoi(lineBuffer); }
+		}
+		if (doPriips){
+			if (strlen(startDate)){
+				doPriips = false;
+				cout << "Will not do PRIIPs as you have entered a startDate" << endl;
+			}
 		}
 		const int        maxUls(100);
 		const int        bufSize(1000);
@@ -151,7 +157,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if ((doPaths || doTimepoints) && (numProducts > 1)){
 				doTimepoints = false;
 				doPaths      = false;
-				cerr << "We only doTimepoints/paths if #products is 1 ... if you need timepoints/paths please do each product singly as it can overburden the database..thanks" << endl;
+				cout << "We only doTimepoints/paths if #products is 1 ... if you need timepoints/paths please do each product singly as it can overburden the database..thanks" << endl;
 			};
 			int  benchmarkId        = atoi(szAllPrices[colProductBenchmarkId]);
 			double hurdleReturn     = atof(szAllPrices[colProductHurdleReturn])/100.0;
@@ -297,6 +303,16 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			char ulSql[10000]; // enough for around 100 underlyings...
 			char crossRateBuffer[100];
+			
+			// get PRIIPs start date to use
+			char startDateBuffer[100];
+			if (strlen(endDate)){ strcpy(charBuffer,endDate); }
+			else {
+				mydb.prepare((SQLCHAR *)"select max(date) from prices", 1);
+				retcode = mydb.fetch(true);
+				strcpy(charBuffer, szAllPrices[0]);
+			}	
+			sprintf(startDateBuffer, "%s%s%s", " and Date >= date_sub('",charBuffer,"', interval 5 year) " );
 			// ...form sql joins
 			sprintf(ulSql, "%s", "select p0.Date Date");
 			for (i = 0; i<numUl; i++) { 
@@ -317,7 +333,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(lineBuffer, "%s%d%s%d%s%s", " and p", i, ".underlyingId='", ulIds.at(i), "'", (crossRateUids[i] ? crossRateBuffer : "")); strcat(ulSql, lineBuffer);
 			}
 			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
-			else if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31'"); }
+			else if (thisNumIterations>1) { strcat(ulSql, doPriips ? startDateBuffer : " and Date >='1992-12-31' "); }
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
 			strcat(ulSql, " order by Date");
 			// ...call DB
@@ -550,6 +566,24 @@ int _tmain(int argc, _TCHAR* argv[])
 				retcode = mydb.fetch(false);
 			}
 
+
+			// possibly pad future ulPrices for resampling into if there is not enough history
+			int daysPadding = maxBarrierDays + daysExtant - totalNumDays;
+			boost::gregorian::date  bTempDate = bLastDataDate;
+			while (daysPadding>0){
+				bTempDate += boost::gregorian::days(1);
+				string tempString = boost::gregorian::to_iso_extended_string(bTempDate);
+				sprintf(charBuffer, "%s", tempString.c_str());
+				for (i = 0; i < numUl; i++) {
+					ulOriginalPrices.at(i).date.push_back(charBuffer);
+					ulOriginalPrices.at(i).price.push_back(0.0);
+					// DOME: crudely mimic-ing weekends
+					ulOriginalPrices.at(i).nonTradingDay.push_back((daysPadding % 6) || (daysPadding % 7));
+				}
+				daysPadding -= 1;
+			}
+
+
 			// remove any timepointDays 
 			vector<int> timepointDays;
 			if (doTimepoints){
@@ -624,12 +658,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, contBenchmarkTER,hurdleReturn,
-				false, false, timepointDays, timepointNames, simPercentiles);
+				false, false, timepointDays, timepointNames, simPercentiles,doPriips);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, daysExtant, totalNumDays - spr.productDays, thisNumIterations*numBarriers>100000 ? 100000/numBarriers : thisNumIterations, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId,contBenchmarkTER,hurdleReturn,
-				doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles);
+				doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips);
 			// tidy up
 
 		} // for each product
