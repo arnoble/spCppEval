@@ -1911,7 +1911,7 @@ public:
 					srriStds      = shortfallParams[i].normStds;
 					normES        = shortfallParams[i].normES;
 					srriConfRet   = allAnnRets[floor(numAnnRets*(1 - srriConf))];
-					if (i == 0){ cesrStrictVol = -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn / 100) - log(1 + srriConfRet / 100)))); }
+					if (i == 0){ cesrStrictVol = -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn) - log(1 + srriConfRet)))); }
 					i += 1;
 				} while (srriConfRet>averageReturn && i<3);
 
@@ -1920,7 +1920,7 @@ public:
 				// replaced the following line with the next one as 'averageReturn' rather than 'historicalReturn' is how we do ESvol
 				// BUT DO NOT DELETE as 'historicalReturn' may be the better way: DOME
 				//var srriVol        = -100*(srriStds - Math.sqrt(srriStds*srriStds+4*0.5*(Math.log(1+historicalReturn/100) - Math.log(1+srriConfRet/100))));
-				double srriVol       = -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn / 100) - log(1 + srriConfRet / 100))));
+				double srriVol       = -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn) - log(1 + srriConfRet))));
 
 
 
@@ -2010,16 +2010,27 @@ public:
 				double expectedPayoff = sumPayoffs / numAnnRets;
 				int    secsTaken = difftime(time(0), startTime);
 
-				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='", expectedPayoff );
-				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='", secsTaken);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
+				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='",                   secsTaken);
+				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='",      expectedPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='",       ePosPayoff);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedLossPayoff='",       eNegPayoff);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='",           geomReturn);
+				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FirstDataDate='",               allDates[0].c_str());
+				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',LastDataDate='",                allDates[totalNumDays - 1].c_str());
+				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumResamples='",       thisIteration);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='",        duration);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolStds='",         srriStds);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolConf='",         srriConf);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',AverageAnnRet='",   averageReturn);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRvol='",         srriVol);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRstrictVol='",   cesrStrictVol);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='",           esVol);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolTest='",      esVolTest);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolBelowDepo='", esVolBelowDepo);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolNegRet='",    esVolNegRet);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
 				// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0);
-				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",  allDates[0].c_str());
-				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",   allDates[totalNumDays - 1].c_str());
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='",   riskCategory);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScore1to10='", riskScore1to10);
@@ -2030,14 +2041,6 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='",  probEarliest);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='",     probEarly);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='",           vaR975);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRvol='",       srriVol);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRstrictVol='", cesrStrictVol);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',AverageAnnRet='", averageReturn);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolTest='",     esVolTest);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolBelowDepo='",esVolBelowDepo);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolNegRet='",   esVolNegRet);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='",      duration);
-				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumResamples='",  thisIteration);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='",        ecGain);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='",  ecStrictGain);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='",        ecLoss);
