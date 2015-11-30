@@ -1250,42 +1250,49 @@ public:
 			b.forwardRate            = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, b.yearsToBarrier); // DOME: very crude for now
 		}
 
-		// prebuild all nonparametric bootstrap samples (each of sixe productDays) in resampledIndexes
-		std::vector<std::vector <int>> resampledIndexs;
-		if (numMcIterations>1) {
-			// balacedResampling (and antithetic): ensures each real observation is sampled roughly equally; more effective than antithetic
-			// ... build concatenatedSample[] to contain a repeated sequence of integers, ranging from 0 to totalNumreturns-1, which will be used as indexes to select a random return 
-			int concatenatedBlocks = (int)floor(numMcIterations / 2.0) + 1;
-			std::vector<int> concatenatedSample; concatenatedSample.reserve((maxProductDays-1)*concatenatedBlocks);
-			std::vector <int>::size_type maxVec= concatenatedSample.max_size();
-			// std::cout << "The maximum possible length of the vector is " << maxVec << "." << std::endl;
-			for (i=0; i<(maxProductDays-1)*concatenatedBlocks;) {
-				for (j=0; j < totalNumReturns; j++) {
-					concatenatedSample.push_back(j);
-					i += 1;
-				}
-			}
-			int concatenatedLength = concatenatedSample.size();
-			// permutations will now give balanced sample
-			for (int bootSample=0; bootSample<numMcIterations; bootSample++) {
-				if (bootSample % 2 == 0) {
-					std::vector<int> oneBootstrapSample; oneBootstrapSample.reserve(maxProductDays);
-					for (j=0; j<maxProductDays; j++, concatenatedLength--) {
-						int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(concatenatedLength - 1));
-						oneBootstrapSample.push_back(concatenatedSample[thisIndx]);
-					}
-					resampledIndexs.push_back(oneBootstrapSample); 
-				}
-			}
-		}
-
 		// we do not need to pre-build the samples (uses too much memory, and we may not need all the samples anyway if there is convergence)
 		// ... we imagine a virtual balancedResampling scheme
 		// ... with N samples of length p we have the Np sequence 0,1,...,p,0,1,...p   
 		// ... we have an integer "nPpos" indexing this Np vector and every time we want a random sample we choose index=rand()*(nPpos--) which is notionally in the index/p "block"
 		// ... but since all the blocks are the same, we just use element index % p from the single block 0,1,...,p
 		// ... ta-daa!!
-
+		const unsigned int longNumOfSequences(1000);
+		unsigned long int maxNpPos = longNumOfSequences*totalNumReturns;  // if maxNpPos is TOO large then sampling from its deceasing value is tantamount to no balancedResampling as the sample space essentially never shrinks materially
+		unsigned long int npPos    = maxNpPos;
+		// faster to put repeated indices in a vector, compared to modulo arithmetic, and we only need manageable arrays eg 100y of daily data is 36500 points, repeated 1000 - 36,500,000 which is well within the MAX_SIZE
+		std::vector<unsigned int> returnsSeq; returnsSeq.reserve(maxNpPos); for (i=0; i < longNumOfSequences; i++){ for (j=0; j<totalNumReturns; j++) { returnsSeq.push_back(j); } }
+		std::vector<std::vector <int>> resampledIndexs;
+		if (0){  // the OLD memory-hog
+			// prebuild all nonparametric bootstrap samples (each of sixe productDays) in resampledIndexes
+			if (numMcIterations>1) {
+				// balacedResampling (and antithetic): ensures each real observation is sampled roughly equally; more effective than antithetic
+				// ... build concatenatedSample[] to contain a repeated sequence of integers, ranging from 0 to totalNumreturns-1, which will be used as indexes to select a random return 
+				int concatenatedBlocks = (int)floor(numMcIterations / 2.0) + 1;
+				std::vector<int> concatenatedSample; concatenatedSample.reserve((maxProductDays - 1)*concatenatedBlocks);
+				std::vector <int>::size_type maxVec= concatenatedSample.max_size();
+				// std::cout << "The maximum possible length of the vector is " << maxVec << "." << std::endl;
+				for (i=0; i<(maxProductDays - 1)*concatenatedBlocks;) {
+					for (j=0; j < totalNumReturns; j++) {
+						concatenatedSample.push_back(j);
+						i += 1;
+					}
+				}
+				int concatenatedLength = concatenatedSample.size();
+				// permutations will now give balanced sample
+				for (int bootSample=0; bootSample<numMcIterations; bootSample++) {
+					if (bootSample % 2 == 0) {
+						std::vector<int> oneBootstrapSample; oneBootstrapSample.reserve(maxProductDays);
+						for (j=0; j<maxProductDays; j++, concatenatedLength--) {
+							int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(concatenatedLength - 1));
+							oneBootstrapSample.push_back(concatenatedSample[thisIndx]);
+						}
+						resampledIndexs.push_back(oneBootstrapSample);
+					}
+				}
+			}
+		}
+		
+		
 
 		// see if any brels have endDays shorter than barrier endDays
 		for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
@@ -1306,39 +1313,60 @@ public:
 			
 
 			// create new random sample for next iteration
-			if (numMcIterations>1){
-				bool useNewMethod(true);
-				if (useNewMethod){   // NEW adds representative to antithetic sampling
-					int thisAntithetic = (int)floor(thisIteration / 2.0);
-					std::vector<int> &thisTrace(resampledIndexs[thisAntithetic]);
-					bool useAntithetic = thisIteration % 2 == 0;
+			if (numMcIterations > 1){
+				bool useNewerMethod(true);
+				bool useNewMethod(false);
+				unsigned long int _notionalIx;
+				int thisReturnIndex;
+				if (useNewerMethod){
+					// just uses balanced sampling - we can't do true antithetic sampling
 					for (j = 1; j <= maxProductDays; j++){
-						int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j-1] - 1 : thisTrace[j-1];
+						_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
+						// SLOW: thisReturnIndex = _notionalIx % totalNumReturns;
+						thisReturnIndex = returnsSeq[_notionalIx];
 						for (i = 0; i < numUl; i++) {
-							double thisReturn; thisReturn = ulReturns[i][thisIndx];
+							double thisReturn; thisReturn = ulReturns[i][thisReturnIndex];
 							ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
 						}
+						// wind back one unit
+						npPos = npPos>1 ? npPos - 1 : maxNpPos;
 					}
 				}
-				else{   // OLD method KEEP
-					for (j = 1; j < totalNumReturns; j++){
-						int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
-						for (i = 0; i < numUl; i++) {
-							double thisReturn; thisReturn = ulReturns[i][thisIndx];
-							ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+				else {
+					if (useNewMethod){   // NEW adds representative to antithetic sampling
+						int thisAntithetic = (int)floor(thisIteration / 2.0);
+						std::vector<int> &thisTrace(resampledIndexs[thisAntithetic]);
+						bool useAntithetic = thisIteration % 2 == 0;
+						for (j = 1; j <= maxProductDays; j++){
+							int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j - 1] - 1 : thisTrace[j - 1];
+							for (i = 0; i < numUl; i++) {
+								double thisReturn; thisReturn = ulReturns[i][thisIndx];
+								ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+							}
+						}
+					}
+					else{   // OLD method KEEP
+						for (j = 1; j < totalNumReturns; j++){
+							int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
+							for (i = 0; i < numUl; i++) {
+								double thisReturn; thisReturn = ulReturns[i][thisIndx];
+								ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+							}
 						}
 					}
 				}
 			}
-
+			
 
 			// wind 'thisPoint' forwards to next TRADING date, so as to start a new product
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
-				while (allNonTradingDays.at(thisPoint) && thisPoint < lastPoint) {
-					thisPoint += 1;
+				if (numMcIterations == 1){  // only need to start on a trading day for HistoricBacktest
+					while (allNonTradingDays.at(thisPoint) && thisPoint < lastPoint) {
+						thisPoint += 1;
+					}
+					if (thisPoint >= lastPoint){ continue; }
 				}
-				if (thisPoint >= lastPoint){ continue; }
-
+				
 				// possibly track timepoints ulIds
 				if (doTimepoints){
 					for (i=0; i < numTimepoints; i++){
@@ -1595,8 +1623,8 @@ public:
 				}
 			}
 
-			std::cout << ".";
-			if (thisIteration>750 && (thisIteration + 1) % 100 == 0){
+			if ((thisIteration + 1) % 1000 == 0){ std::cout << "."; }
+			if (thisIteration>750 && (thisIteration + 1) % 10000 == 0){
 				double thisMean       = PayoffMean(barrier);
 				double thisStdevRatio = PayoffStdev(barrier, thisMean) / thisMean;
 				double thisChange     = floor(10000.0*(thisStdevRatio - stdevRatio) / stdevRatio) / 100.0;
@@ -1659,7 +1687,7 @@ public:
 			}
 			
 
-			// process results
+			// process resultsfor
 			const double tol = 1.0e-6;
 			const double unwindPayoff = 0.1;
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
