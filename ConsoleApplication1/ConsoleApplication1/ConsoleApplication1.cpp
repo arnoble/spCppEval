@@ -636,7 +636,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// further initialisation, given product info
-			spr.productDays = *max_element(monDateIndx.begin(), monDateIndx.end());
+			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
+			spr.maxProductDays = maxBarrierDays + daysExtant;
 			numMonPoints = monDateIndx.size();
 			// ...check product not matured
 			if (!numMonPoints || (numMonPoints == 1 && monDateIndx[0] == 0)){ continue; }

@@ -1168,7 +1168,7 @@ public:
 	};
 
 	// public members: DOME consider making private
-	int                             productDays,numUls;
+	int                             maxProductDays,productDays, numUls;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl;
 	std::vector <double>            baseCurveTenor, baseCurveSpread;
@@ -1256,8 +1256,10 @@ public:
 			// balacedResampling (and antithetic): ensures each real observation is sampled roughly equally; more effective than antithetic
 			// ... build concatenatedSample[] to contain a repeated sequence of integers, ranging from 0 to totalNumreturns-1, which will be used as indexes to select a random return 
 			int concatenatedBlocks = (int)floor(numMcIterations / 2.0) + 1;
-			std::vector<int> concatenatedSample; concatenatedSample.reserve((productDays-1)*concatenatedBlocks);
-			for (i=0; i<(productDays-1)*concatenatedBlocks;) {
+			std::vector<int> concatenatedSample; concatenatedSample.reserve((maxProductDays-1)*concatenatedBlocks);
+			std::vector <int>::size_type maxVec= concatenatedSample.max_size();
+			// std::cout << "The maximum possible length of the vector is " << maxVec << "." << std::endl;
+			for (i=0; i<(maxProductDays-1)*concatenatedBlocks;) {
 				for (j=0; j < totalNumReturns; j++) {
 					concatenatedSample.push_back(j);
 					i += 1;
@@ -1267,8 +1269,8 @@ public:
 			// permutations will now give balanced sample
 			for (int bootSample=0; bootSample<numMcIterations; bootSample++) {
 				if (bootSample % 2 == 0) {
-					std::vector<int> oneBootstrapSample; oneBootstrapSample.reserve(productDays);
-					for (j=0; j<productDays; j++, concatenatedLength--) {
+					std::vector<int> oneBootstrapSample; oneBootstrapSample.reserve(maxProductDays);
+					for (j=0; j<maxProductDays; j++, concatenatedLength--) {
 						int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(concatenatedLength - 1));
 						oneBootstrapSample.push_back(concatenatedSample[thisIndx]);
 					}
@@ -1276,6 +1278,13 @@ public:
 				}
 			}
 		}
+
+		// we do not need to pre-build the samples (uses too much memory, and we may not need all the samples anyway if there is convergence)
+		// ... we imagine a virtual balancedResampling scheme
+		// ... with N samples of length p we have the Np sequence 0,1,...,p,0,1,...p   
+		// ... we have an integer "nPpos" indexing this Np vector and every time we want a random sample we choose index=rand()*(nPpos--) which is notionally in the index/p "block"
+		// ... but since all the blocks are the same, we just use element index % p from the single block 0,1,...,p
+		// ... ta-daa!!
 
 
 		// see if any brels have endDays shorter than barrier endDays
@@ -1303,7 +1312,7 @@ public:
 					int thisAntithetic = (int)floor(thisIteration / 2.0);
 					std::vector<int> &thisTrace(resampledIndexs[thisAntithetic]);
 					bool useAntithetic = thisIteration % 2 == 0;
-					for (j = 1; j <= productDays; j++){
+					for (j = 1; j <= maxProductDays; j++){
 						int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j-1] - 1 : thisTrace[j-1];
 						for (i = 0; i < numUl; i++) {
 							double thisReturn; thisReturn = ulReturns[i][thisIndx];
