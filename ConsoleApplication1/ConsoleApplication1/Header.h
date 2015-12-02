@@ -1893,7 +1893,7 @@ public:
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
 				double averageReturn = sumAnnRets / numAnnRets;
-				double vaR975        = 100.0*allPayoffs[floor(numAnnRets*0.025)];
+				double vaR975        = 100.0*allAnnRets[floor(numAnnRets*(0.025))];
 
 				// SRRI vol
 				struct srriParams { double conf, normStds, normES; };
