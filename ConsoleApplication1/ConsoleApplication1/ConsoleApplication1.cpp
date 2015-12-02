@@ -206,6 +206,9 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			issuePrice              = atof(szAllPrices[colProductIssuePrice]);
+			// clean bid,ask
+			if (bidPrice <= 0.0 && askPrice > 0.0){ bidPrice=askPrice; }
+			if (bidPrice > 0.0  && askPrice <= 0.0){ askPrice=bidPrice; }
 			midPrice                = ((bidPrice > 99.999) && (askPrice > 99.999) && (bidPrice < 100.001) && (askPrice < 100.001)) ? 1.0 : (bidPrice + askPrice) / (2.0*issuePrice);
 			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
