@@ -1738,7 +1738,7 @@ public:
 
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount = thisBarrierPayoffs[i];
-							double thisAnnRet = exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0; // assume once investor has lost 90% it is unwound...
+							double thisAnnRet = max(0.2,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 							
 							// maybe save finalAssetReturns
 							if (doFinalAssetReturn && !applyCredit && totalFarCounter<400000){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
