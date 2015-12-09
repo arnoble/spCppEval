@@ -571,7 +571,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// possibly pad future ulPrices for resampling into if there is not enough history
-			int daysPadding = maxBarrierDays + daysExtant - totalNumDays+1; 
+			int daysPadding = max(maxBarrierDays,maxBarrierDays + daysExtant - totalNumDays + 1);
 			boost::gregorian::date  bTempDate = bLastDataDate;
 			while (daysPadding>0){
 				bTempDate += boost::gregorian::days(1);
@@ -581,8 +581,9 @@ int _tmain(int argc, _TCHAR* argv[])
 					ulOriginalPrices.at(i).date.push_back(charBuffer);						ulPrices.at(i).date.push_back(charBuffer);
 					ulOriginalPrices.at(i).price.push_back(0.0);							ulPrices.at(i).price.push_back(0.0);
 					// DOME: crudely mimic-ing weekends
-					char mimicTradingDay = (daysPadding % 6) || (daysPadding % 7);
-					ulOriginalPrices.at(i).nonTradingDay.push_back(mimicTradingDay);		ulPrices.at(i).nonTradingDay.push_back(mimicTradingDay);
+					int  dayOfWeek           = daysPadding % 7;
+					bool mimicNonTradingDay  = (dayOfWeek == 5) || (dayOfWeek == 6);
+					ulOriginalPrices.at(i).nonTradingDay.push_back(mimicNonTradingDay);		ulPrices.at(i).nonTradingDay.push_back(mimicNonTradingDay);
 				}
 				daysPadding -= 1;
 			}
@@ -668,7 +669,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				false, false, timepointDays, timepointNames, simPercentiles,doPriips);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
-			spr.evaluate(totalNumDays, daysExtant, thisNumIterations == 1 ? totalNumDays - spr.productDays : daysExtant+1, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000,thisNumIterations), historyStep, ulPrices, ulReturns,
+			spr.evaluate(totalNumDays, totalNumDays - 1 /*daysExtant*/, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId,contBenchmarkTER,hurdleReturn,
 				doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips);
 			// tidy up

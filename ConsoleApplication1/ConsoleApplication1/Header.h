@@ -1320,7 +1320,7 @@ public:
 				int thisReturnIndex;
 				if (useNewerMethod){
 					// just uses balanced sampling - we can't do true antithetic sampling
-					for (j = 1; j <= maxProductDays; j++){
+					for (j = startPoint+1; j <= startPoint+productDays; j++){
 						_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
 						// SLOW: thisReturnIndex = _notionalIx % totalNumReturns;
 						thisReturnIndex = returnsSeq[_notionalIx];
@@ -1337,7 +1337,7 @@ public:
 						int thisAntithetic = (int)floor(thisIteration / 2.0);
 						std::vector<int> &thisTrace(resampledIndexs[thisAntithetic]);
 						bool useAntithetic = thisIteration % 2 == 0;
-						for (j = 1; j <= maxProductDays; j++){
+						for (j = startPoint+1; j <= maxProductDays; j++){
 							int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j - 1] - 1 : thisTrace[j - 1];
 							for (i = 0; i < numUl; i++) {
 								double thisReturn; thisReturn = ulReturns[i][thisIndx];
@@ -1442,7 +1442,7 @@ public:
 						if (b.isExtremum) {
 							double thisExtremum;
 							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0           ){ firstPoint  = 0; }
-							int lastPoint  = thisPoint + thisBrel.endDays;   if (lastPoint  > totalNumDays-1){ lastPoint   = totalNumDays-1; }
+							int lastPoint  = thisPoint + thisBrel.endDays;   // if (lastPoint  > totalNumDays-1){ lastPoint   = totalNumDays-1; }
 							const std::vector<double>&  thisTimeseries = ulPrices.at(thisName).price;
 							// 'Continuous'    means ONE-touch  so Above needs MAX  and !Above needs MIN
 							// 'ContinuousALL' means  NO-touch  so Above needs MIN  and !Above needs MAX
