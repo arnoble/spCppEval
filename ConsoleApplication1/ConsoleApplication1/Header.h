@@ -1442,7 +1442,9 @@ public:
 						if (b.isExtremum) {
 							double thisExtremum;
 							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0           ){ firstPoint  = 0; }
-							int lastPoint  = thisPoint + thisBrel.endDays;   // if (lastPoint  > totalNumDays-1){ lastPoint   = totalNumDays-1; }
+							int lastPoint  = thisPoint + thisBrel.endDays;   
+							// accruals only look as far as real data (cannot look further into simulated time
+							if (doAccruals && (lastPoint  > totalNumDays-1)){ lastPoint   = totalNumDays-1; }
 							const std::vector<double>&  thisTimeseries = ulPrices.at(thisName).price;
 							// 'Continuous'    means ONE-touch  so Above needs MAX  and !Above needs MIN
 							// 'ContinuousALL' means  NO-touch  so Above needs MIN  and !Above needs MAX
@@ -1464,7 +1466,9 @@ public:
 					if (b.isExtremum && (!doAccruals || b.endDays<0)) {
 						if (b.isContinuousGroup && numBrel>1 ) {  // eg product 536, all underlyings must be above their barriers on some common date
 							int firstPoint = thisPoint + b.brel[0].startDays; if (firstPoint < 0){ firstPoint  = 0; }
-							int lastPoint  = thisPoint + b.brel[0].endDays;   if (lastPoint  > totalNumDays - 1){ lastPoint   = totalNumDays - 1; }
+							int lastPoint  = thisPoint + b.brel[0].endDays;   
+							// accruals only look as far as real data (cannot look further into simulated time
+							if (doAccruals && (lastPoint  > totalNumDays - 1)){ lastPoint   = totalNumDays - 1; }
 							std::vector<int> ulNames;
 							for (unsigned int uI = 0; uI < numBrel; uI++){
 								ulNames.push_back(ulIdNameMap.at(b.brel.at(uI).underlying));
