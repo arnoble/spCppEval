@@ -1719,7 +1719,7 @@ public:
 					int                 numInstances    = b.hit.size();
 					double              sumProportion   = b.sumProportion;
 					double              thisYears       = b.yearsToBarrier;
-					double              prob            = sumProportion / numAllEpisodes; // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
+					double              prob            = b.hasBeenHit ? 1.0 :  sumProportion / numAllEpisodes; // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
 					double              thisProbDefault = probDefault(hazardCurve, thisYears);
 					for (i = 0; i < b.hit.size(); i++){
 						thisAmount = b.hit[i].amount;
