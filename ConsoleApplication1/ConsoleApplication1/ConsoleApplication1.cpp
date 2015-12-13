@@ -669,7 +669,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				false, false, timepointDays, timepointNames, simPercentiles,doPriips);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
-			spr.evaluate(totalNumDays, totalNumDays - 1 /*daysExtant*/, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+			spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId,contBenchmarkTER,hurdleReturn,
 				doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips);
 			// tidy up
