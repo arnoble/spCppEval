@@ -1621,7 +1621,7 @@ public:
 					int thisNumCouponHits=0;
 					for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 						SpBarrier &b(barrier[thisBarrier]);
-						if (!b.capitalOrIncome && (b.hasBeenHit || barrierWasHit[thisBarrier])){ thisNumCouponHits += 1; }
+						if (!b.capitalOrIncome && (b.hasBeenHit || barrierWasHit[thisBarrier]) && b.proportionHits == 1.0){ thisNumCouponHits += 1; }
 					}
 					numCouponHits.at(thisNumCouponHits) += 1;
 				}
@@ -1670,7 +1670,7 @@ public:
 			// ** delete old
 			sprintf(lineBuffer, "%s%d%s%d%s","delete from couponhistogram where ProductId='", productId, "' and IsBootstrapped='", numMcIterations == 1 ? 0 : 1, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
-			if (!hasProportionalAvg && numIncomeBarriers){
+			if (/* !hasProportionalAvg && */ numIncomeBarriers){
 				// ** insert new
 				for (int thisNumHits=0; thisNumHits < numCouponHits.size(); thisNumHits++){
 					sprintf(lineBuffer, "%s%d%s%d%s%.5lf%s%d%s",
