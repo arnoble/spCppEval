@@ -1667,11 +1667,10 @@ public:
 			}
 
 			// couponHistogram
+			// ** delete old
+			sprintf(lineBuffer, "%s%d%s%d%s","delete from couponhistogram where ProductId='", productId, "' and IsBootstrapped='", numMcIterations == 1 ? 0 : 1, "'");
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
 			if (!hasProportionalAvg && numIncomeBarriers){
-				// ** delete old
-				sprintf(lineBuffer, "%s%d%s%d%s",
-					"delete from couponhistogram where ProductId='", productId, "' and IsBootstrapped='", numMcIterations == 1 ? 0:1, "'");
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				// ** insert new
 				for (int thisNumHits=0; thisNumHits < numCouponHits.size(); thisNumHits++){
 					sprintf(lineBuffer, "%s%d%s%d%s%.5lf%s%d%s",
