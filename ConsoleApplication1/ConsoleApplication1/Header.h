@@ -1215,7 +1215,9 @@ public:
 		const std::vector<int>    timepointDays,
 		const std::vector<std::string> timepointNames,
 		const std::vector<double> simPercentiles,
-		const bool doPriips){
+		const bool doPriips,
+		const char *useProto){
+		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
@@ -1378,7 +1380,7 @@ public:
 					}
 
 					// save path
-					if (doPaths){
+					if (doPaths && !usingProto){
 						for (i=0; i < numTimepoints; i++){
 							int thisTpDays = timepointDays[i];
 							bool firstTime = true;
@@ -1667,23 +1669,25 @@ public:
 			}
 
 			// couponHistogram
-			// ** delete old
-			sprintf(lineBuffer, "%s%d%s%d%s","delete from couponhistogram where ProductId='", productId, "' and IsBootstrapped='", numMcIterations == 1 ? 0 : 1, "'");
-			mydb.prepare((SQLCHAR *)lineBuffer, 1);
-			if (/* !hasProportionalAvg && */ numIncomeBarriers){
-				// ** insert new
-				for (int thisNumHits=0; thisNumHits < numCouponHits.size(); thisNumHits++){
-					sprintf(lineBuffer, "%s%d%s%d%s%.5lf%s%d%s",
-					"insert into couponhistogram (ProductId,NumCoupons,Prob,IsBootstrapped) values (",productId,",",
-					thisNumHits, ",", ((double)numCouponHits[thisNumHits]) / numAllEpisodes, ",", numMcIterations == 1 ? 0 : 1, ")");
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			if (!usingProto){
+				// ** delete old
+				sprintf(lineBuffer, "%s%d%s%d%s", "delete from couponhistogram where ProductId='", productId, "' and IsBootstrapped='", numMcIterations == 1 ? 0 : 1, "'");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				if (/* !hasProportionalAvg && */ numIncomeBarriers){
+					// ** insert new
+					for (int thisNumHits=0; thisNumHits < numCouponHits.size(); thisNumHits++){
+						sprintf(lineBuffer, "%s%d%s%d%s%.5lf%s%d%s",
+							"insert into couponhistogram (ProductId,NumCoupons,Prob,IsBootstrapped) values (", productId, ",",
+							thisNumHits, ",", ((double)numCouponHits[thisNumHits]) / numAllEpisodes, ",", numMcIterations == 1 ? 0 : 1, ")");
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
 				}
 			}
-
+			
 			// doFinalAssetReturn
 			char farBuffer[100000];
 			int  farCounter(0),totalFarCounter(0);
-			if (doFinalAssetReturn){
+			if (doFinalAssetReturn && !usingProto){
 				strcpy(farBuffer, "insert into finalassetreturns values ");
 				sprintf(lineBuffer, "%s%d%s", "delete from finalassetreturns where productid='", productId, "'");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -1744,7 +1748,7 @@ public:
 							double thisAnnRet = min(0.2,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 							
 							// maybe save finalAssetReturns
-							if (doFinalAssetReturn && !applyCredit && totalFarCounter<400000){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
+							if (doFinalAssetReturn && !usingProto && !applyCredit && totalFarCounter<400000){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
 								if (farCounter){ strcat(farBuffer, ","); }
 								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i], ")");
 								farCounter += 1;
@@ -1777,7 +1781,7 @@ public:
 					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
-					sprintf(lineBuffer, "%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update barrierprob set Prob='", prob,
+					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update ",useProto,"barrierprob set Prob='", prob,
 						"',AnnReturn='", annReturn,
 						"',CondPayoff='", mean,
 						"',NumInstances='", numInstances,
@@ -1798,7 +1802,7 @@ public:
 				// ...first recognises the fact that a 6y annuity is worth more than a 1y annuity
 				// ...second assumes annualised returns have equal duration
 				bool doWinLoseAnnualised = true; // as you want
-				if (analyseCase == 0) {
+				if (analyseCase == 0 && !usingProto) {
 					if (doDebug){ std::cerr << "Starting analyseResults WinLose for case \n" << analyseCase << std::endl; }
 					sprintf(lineBuffer, "%s%d%s", "delete from winlose where productid='", productId, "';");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -1831,7 +1835,7 @@ public:
 
 
 				// possibly track timepoints
-				if (doTimepoints && analyseCase == 0){
+				if (doTimepoints && analyseCase == 0 && !usingProto){
 					for (i=0; i < numTimepoints; i++){
 						int thisTpDays   = timepointDays[i];
 						std::string name = timepointNames[i];
@@ -1930,7 +1934,7 @@ public:
 
 
 				// pctiles and other calcs
-				if (numMcIterations > 1 && analyseCase == 0) {
+				if (numMcIterations > 1 && analyseCase == 0 && !usingProto) {
 					if (doDebug){ std::cerr << "Starting analyseResults PcTile for case \n" << analyseCase << std::endl; }
 
 					// pctiles
@@ -1946,14 +1950,14 @@ public:
 					returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets);
 					sprintf(lineBuffer, "%s%d%s", "delete from pctiles where productid='", productId, "';");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					
+
 					sprintf(lineBuffer, "%s", "insert into pctiles values ");
 					for (i=0; i < returnBucket.size(); i++){
 						if (i != 0){ sprintf(lineBuffer, "%s%s", lineBuffer, ","); }
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s%.4lf%s%d%s%d%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1, ")");
 					}
 					sprintf(lineBuffer, "%s%s", lineBuffer, ";");
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);	
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
 
@@ -2014,7 +2018,7 @@ public:
 				int    secsTaken = difftime(time(0), startTime);
 
 				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='",                   secsTaken);
-				sprintf(lineBuffer, "%s%.5lf", "update cashflows set ExpectedPayoff='",      expectedPayoff);
+				sprintf(lineBuffer, "%s%s%s%.5lf", "update ",useProto,"cashflows set ExpectedPayoff='",      expectedPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='",       ePosPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedLossPayoff='",       eNegPayoff);

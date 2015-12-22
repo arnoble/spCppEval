@@ -13,16 +13,17 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'debug' 'priips' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'debug' 'priips' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId ;
 		int              stopProductId ; 
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             doFinalAssetReturn(false),forceIterations(false), doDebug(false), doPriips(false);
+		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), doPriips(false);
 		char             lineBuffer[1000], charBuffer[1000];
 		char             startDate[11]      = "";
 		char             endDate[11]        = "";
+		char             useProto[6]        = "";
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 
@@ -36,6 +37,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations"   )){ forceIterations    = true; }
 			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
+			if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer)){ strcpy(startDate, lineBuffer); }
@@ -75,7 +77,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		} else {
 			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
 		}
-		sprintf(lineBuffer, "%s%s%s", "select p.ProductId from product p join cashflows c using (ProductId) ",charBuffer, " and Matured='0' and ProjectedReturn=1 ");
+		sprintf(lineBuffer, "%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto, "cashflows c using (ProductId) ", charBuffer, " and Matured='0' and ProjectedReturn=1 ");
 		if (minSecsTaken){
 			sprintf(lineBuffer, "%s%s%d",lineBuffer, " and SecsTaken>=", minSecsTaken);
 		}
@@ -141,7 +143,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductLast
 			};
-			sprintf(lineBuffer, "%s%d%s", "select * from product where ProductId='", productId, "'");
+			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 			retcode = mydb.fetch(true);
 			int  thisNumIterations  = forceIterations ? numMcIterations : atoi(szAllPrices[colProductMaxIterations]);
@@ -259,10 +261,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<int> ulIds;
 			vector<string> ulCcys;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
-			sprintf(lineBuffer, "%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy from productbarrier join barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='", 
+			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
 				productId, "' ");
 			if (benchmarkId){
-				sprintf(charBuffer, "%s%d%s%d%s", " union (select ", benchmarkId, ",u.ccy from product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
+				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",u.ccy from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
 				strcat(lineBuffer, charBuffer);
 			}
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
@@ -398,7 +400,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
 				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colStrikeReset, colStopLoss, colAvgInAlgebra, colOriginalStrike, colForfeitCoupons, colProductBarrierLast
 			};
-			sprintf(lineBuffer, "%s%d%s", "select * from productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
+			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
 			retcode = mydb.fetch(true);
 			map<char, int>::iterator curr, end;
@@ -448,7 +450,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					brcolTriggered, brcolIsAbsolute, brcolUpperBarrier, brcolWeight, brcolStrikeOverride, colBarrierRelationLast
 				};
 				// ** SQL fetch block
-				sprintf(lineBuffer, "%s%d%s", "select * from barrierrelation where ProductBarrierId='", barrierId, "' order by UnderlyingId");
+				sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "barrierrelation where ProductBarrierId='", barrierId, "' order by UnderlyingId");
 				mydb1.prepare((SQLCHAR *)lineBuffer, colBarrierRelationLast);
 				retcode = mydb1.fetch(false);
 				// ...parse each barrierrelation row
@@ -666,12 +668,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, contBenchmarkTER,hurdleReturn,
-				false, false, timepointDays, timepointNames, simPercentiles,doPriips);
+				false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId,contBenchmarkTER,hurdleReturn,
-				doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips);
+				doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto);
 			// tidy up
 
 		} // for each product
