@@ -1799,7 +1799,7 @@ public:
 
 				// winlose ratios for different cutoff returns
 				// ...two ways to do it
-				// ...first recognises the fact that a 6y annuity is worth more than a 1y annuity
+				// ...first recognises the fact that a 6y annuity is worth more than a 1y annuityexpe
 				// ...second assumes annualised returns have equal duration
 				bool doWinLoseAnnualised = true; // as you want
 				if (analyseCase == 0 && !usingProto) {
@@ -2017,14 +2017,14 @@ public:
 				double expectedPayoff = sumPayoffs / numAnnRets;
 				int    secsTaken = difftime(time(0), startTime);
 
-				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='",                   secsTaken);
+				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',SecsTaken='",                   secsTaken);
 				sprintf(lineBuffer, "%s%s%s%.5lf", "update ",useProto,"cashflows set ExpectedPayoff='",      expectedPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='",       ePosPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedLossPayoff='",       eNegPayoff);
-				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FirstDataDate='",               allDates[0].c_str());
-				sprintf(lineBuffer, "%s%s%s", lineBuffer, "',LastDataDate='",                allDates[totalNumDays - 1].c_str());
-				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumResamples='",       thisIteration);
+				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='",               allDates[0].c_str());
+				sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='",                allDates[totalNumDays - 1].c_str());
+				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumResamples='",       thisIteration);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='",        duration);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolStds='",         srriStds);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolConf='",         srriConf);
@@ -2071,10 +2071,12 @@ public:
 				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
 
 				sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
-				std::cout << lineBuffer <<  std::endl;
-
+				std::cout << lineBuffer <<  std::endl;	
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				//retcode = mydb.execute(true);
+				sprintf(charBuffer, "%s%.2lf%s%.2lf", analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",100.0*geomReturn,":",100.0*esVol*pow(duration,0.5));
+				std::cout << charBuffer << std::endl;
+
 			}
 		}
 	}
