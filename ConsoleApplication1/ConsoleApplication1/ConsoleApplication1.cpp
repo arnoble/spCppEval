@@ -101,7 +101,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int              productId, anyTypeId, thisPayoffId;
 			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, issuePrice, bidPrice, askPrice, midPrice;
 			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, 
-				description, avgInAlgebra, productTimepoints, productPercentiles;
+				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,lastDataDateString;
 			bool             capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
@@ -141,7 +141,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
-				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductLast
+				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, colProductFairValueDate, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -154,13 +154,16 @@ int _tmain(int argc, _TCHAR* argv[])
 			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
 			bool collateralised     = atoi(szAllPrices[colProductCollateralised]) == 1;
 			bool currencyStruck     = atoi(szAllPrices[colProductCurrencyStruck]) == 1;
-			bool doTimepoints       = atoi(szAllPrices[colProductDoTimepoints])   == 1;
-			bool doPaths            = atoi(szAllPrices[colProductDoPaths]) == 1;
+			bool doTimepoints       = atoi(szAllPrices[colProductDoTimepoints]  ) == 1;
+			bool doPaths            = atoi(szAllPrices[colProductDoPaths]       ) == 1;
 			if ((doPaths || doTimepoints) && (numProducts > 1)){
 				doTimepoints = false;
 				doPaths      = false;
 				cout << "We only doTimepoints/paths if #products is 1 ... if you need timepoints/paths please do each product singly as it can overburden the database..thanks" << endl;
 			};
+			bool stalePrice         = atoi(szAllPrices[colProductStalePrice]) == 1;
+			double fairValuePrice   = atof(szAllPrices[colProductFairValue]);
+			fairValueDateString     = szAllPrices[colProductFairValueDate];
 			int  benchmarkId        = atoi(szAllPrices[colProductBenchmarkId]);
 			double hurdleReturn     = atof(szAllPrices[colProductHurdleReturn])/100.0;
 			double contBenchmarkTER = -log(1.0 - atof(szAllPrices[colProductHurdleReturn]) / 100.0);
@@ -211,7 +214,6 @@ int _tmain(int argc, _TCHAR* argv[])
 			// clean bid,ask
 			if (bidPrice <= 0.0 && askPrice > 0.0){ bidPrice=askPrice; }
 			if (bidPrice > 0.0  && askPrice <= 0.0){ askPrice=bidPrice; }
-			midPrice                = ((bidPrice > 99.999) && (askPrice > 99.999) && (bidPrice < 100.001) && (askPrice < 100.001)) ? 1.0 : (bidPrice + askPrice) / (2.0*issuePrice);
 			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 			cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
@@ -377,11 +379,13 @@ int _tmain(int argc, _TCHAR* argv[])
 				lastDate = bDate;
 				retcode = mydb.fetch(false);
 			}
-			totalNumDays    = ulOriginalPrices.at(0).price.size();
-			totalNumReturns = totalNumDays - 1;
-			ulPrices        = ulOriginalPrices; // copy constructor called
+			totalNumDays       = ulOriginalPrices.at(0).price.size();
+			lastDataDateString = ulOriginalPrices.at(0).date[totalNumDays - 1];
+			totalNumReturns    = totalNumDays - 1;
+			midPrice           = stalePrice && (fairValueDateString == lastDataDateString) ? fairValuePrice / issuePrice : (bidPrice + askPrice) / (2.0*issuePrice);
+			ulPrices           = ulOriginalPrices; // copy constructor called
 			vector<double> thesePrices(numUl), startLevels(numUl);
-			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(ulOriginalPrices.at(0).date[totalNumDays - 1]));
+			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
 			cerr << "NumPrices:\t" << totalNumDays << "FirstDataDate:\t" << ulOriginalPrices.at(0).date[0] << endl;
 			int daysExtant = (bLastDataDate - bProductStartDate).days(); if (daysExtant < 0){ daysExtant = 0; }
 			int tradingDaysExtant(0);
