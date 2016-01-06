@@ -719,7 +719,7 @@ public:
 			theseReturns.push_back(thesePrices[thisIndx] / thisBrel.refLevel);
 		}
 		sort(theseReturns.begin(), theseReturns.end(), std::greater<double>()); // sort DECENDING
-		nthLargestReturn = theseReturns[param1];
+		nthLargestReturn = theseReturns[param1 <= 0 ? 0 : param1 - 1];
 		for (j=0; j<numBrel; j++){   // mark inactive barrierRelations
 			const SpBarrierRelation &thisBrel(brel[j]);
 			thisIndx         = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
@@ -811,7 +811,7 @@ public:
 				theseReturns.push_back(thesePrices[thisIndx] / thisRefLevel);
 			}
 			sort(theseReturns.begin(), theseReturns.end(), std::greater<double>()); // sort DECENDING
-			nthLargestReturn = theseReturns[param1];
+			nthLargestReturn = theseReturns[param1 <= 0 ? 0 : param1-1];
 			for (j=0; j<numBrel; j++){   // mark inactive barrierRelations
 				const SpBarrierRelation &thisBrel(brel[j]);
 				thisIndx         = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
@@ -928,8 +928,9 @@ public:
 				double avgNpayoff(0.0);
 				sort(optionPayoffs.begin(), optionPayoffs.end(), std::greater<double>()); // sort DECENDING
 				for (optionPayoff=0, j=0, len=param1; j<len; j++){
-					avgNpayoff += optionPayoffs[j] * (productShape == "Rainbow" ? param1*brel[j].weight : 1.0);
-				}
+					double brelWeight = brel[j].weight;
+					avgNpayoff += optionPayoffs[j] * (productShape == "Rainbow" || brelWeight != 0.0 ? param1*brelWeight : 1.0);
+					}
 				optionPayoff = avgNpayoff > 0.0 ? avgNpayoff / param1 : 0.0;
 				break;
 				}
