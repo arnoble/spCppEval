@@ -2075,6 +2075,10 @@ public:
 				std::cout << lineBuffer <<  std::endl;	
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				//retcode = mydb.execute(true);
+				if (analyseCase == 0){
+					sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set MidPriceUsed=", midPrice);
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
 				sprintf(charBuffer, "%s%.2lf%s%.2lf", analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",100.0*geomReturn,":",100.0*esVol*pow(duration,0.5));
 				std::cout << charBuffer << std::endl;
 
