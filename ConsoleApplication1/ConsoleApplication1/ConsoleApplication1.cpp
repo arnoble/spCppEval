@@ -101,7 +101,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int              productId, anyTypeId, thisPayoffId;
 			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, issuePrice, bidPrice, askPrice, midPrice;
 			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, 
-				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,lastDataDateString;
+				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
@@ -138,7 +138,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// get product table data
 			enum {
-				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk,
+				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, colProductFairValueDate, colProductLast
@@ -164,6 +164,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			bool stalePrice         = atoi(szAllPrices[colProductStalePrice]) == 1;
 			double fairValuePrice   = atof(szAllPrices[colProductFairValue]);
 			fairValueDateString     = szAllPrices[colProductFairValueDate];
+			bidAskDateString        = szAllPrices[colProductBidAskDate];
 			int  benchmarkId        = atoi(szAllPrices[colProductBenchmarkId]);
 			double hurdleReturn     = atof(szAllPrices[colProductHurdleReturn])/100.0;
 			double contBenchmarkTER = -log(1.0 - atof(szAllPrices[colProductHurdleReturn]) / 100.0);
@@ -382,7 +383,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			totalNumDays       = ulOriginalPrices.at(0).price.size();
 			lastDataDateString = ulOriginalPrices.at(0).date[totalNumDays - 1];
 			totalNumReturns    = totalNumDays - 1;
-			midPrice           = stalePrice && (fairValueDateString == lastDataDateString) ? fairValuePrice / issuePrice : (bidPrice + askPrice) / (2.0*issuePrice);
+			midPrice           = (bidAskDateString < lastDataDateString) && stalePrice && (fairValueDateString == lastDataDateString) ? fairValuePrice / issuePrice : (bidPrice + askPrice) / (2.0*issuePrice);
 			ulPrices           = ulOriginalPrices; // copy constructor called
 			vector<double> thesePrices(numUl), startLevels(numUl);
 			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
