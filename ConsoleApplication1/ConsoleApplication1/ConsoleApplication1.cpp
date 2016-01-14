@@ -380,6 +380,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				lastDate = bDate;
 				retcode = mydb.fetch(false);
 			}
+
 			totalNumDays       = ulOriginalPrices.at(0).price.size();
 			lastDataDateString = ulOriginalPrices.at(0).date[totalNumDays - 1];
 			totalNumReturns    = totalNumDays - 1;

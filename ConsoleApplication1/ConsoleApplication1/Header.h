@@ -2017,7 +2017,8 @@ public:
 				else { winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0; }
 				if (winLose > 1000.0){ winLose = 1000.0; }
 				double expectedPayoff = sumPayoffs / numAnnRets;
-				int    secsTaken = difftime(time(0), startTime);
+				double earithReturn   = pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
+				int    secsTaken      = difftime(time(0), startTime);
 
 				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',SecsTaken='",                   secsTaken);
 				sprintf(lineBuffer, "%s%s%s%.5lf", "update ",useProto,"cashflows set ExpectedPayoff='",      expectedPayoff);
@@ -2039,7 +2040,7 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolNegRet='",    esVolNegRet);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
 				// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   earithReturn);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='",    sharpeRatio);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='",   riskCategory);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScore1to10='", riskScore1to10);
@@ -2080,7 +2081,7 @@ public:
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
-				sprintf(charBuffer, "%s%.2lf%s%.2lf", analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",100.0*geomReturn,":",100.0*esVol*pow(duration,0.5));
+				sprintf(charBuffer, "%s%.2lf%s%.2lf", analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",100.0*earithReturn,":",100.0*esVol*pow(duration,0.5));
 				std::cout << charBuffer << std::endl;
 
 			}
