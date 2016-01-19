@@ -1312,7 +1312,10 @@ public:
 
 
 		// main MC loop
-		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>0.1; thisIteration++) {
+		double accuracyTol(0.1);
+		if (numMcIterations <= 25000){ accuracyTol = 2.0; }
+		else if (numMcIterations <= 50000){ accuracyTol = 1.0; }
+		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>accuracyTol; thisIteration++) {
 			
 
 			// create new random sample for next iteration
