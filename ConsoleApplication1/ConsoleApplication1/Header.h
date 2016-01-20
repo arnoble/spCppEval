@@ -2084,7 +2084,14 @@ public:
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
-				sprintf(charBuffer, "%s%.2lf%s%.2lf", analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",100.0*earithReturn,":",100.0*esVol*pow(duration,0.5));
+				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
+						100.0*geomReturn, ":", 
+						100.0*earithReturn, ":",
+						100.0*esVol*pow(duration, 0.5), ":",
+						100.0*probStrictGain, ":",
+						100.0*probLoss, ":",
+						ecStrictGain, ":",
+						ecLoss);
 				std::cout << charBuffer << std::endl;
 
 			}
