@@ -2021,6 +2021,7 @@ public:
 				if (winLose > 1000.0){ winLose = 1000.0; }
 				double expectedPayoff = sumPayoffs / numAnnRets;
 				double earithReturn   = pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
+				double bmRelAverage   = bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf;
 				int    secsTaken      = difftime(time(0), startTime);
 
 				sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',SecsTaken='",                   secsTaken);
@@ -2067,12 +2068,12 @@ public:
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbShortfall='", benchmarkProbUnderperf);
 				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondShortfall='", benchmarkCondUnderperf*100.0);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbOutperf='", benchmarkProbOutperf);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondOutperf='", benchmarkCondOutperf*100.0);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelCAGR='", bmRelCAGR);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelOutperfPV='", bmRelOutperfPV);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelUnderperfPV='", bmRelUnderperfPV);
-				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelAverage='", bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbOutperf='",   benchmarkProbOutperf);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondOutperf='",   benchmarkCondOutperf*100.0);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelCAGR='",              bmRelCAGR);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelOutperfPV='",         bmRelOutperfPV);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelUnderperfPV='",       bmRelUnderperfPV);
+				sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelAverage='",           bmRelAverage);
 
 				sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
 
@@ -2084,14 +2085,23 @@ public:
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
-				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
+				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", 
+						analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
 						100.0*geomReturn, ":", 
 						100.0*earithReturn, ":",
 						100.0*esVol*pow(duration, 0.5), ":",
 						100.0*probStrictGain, ":",
 						100.0*probLoss, ":",
 						ecStrictGain, ":",
-						ecLoss);
+						ecLoss,
+						100.0*benchmarkProbOutperf,
+						benchmarkCondOutperf,
+						100.0*benchmarkProbUnderperf,
+						benchmarkCondUnderperf,
+						bmRelCAGR,
+						bmRelOutperfPV,
+						bmRelUnderperfPV,
+						bmRelAverage);
 				std::cout << charBuffer << std::endl;
 
 			}
