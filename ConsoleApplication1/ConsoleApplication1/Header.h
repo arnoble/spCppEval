@@ -2093,15 +2093,15 @@ public:
 						100.0*probStrictGain, ":",
 						100.0*probLoss, ":",
 						ecStrictGain, ":",
-						ecLoss,
-						100.0*benchmarkProbOutperf,
-						benchmarkCondOutperf,
-						100.0*benchmarkProbUnderperf,
-						benchmarkCondUnderperf,
-						bmRelCAGR,
-						bmRelOutperfPV,
-						bmRelUnderperfPV,
-						bmRelAverage);
+						ecLoss, ":",
+						100.0*benchmarkProbOutperf, ":",
+						100.0*benchmarkCondOutperf, ":",
+						100.0*benchmarkProbUnderperf, ":",
+						100.0*benchmarkCondUnderperf, ":",
+						100.0*bmRelCAGR, ":",
+						100.0*bmRelOutperfPV, ":",
+						100.0*bmRelUnderperfPV, ":",
+						100.0*bmRelAverage);
 				std::cout << charBuffer << std::endl;
 
 			}
