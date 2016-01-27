@@ -312,6 +312,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			char ulSql[10000]; // enough for around 100 underlyings...
 			char crossRateBuffer[100];
 			
+
 			// get PRIIPs start date to use
 			char startDateBuffer[100];
 			if (strlen(endDate)){ strcpy(charBuffer,endDate); }
@@ -394,6 +395,19 @@ int _tmain(int argc, _TCHAR* argv[])
 			for (i = 0; ulOriginalPrices.at(0).date[totalNumDays - 1 - i] > productStartDateString; i++){
 				tradingDaysExtant += 1;
 			}
+
+
+
+			// benchmark moneyness
+			double benchmarkMoneyness = 1.0;
+			if (benchmarkId != 0){
+				// ...compute moneyness
+				const UlTimeseries  &ulTimeseries =  ulOriginalPrices.at(ulIdNameMap[benchmarkId]);
+				int lastIndx(ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
+				benchmarkMoneyness  = ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
+			}
+
+
 
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
@@ -669,17 +683,17 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// initialise product, now we have all the state
 			spr.init();
-
+			
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, contBenchmarkTER,hurdleReturn,
-				false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto);
+				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+				contBenchmarkTER, hurdleReturn,false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId,contBenchmarkTER,hurdleReturn,
-				doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto);
+				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+				contBenchmarkTER, hurdleReturn,doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto);
 			// tidy up
 
 		} // for each product

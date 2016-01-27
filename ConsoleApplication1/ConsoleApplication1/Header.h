@@ -1209,6 +1209,7 @@ public:
 		const bool                doDebug,
 		const time_t              startTime,
 		const int                 benchmarkId,
+		const double              benchmarkMoneyness,
 		const double              contBenchmarkTER,
 		const double              hurdleReturn,
 		const bool                doTimepoints, 
@@ -1534,7 +1535,8 @@ public:
 										// ** maybe record benchmark performance
 										if (benchmarkId){
 											n      = ulIdNameMap[benchmarkId];
-											benchmarkReturn = thesePrices[n] / startLevels[n];
+											double thisRefLevel = startLevels[n] / benchmarkMoneyness;
+											benchmarkReturn = thesePrices[n] / thisRefLevel;
 										}
 										// END 
 										matured = true;
