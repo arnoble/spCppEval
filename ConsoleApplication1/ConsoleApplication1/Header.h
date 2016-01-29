@@ -1489,6 +1489,13 @@ public:
 				if (useNewerMethod){
 					// just uses balanced sampling - we can't do true antithetic sampling
 					for (j = startPoint+1; j <= startPoint+productDays; j++){
+						// ************
+						// riskNeutral simulation of underlyings
+						// ************
+
+						// ************
+						// bootstrap resampling of underlyings
+						// ************
 						_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
 						// SLOW: thisReturnIndex = _notionalIx % totalNumReturns;
 						thisReturnIndex = returnsSeq[_notionalIx];

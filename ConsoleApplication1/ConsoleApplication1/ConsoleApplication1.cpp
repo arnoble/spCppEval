@@ -416,6 +416,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector< vector<double> >          ulVolsTenor(numUl);
 			vector< vector<vector<double>> >  ulVolsStrike(numUl);
 			vector< vector<vector<double>> >  ulVolsImpVol(numUl);
+			vector< vector<vector<double>> >  ulVolsFwdVol(numUl);
 			vector<vector<double>>            oisRatesTenor(numUl);
 			vector<vector<double>>            oisRatesRate(numUl);
 			vector<vector<double>>            divYieldsTenor(numUl);
@@ -427,7 +428,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			if (getMarketData){
 				int    thisUidx;
-				double thisTenor;
+				double thisFwdVol,thisTenor,previousVol,previousTenor;
 				// vols
 				sprintf(ulSql, "%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from impvol where underlyingid in (",ulIds[0]);
 				for (i = 1; i < numUl; i++) {
@@ -438,7 +439,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				thisUidx    = 0;
 				thisTenor   = -1.0;
 				mydb.prepare((SQLCHAR *)ulSql, 4);
-				vector<double> someVols,someStrikes;
+				vector<double> someVols,someStrikes,someFwdVols;
 				retcode = mydb.fetch(true);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					int    nextUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
@@ -449,6 +450,8 @@ int _tmain(int argc, _TCHAR* argv[])
 						if (someVols.size()>0){
 							ulVolsImpVol[thisUidx].push_back(someVols);
 							someVols.resize(0);
+							ulVolsFwdVol[thisUidx].push_back(someFwdVols);
+							someFwdVols.resize(0);
 							ulVolsStrike[thisUidx].push_back(someStrikes);
 							someStrikes.resize(0);
 						}
@@ -460,10 +463,24 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 					someVols.push_back(thisVol);
 					someStrikes.push_back(thisStrike);
+					// forward vols
+					int numTenors  = ulVolsImpVol[thisUidx].size();
+					int numStrikes = someStrikes.size();
+					if (numTenors>0){ // calc forward vols
+						previousVol   = ulVolsImpVol[thisUidx][numTenors-1][numStrikes-1];
+						previousTenor = ulVolsTenor[thisUidx][numTenors - 1];
+						thisFwdVol    = pow((thisVol*thisVol*thisTenor - previousVol*previousVol*previousTenor) / (thisTenor - previousTenor), 0.5);
+						if (thisFwdVol <= 0.1){ thisFwdVol = 0.1; }
+					}
+					else {
+						thisFwdVol  = thisVol;
+					}
+					someFwdVols.push_back(thisFwdVol);
 					retcode = mydb.fetch(false);
 				}
 				if (someVols.size()>0){
 					ulVolsImpVol[thisUidx].push_back(someVols);
+					ulVolsFwdVol[thisUidx].push_back(someFwdVols);
 					ulVolsStrike[thisUidx].push_back(someStrikes);
 				}
 				//  OIS rates
