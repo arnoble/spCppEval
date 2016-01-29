@@ -564,10 +564,20 @@ int _tmain(int argc, _TCHAR* argv[])
 					fxcorrsCorrelation[thisUidx].push_back(thisCorr);
 					retcode = mydb.fetch(false);
 				}
-
-
 			}
-
+			MarketData  thisMarketData(ulVolsTenor,
+			ulVolsStrike,
+			ulVolsImpVol,
+			ulVolsFwdVol,
+			oisRatesTenor,
+			oisRatesRate,
+			divYieldsTenor,
+			divYieldsRate,
+			corrsOtherId,
+			corrsCorrelation,
+			fxcorrsOtherId,
+			fxcorrsCorrelation 
+			);
 
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
@@ -848,12 +858,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn,false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto);
+				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData,thisMarketData);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn,doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto);
+				contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData, thisMarketData);
 			// tidy up
 
 		} // for each product

@@ -201,12 +201,12 @@ void CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vect
 }
 
 void GenerateCorrelatedNormal(const int numUnderlyings,
-	std::vector<double> &correlatedRandom,
+	std::vector<double>                    &correlatedRandom,
 	const std::vector<std::vector<double>> &cholMatrix,
-	std::vector<double> &normalRandom,
-	const bool useAntithetic,
-	const int antitheticRow,
-	std::vector<std::vector<double>> &antitheticRandom) {
+	std::vector<double>                    &normalRandom,
+	const bool                             useAntithetic,
+	const int                              antitheticRow,
+	std::vector<std::vector<double>>       &antitheticRandom) {
 	int    i, j, k;
 	double anyDouble;
 	// get correlated standard Normal shocks
@@ -345,10 +345,36 @@ public:
 
 class MarketData {
 public:
-	MarketData(std::vector<std::vector<double>> &ulVols):ulVols(ulVols){
+	MarketData(
+		std::vector<std::vector<double>>                    &ulVolsTenor,
+		std::vector< std::vector<std::vector<double>> >     &ulVolsStrike,
+		std::vector< std::vector<std::vector<double>> >     &ulVolsImpVol,
+		std::vector< std::vector<std::vector<double>> >     &ulVolsFwdVol,
+		std::vector<std::vector<double>>                    &oisRatesTenor,
+		std::vector<std::vector<double>>                    &oisRatesRate,
+		std::vector<std::vector<double>>                    &divYieldsTenor,
+		std::vector<std::vector<double>>                    &divYieldsRate,
+		std::vector<std::vector<int>>                       &corrsOtherId,
+		std::vector<std::vector<double>>                    &corrsCorrelation,
+		std::vector<std::vector<int>>                       &fxcorrsOtherId,
+		std::vector<std::vector<double>>                    &fxcorrsCorrelation
+		) :ulVolsTenor(ulVolsTenor), ulVolsStrike(ulVolsStrike), ulVolsImpVol(ulVolsImpVol), ulVolsFwdVol(ulVolsFwdVol), oisRatesTenor(oisRatesTenor), oisRatesRate(oisRatesRate),
+		divYieldsTenor(divYieldsTenor), divYieldsRate(divYieldsRate), corrsOtherId(corrsOtherId), corrsCorrelation(corrsCorrelation), fxcorrsOtherId(fxcorrsOtherId), fxcorrsCorrelation(fxcorrsCorrelation)
+		{
 		}
-	std::vector<std::vector<double>> &ulVols;
-
+	std::vector< std::vector<double> >                  &ulVolsTenor;
+	std::vector< std::vector<std::vector<double>> >     &ulVolsStrike;
+	std::vector< std::vector<std::vector<double>> >     &ulVolsImpVol;
+	std::vector< std::vector<std::vector<double>> >     &ulVolsFwdVol;
+	std::vector<std::vector<double>>                    &oisRatesTenor;
+	std::vector<std::vector<double>>                    &oisRatesRate;
+	std::vector<std::vector<double>>                    &divYieldsTenor;
+	std::vector<std::vector<double>>                    &divYieldsRate;
+	std::vector<std::vector<int>>                       &corrsOtherId;
+	std::vector<std::vector<double>>                    &corrsCorrelation;
+	std::vector<std::vector<int>>                       &fxcorrsOtherId;
+	std::vector<std::vector<double>>                    &fxcorrsCorrelation;
+	
 };
 
 
@@ -1379,7 +1405,9 @@ public:
 		const std::vector<std::string> timepointNames,
 		const std::vector<double> simPercentiles,
 		const bool doPriips,
-		const char *useProto){
+		const char *useProto,
+		const bool getMarketData, 
+		const MarketData &md){
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
@@ -1475,6 +1503,41 @@ public:
 
 		// main MC loop
 		double accuracyTol(0.1);
+		double dt = 1 / 365.25;
+		double rootDt = sqrt(dt);
+		bool useAntithetic = true;
+		double thisT,thatT,thisPrice;
+		std::vector<std::vector<double> > cholMatrix(numUl, std::vector<double>(numUl)), rnCorr(numUl, std::vector<double>(numUl)), antitheticRandom(productDays, std::vector<double>(numUl));
+		std::vector<double> spotLevels, currentLevels, currentQuantoLevels, correlatedRandom(numUl), normalRandom(numUl);
+		if (getMarketData){
+			// other init
+			for (i = 0; i < numUl; i++) {
+				thisPrice = ulPrices[i].price[startPoint];
+				spotLevels.push_back(thisPrice);
+				currentLevels.push_back(thisPrice);
+				currentQuantoLevels.push_back(thisPrice);
+			}
+			// init correlation matrix
+			// ... initialise to unit diagonal
+			for (i=0; i<numUl; i++) {        	    
+				for (j=0; j<numUl; j++) {
+					rnCorr[i][j] = 0.0;
+				}
+				rnCorr[i][i] = 1.0;
+			}
+			// ... now populate with whatever correlations we are given
+			for (i=0; i < md.corrsCorrelation.size();i++) {
+				for (j=0; j<md.corrsCorrelation[i].size(); j++) {
+					int otherId = md.corrsOtherId[i][j];
+					double thisCorr = md.corrsCorrelation[i][j];
+					rnCorr[i][otherId]  = thisCorr;
+					rnCorr[otherId][i]  = thisCorr;
+				}
+			}
+			// now decompose the correlation matrix
+			CHOL(rnCorr, cholMatrix);
+
+		}
 		if (numMcIterations <= 25000){ accuracyTol = 2.0; }
 		else if (numMcIterations <= 50000){ accuracyTol = 1.0; }
 		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>accuracyTol; thisIteration++) {
@@ -1486,25 +1549,66 @@ public:
 				bool useNewMethod(false);
 				unsigned long int _notionalIx;
 				int thisReturnIndex;
+				std::vector<double> spotLevels, currentLevels;
+			
 				if (useNewerMethod){
+					if (getMarketData){
+						useAntithetic = !useAntithetic;
+					}
 					// just uses balanced sampling - we can't do true antithetic sampling
-					for (j = startPoint+1; j <= startPoint+productDays; j++){
+					for (thisT=-dt,j = startPoint+1; j <= startPoint+productDays; j++){
 						// ************
-						// riskNeutral simulation of underlyings
+						// riskNeutral simulation of underlyings - obsPoints are guaranteed 1 calendar day apart
 						// ************
+						if (getMarketData){
+							thisT += dt;
+							thatT  = thisT + dt;
+							double lognormalAdj = 0.5;
+							bool calledByPricer = true;
+							GenerateCorrelatedNormal(numUl, correlatedRandom, cholMatrix, normalRandom, useAntithetic, j-startPoint-1, antitheticRandom);
 
+							for (i = 0; i < numUl; i++) {
+								double thisReturn, thisSig, thisValue, thatValue, thisDriftRate, thisDivYieldRate, thisEqFxCorr;
+								// get forward (OIS) drift rate = r2.t2 = r1.t1 + dr.dt
+								std::vector<double>  theseTenors  = md.oisRatesTenor[i];
+								std::vector<double>  theseRates   = md.oisRatesRate[i];
+								thisValue        = interpVector(theseRates, theseTenors, thisT-dt);
+								thatValue        = interpVector(theseRates, theseTenors, thisT);
+								thisDriftRate    = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
+								// get forward div rate = r2.t2 = r1.t1 + dr.d
+								theseTenors = md.divYieldsTenor[i];
+								theseRates  = md.divYieldsRate[i];
+								thisValue        = interpVector(theseRates, theseTenors, thisT - dt);
+								thatValue        = interpVector(theseRates, theseTenors, thisT);
+								thisDivYieldRate = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
+								
+								//... any Quanto drift: LEAVE HERE IN CASE correlations become time-dependent
+								// DOME: this assumes all payoffs are quanto
+								// DOME: assumes all fx vols are 10% ...
+								thisEqFxCorr     = md.fxcorrsCorrelation[i].size() == 0 ? 0.0 : md.fxcorrsCorrelation[i][0];
+								// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
+								thisSig = InterpolateMatrix(md.ulVolsFwdVol[i], md.ulVolsTenor[i], md.ulVolsStrike[i][0], thisT, currentLevels[j] / spotLevels[j]);
+								//... calculate return for thisDt  for this underlying
+								thisReturn  = exp((thisDriftRate - thisDivYieldRate - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
+								currentLevels[i]         = currentLevels[i] * thisReturn;
+								currentQuantoLevels[i]   = currentQuantoLevels[i] * thisReturn *  (calledByPricer ? exp(-thisSig * thisEqFxCorr * 0.15 * dt) : 1.0);
+								ulPrices[i].price[i]     = currentQuantoLevels[i];
+							}
+						}
 						// ************
 						// bootstrap resampling of underlyings
 						// ************
-						_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
-						// SLOW: thisReturnIndex = _notionalIx % totalNumReturns;
-						thisReturnIndex = returnsSeq[_notionalIx];
-						for (i = 0; i < numUl; i++) {
-							double thisReturn; thisReturn = ulReturns[i][thisReturnIndex];
-							ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+						else {
+							_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
+							// SLOW: thisReturnIndex = _notionalIx % totalNumReturns;
+							thisReturnIndex = returnsSeq[_notionalIx];
+							for (i = 0; i < numUl; i++) {
+								double thisReturn; thisReturn = ulReturns[i][thisReturnIndex];
+								ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+							}
+							// wind back one unit
+							npPos = npPos>1 ? npPos - 1 : maxNpPos;
 						}
-						// wind back one unit
-						npPos = npPos>1 ? npPos - 1 : maxNpPos;
 					}
 				}
 				else {
