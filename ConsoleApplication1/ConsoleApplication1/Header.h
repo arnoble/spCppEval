@@ -16,6 +16,11 @@
 
 #define MAX_SP_BUF       500000
 
+
+
+
+
+
 // convert date wchar to char
 // ...consult this: http://msdn.microsoft.com/en-us/library/ms235631.aspx
 char *WcharToChar(const WCHAR* orig, size_t* convertedChars) {
@@ -159,6 +164,154 @@ double NormSInv(double p) {
 }
 double ESnorm(double prob) { return Dnorm(NormSInv(prob)) / prob; }
 
+// ********************
+// ********************* functions for riskNeutral simulations
+// ********************
+
+// Cholesky decomposition of (correlation) matrix
+void CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vector<double>> &outputMatrix) {
+	int i, j, k, N, element, len;
+	// init
+	N = matrix.size();
+	std::vector<std::vector<double>>  a(N, std::vector<double>(N));             // the original matrix
+	std::vector<std::vector<double>>  L_Lower(N, std::vector<double>(N));       // the new matrix
+	for (i=0; i<N; i++) {
+		for (j=0; j<N; j++) {
+			a[i].push_back(matrix[i][j]);   L_Lower[i].push_back(0.0);
+		}
+	}
+	// decompose
+	for (i=0; i<N; i++) {
+		for (j=0; j<N; j++) {
+			element = a[i][j];
+			for (k=0; k<i; k++) {
+				element = element - L_Lower[i][k] * L_Lower[j][k];
+			}
+			if (i == j){ L_Lower[i][i] = sqrt(element); }
+			else if (i < j) { L_Lower[j][i] = element / L_Lower[i][i]; }
+		}
+	}
+
+	// finally transpose it
+	for (i=0; i<N; i++) {
+		for (j=0; j<N; j++) {
+			outputMatrix[i][j] = L_Lower[j][i];
+		}
+	}
+}
+
+void GenerateCorrelatedNormal(const int numUnderlyings,
+	std::vector<double> &correlatedRandom,
+	const std::vector<std::vector<double>> &cholMatrix,
+	std::vector<double> &normalRandom,
+	const bool useAntithetic,
+	const int antitheticRow,
+	std::vector<std::vector<double>> &antitheticRandom) {
+	int    i, j, k;
+	double anyDouble;
+	// get correlated standard Normal shocks
+	for (j = 0; j<numUnderlyings; j++){
+		if (useAntithetic) {
+			normalRandom[j] = -antitheticRandom[antitheticRow][j];
+		}
+		else {
+			normalRandom[j] = NormSInv((double)rand() / RAND_MAX);
+			antitheticRandom[antitheticRow][j] = normalRandom[j];
+		}
+	}
+	for (j = 0; j<numUnderlyings; j++){
+		anyDouble = 0.0;
+		for (k = 0; k<numUnderlyings; k++){
+			anyDouble = anyDouble + normalRandom[k] * cholMatrix[k][j];
+		}
+		correlatedRandom[j] = anyDouble;
+	}
+}
+
+// arrayPosition - get first value in a 1-d array that is equal-to-or-larger than 'theValue'
+int ArrayPosition(const std::vector<double> &theArray, 
+		const double theValue, 
+		const int comparison) {
+	int i, found, len;
+	found = -1;
+	len   = theArray.size();
+	switch (comparison) {
+	case -1: // first number greater than or equal to, or maximum
+		for (i=0; i<len && found == -1; i++){
+			if (theArray[i] >= theValue){ found = i; }
+		}
+		if (found == -1) { found = len - 1; }
+		break;
+	case 0: // exact match
+		for (i=0; i<len && found == -1; i++){
+			if (theArray[i] == theValue){ found = i; }
+		}
+		break;
+	case 1: // first number less than or equal to, or minimum
+		for (i=len - 1; i >= 0 && found == -1; i--){
+			if (theArray[i] <= theValue){ found = i; }
+		}
+		if (found == -1) { found = 0; }
+		break;
+	}
+	return found;
+}
+
+// interpolate matrix, based on how rowValue and colValue index into rowAxis and colAxis
+double InterpolateMatrix(const std::vector<std::vector<double>> &matrix, 
+	const std::vector<double> &rowAxis, 
+	const std::vector<double> &colAxis, 
+	const double rowValue, 
+	const double colValue) {
+	int loColIndx, loRowIndx, hiColIndx, hiRowIndx;
+	double colRange, rowRange, colFraction, rowFraction, interpolatedRowLoCol, interpolatedRowHiCol;
+	// find column interpolation (indx,fraction)
+	hiRowIndx   = ArrayPosition(rowAxis, rowValue, -1);
+	hiColIndx   = ArrayPosition(colAxis, colValue, -1);
+	loRowIndx   = ArrayPosition(rowAxis, rowValue, 1);
+	loColIndx   = ArrayPosition(colAxis, colValue, 1);
+	rowRange    = rowAxis[hiRowIndx] - rowAxis[loRowIndx];
+	colRange    = colAxis[hiColIndx] - colAxis[loColIndx];
+	colFraction = colRange == 0.0 ? 0.0 : (colValue - colAxis[loColIndx]) / colRange;
+	rowFraction = rowRange == 0.0 ? 0.0 : (rowValue - rowAxis[loRowIndx]) / rowRange;
+
+
+	// imagine a new row
+	interpolatedRowLoCol = matrix[loRowIndx][loColIndx] + rowFraction * (matrix[hiRowIndx][loColIndx] - matrix[loRowIndx][loColIndx]);
+	interpolatedRowHiCol = matrix[loRowIndx][hiColIndx] + rowFraction * (matrix[hiRowIndx][hiColIndx] - matrix[loRowIndx][hiColIndx]);
+
+	return interpolatedRowLoCol + colFraction * (interpolatedRowHiCol - interpolatedRowLoCol);
+}
+
+
+
+// interpolate a vector based on a value 'point' indexing an axis
+double interpVector(const std::vector<double> &vector, 
+	const std::vector<double> &axis, 
+	const double point){
+	int i;
+	int len = vector.size();
+	if (len != axis.size()) return INFINITY;
+	if (point > axis[len - 1]) return vector[len - 1];  // flat extrapolation beyond longest  axis
+	if (point < axis[0]) return vector[0];  // flat extrapolation before shortest axis
+	for (i=0; point > axis[i] && i<len; i++) {}  // empty block...just getting "i" to the axis beyond point
+	// linear interpolation for now
+	double value;
+	if (point == axis[i]) value = vector[i];
+	else {
+		double previousAxis   = axis[i - 1];
+		double previousVector = vector[i - 1];
+		double fraction       = (point - previousAxis) / (axis[i] - previousAxis);
+		value                 = previousVector + fraction*(vector[i] - previousVector);
+	}
+	return value;
+}
+
+
+
+
+
+
 
 // ************** sundry functions
 double calcRiskCategory(const std::vector<double> &buckets,const double scaledVol,const double start){
@@ -188,6 +341,14 @@ public:
 	MapType(const int id, const std::string name) : id(id),name(name) {}
 	const int          id; 
 	const std::string  name;
+};
+
+class MarketData {
+public:
+	MarketData(std::vector<std::vector<double>> &ulVols):ulVols(ulVols){
+		}
+	std::vector<std::vector<double>> &ulVols;
+
 };
 
 

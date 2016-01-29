@@ -13,13 +13,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'debug' 'priips' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId ;
 		int              stopProductId ; 
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), doPriips(false);
+		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), doPriips(false), getMarketData(false);
 		char             lineBuffer[1000], charBuffer[1000];
 		char             startDate[11]      = "";
 		char             endDate[11]        = "";
@@ -37,6 +37,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations"   )){ forceIterations    = true; }
 			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
+			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
@@ -97,7 +98,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
 			int              oldProductBarrierId = 0, productBarrierId = 0;
 			int              numBarriers = 0, thisIteration = 0;
-			int              i, j, len, len1, anyInt, anyInt1, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
+			int              i, j, k, len, len1, anyInt, anyInt1, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId;
 			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, issuePrice, bidPrice, askPrice, midPrice;
 			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, 
@@ -263,6 +264,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			// they can come in any order of UnderlyingId (this is deliberate to aviod the code becoming dependent on any ordering
 			vector<int> ulIds;
 			vector<string> ulCcys;
+			map<string,int> ccyToUidMap;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
 			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
 				productId, "' ");
@@ -273,8 +275,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
 			retcode = mydb.fetch(true);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-				ulCcys.push_back(szAllPrices[1]);
-				uid = atoi(szAllPrices[0]);
+				string thisCcy = szAllPrices[1];
+				ulCcys.push_back(thisCcy);
+				uid         = atoi(szAllPrices[0]);
+				ccyToUidMap[thisCcy] = uid;
 				if (find(ulIds.begin(), ulIds.end(), uid) == ulIds.end()) {      // build list of uids
 					ulIds.push_back(uid);
 				}
@@ -407,6 +411,145 @@ int _tmain(int argc, _TCHAR* argv[])
 				benchmarkMoneyness  = ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
 			}
 
+
+			// market data
+			vector< vector<double> >          ulVolsTenor(numUl);
+			vector< vector<vector<double>> >  ulVolsStrike(numUl);
+			vector< vector<vector<double>> >  ulVolsImpVol(numUl);
+			vector<vector<double>>            oisRatesTenor(numUl);
+			vector<vector<double>>            oisRatesRate(numUl);
+			vector<vector<double>>            divYieldsTenor(numUl);
+			vector<vector<double>>            divYieldsRate(numUl);
+			vector<vector<int>>               corrsOtherId(numUl);
+			vector<vector<double>>            corrsCorrelation(numUl);
+			vector<vector<int>>               fxcorrsOtherId(numUl);
+			vector<vector<double>>            fxcorrsCorrelation(numUl);
+
+			if (getMarketData){
+				int    thisUidx;
+				double thisTenor;
+				// vols
+				sprintf(ulSql, "%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from impvol where underlyingid in (",ulIds[0]);
+				for (i = 1; i < numUl; i++) {
+					sprintf(ulSql, "%s%s%d", ulSql,",",ulIds[i]);
+				}
+				sprintf(ulSql, "%s%s", ulSql, ") and userid=3 order by UnderlyingId, Tenor, Strike");
+				// .. parse each record <Date,price0,...,pricen>
+				thisUidx    = 0;
+				thisTenor   = -1.0;
+				mydb.prepare((SQLCHAR *)ulSql, 4);
+				vector<double> someVols,someStrikes;
+				retcode = mydb.fetch(true);
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					int    nextUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
+					double nextTenor  = atof(szAllPrices[1]);
+					double thisStrike = atof(szAllPrices[2]);
+					double thisVol    = atof(szAllPrices[3]);
+					if (nextTenor != thisTenor){
+						if (someVols.size()>0){
+							ulVolsImpVol[thisUidx].push_back(someVols);
+							someVols.resize(0);
+							ulVolsStrike[thisUidx].push_back(someStrikes);
+							someStrikes.resize(0);
+						}
+						if (nextUidx != thisUidx){
+							thisUidx   = nextUidx;
+						}
+						thisTenor   = nextTenor;
+						ulVolsTenor[thisUidx].push_back(thisTenor);
+					}
+					someVols.push_back(thisVol);
+					someStrikes.push_back(thisStrike);
+					retcode = mydb.fetch(false);
+				}
+				if (someVols.size()>0){
+					ulVolsImpVol[thisUidx].push_back(someVols);
+					ulVolsStrike[thisUidx].push_back(someStrikes);
+				}
+				//  OIS rates
+				sprintf(ulSql, "%s%s", "select ccy,Tenor,Rate from oncurve v where ccy in ('", ulCcys[0].c_str());
+				for (i = 1; i < numUl; i++) {
+					sprintf(ulSql, "%s%s%s", ulSql, "','", ulCcys[i].c_str());
+				}
+				sprintf(ulSql, "%s%s", ulSql, "') order by ccy,Tenor");
+				// .. parse each record <Date,price0,...,pricen>
+				string thisCcy = "";
+				mydb.prepare((SQLCHAR *)ulSql, 3);
+				retcode = mydb.fetch(true);
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					string thisCcy   = szAllPrices[0];
+					int    thisUidx  = ulIdNameMap[ccyToUidMap[thisCcy]];
+					double thisTenor = atof(szAllPrices[1]);
+					double thisRate  = atof(szAllPrices[2]);
+					oisRatesTenor[thisUidx].push_back(thisTenor);
+					oisRatesRate[thisUidx].push_back(thisRate / 100.0);
+					retcode = mydb.fetch(false);
+				}
+				//  divYields
+				sprintf(ulSql, "%s%d", "select underlyingid,Tenor,impdivyield Rate from impdivyield d where d.UnderlyingId in (", ulIds[0]);
+				for (i = 1; i < numUl; i++) {
+					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
+				}
+				sprintf(ulSql, "%s%s", ulSql, ") and userid=3 order by UnderlyingId,Tenor ");
+				// .. parse each record <Date,price0,...,pricen>
+				mydb.prepare((SQLCHAR *)ulSql, 3);
+				retcode = mydb.fetch(true);
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					int    thisUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
+					double thisTenor  = atof(szAllPrices[1]);
+					double thisRate   = atof(szAllPrices[2]);
+					divYieldsTenor[thisUidx].push_back(thisTenor);
+					divYieldsRate[thisUidx].push_back(thisRate / 100.0);
+					retcode = mydb.fetch(false);
+				}
+				// add dummy records for underlyings for which there are no divs
+				for (i = 0; i < numUl; i++) {
+					if (divYieldsTenor[i].size() == 0){ 
+						divYieldsTenor[i].push_back(10.0);
+						divYieldsRate[i].push_back(0.0);
+					}
+				}
+				//  eq-eq corr
+				sprintf(ulSql, "%s%d", "select UnderlyingId,OtherId,Correlation from correlation c where OtherIdIsCcy=0 and UnderlyingId in (", ulIds[0]);
+				for (i = 1; i < numUl; i++) {
+					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
+				}
+				sprintf(ulSql, "%s%s%d", ulSql, ") and OtherId in (",ulIds[0]);
+				for (i = 1; i < numUl; i++) {
+					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
+				}
+				sprintf(ulSql, "%s%s", ulSql, ")  and userid=3 order by UnderlyingId,OtherId ");
+				// .. parse each record <Date,price0,...,pricen>
+				mydb.prepare((SQLCHAR *)ulSql, 3);
+				retcode   = mydb.fetch(false);
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					int    thisUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
+					int    otherUidx  = ulIdNameMap.at(atoi(szAllPrices[1]));
+					double thisCorr   = atof(szAllPrices[2]);
+					corrsOtherId[thisUidx].push_back(otherUidx);
+					corrsCorrelation[thisUidx].push_back(thisCorr);
+					retcode = mydb.fetch(false);
+				}
+				//  eq-fx corr
+				sprintf(ulSql, "%s%d", "select UnderlyingId,OtherId,Correlation from correlation c join currencies y on (y.CcyId=c.OtherId) where OtherIdIsCcy=1 and UnderlyingId in (", ulIds[0]);
+				for (i = 1; i < numUl; i++) {
+					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
+				}
+				sprintf(ulSql, "%s%s%s%s", ulSql, ") and y.Name='", productCcy.c_str(),"'  and userid=3 order by UnderlyingId,OtherId ");
+				// .. parse each record <Date,price0,...,pricen>
+				mydb.prepare((SQLCHAR *)ulSql, 3);
+				retcode   = mydb.fetch(false);
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					int    thisUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
+					int    otherUidx  = ulIdNameMap.at(atoi(szAllPrices[1]));
+					double thisCorr   = atof(szAllPrices[2]);
+					fxcorrsOtherId[thisUidx].push_back(otherUidx);
+					fxcorrsCorrelation[thisUidx].push_back(thisCorr);
+					retcode = mydb.fetch(false);
+				}
+
+
+			}
 
 
 			// create product
