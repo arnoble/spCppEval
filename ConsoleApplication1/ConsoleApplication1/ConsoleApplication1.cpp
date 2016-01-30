@@ -394,7 +394,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<double> thesePrices(numUl), startLevels(numUl);
 			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
 			cerr << "NumPrices:\t" << totalNumDays << "FirstDataDate:\t" << ulOriginalPrices.at(0).date[0] << endl;
-			int daysExtant = (bLastDataDate - bProductStartDate).days(); if (daysExtant < 0){ daysExtant = 0; }
+			int daysExtant = (bLastDataDate - bProductStartDate).days(); 
+			double forwardStartT(0.0);
+			if (daysExtant < 0){
+				forwardStartT = daysExtant / 365.25;
+				daysExtant = 0; 
+			}
 			int tradingDaysExtant(0);
 			for (i = 0; ulOriginalPrices.at(0).date[totalNumDays - 1 - i] > productStartDateString; i++){
 				tradingDaysExtant += 1;
@@ -469,7 +474,8 @@ int _tmain(int argc, _TCHAR* argv[])
 					if (numTenors>0){ // calc forward vols
 						previousVol   = ulVolsImpVol[thisUidx][numTenors-1][numStrikes-1];
 						previousTenor = ulVolsTenor[thisUidx][numTenors - 1];
-						thisFwdVol    = pow((thisVol*thisVol*thisTenor - previousVol*previousVol*previousTenor) / (thisTenor - previousTenor), 0.5);
+						double varianceDiff = (thisVol*thisVol*thisTenor - previousVol*previousVol*previousTenor);
+						thisFwdVol    = varianceDiff<0.0 ? thisVol : pow(varianceDiff / (thisTenor - previousTenor), 0.5);
 						if (thisFwdVol <= 0.1){ thisFwdVol = 0.1; }
 					}
 					else {
@@ -581,7 +587,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
-				productShape,depositGteed, collateralised, daysExtant, midPrice, baseCurve,ulIds);
+				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT,issuePrice);
 			numBarriers = 0;
 
 			// get barriers from DB
