@@ -1423,10 +1423,13 @@ public:
 		const std::vector<int>    timepointDays,
 		const std::vector<std::string> timepointNames,
 		const std::vector<double> simPercentiles,
-		const bool doPriips,
-		const char *useProto,
-		const bool getMarketData, 
-		const MarketData &md){
+		const bool                doPriips,
+		const char                *useProto,
+		const bool                getMarketData, 
+		const MarketData          &md,
+		const std::vector<double> &cdsTenor,
+		const std::vector<double> &cdsSpread,
+		const double              fundingFraction){
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
@@ -1554,11 +1557,6 @@ public:
 			}
 			// finally decompose this correlation matrix
 			CHOL(rnCorr, cholMatrix);
-			// other init
-			for (i = 0; i < numUl; i++) {
-				thisPrice = ulPrices[i].price[startPoint];
-				spotLevels[i] = currentLevels[i] = currentQuantoLevels[i] = thisPrice;
-			}
 		}
 		if (numMcIterations <= 25000){ accuracyTol = 2.0; }
 		else if (numMcIterations <= 50000){ accuracyTol = 1.0; }
@@ -1574,7 +1572,12 @@ public:
 			
 				if (useNewerMethod){
 					if (getMarketData){
+						// init
 						useAntithetic = !useAntithetic;
+						for (i = 0; i < numUl; i++) {
+							thisPrice = ulPrices[i].price[startPoint];
+							spotLevels[i] = currentLevels[i] = currentQuantoLevels[i] = thisPrice;
+						}
 					}
 					// just uses balanced sampling - we can't do true antithetic sampling
 					for (thisT=-dt,j = startPoint+1; j <= startPoint+productDays; j++){
@@ -2393,25 +2396,47 @@ public:
 				// report fair value things
 				if (getMarketData && analyseCase == 0){
 					double thisMean, thisStdev;
+					std::string   thisDateString(allDates.at(startPoint));
+					sprintf(charBuffer, "%s", "Spot,Forward,DiscountFactor\nUIDs: ");
+					for (i = 0; i < numUl; i++){
+						sprintf(charBuffer, "%s\t%d", charBuffer, ulIds[i]);
+					}
+					sprintf(charBuffer, "%s%s", charBuffer, "\t DiscountFactor");
+					std::cout << charBuffer << std::endl;
+					sprintf(charBuffer, "%s%s", "Spots on: ", thisDateString.c_str());
+					for (i = 0; i < numUl; i++){
+						sprintf(charBuffer, "%s\t%.2lf", charBuffer, spotLevels[i]);
+					}
+					std::cout << charBuffer << std::endl;
 					for (int thisMonIndx = 0; thisMonIndx < monDateIndx.size(); thisMonIndx++){
 						int thisMonPoint = startPoint + monDateIndx[thisMonIndx];
-						const std::string   thisDateString(allDates.at(thisMonPoint));
-						sprintf(charBuffer, "%s", "Forward prices");
-						for (i = 0; i < numUl; i++){
-							sprintf(charBuffer, "%s\t%d", charBuffer, ulIds[i]);
-						}
-						std::cout << charBuffer << std::endl; 
-						sprintf(charBuffer, "%s%s", "\nFwds(stdev) on: ", thisDateString.c_str());
+						thisDateString = allDates.at(thisMonPoint);
+						sprintf(charBuffer, "%s%s", "Fwds(stdev) on: ", thisDateString.c_str());
 						for (i = 0; i < numUl; i++){
 							MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev);
 							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", charBuffer, thisMean, "(",thisStdev,")");
 						}
+						double yearsToBarrier   = monDateIndx[thisMonIndx]/365.25;
+						double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
+						forwardRate            += fundingFraction*interpCurve(cdsTenor,cdsSpread, yearsToBarrier);
+						double discountT        = yearsToBarrier - forwardStartT;
+						double discountFactor   = pow(forwardRate, -discountT);
+
 						std::cout << charBuffer << std::endl;
 					}
 					// fair value
 					MeanAndStdev(pvInstances, thisMean, thisStdev);
-					sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", "FairValue(stdev): ", thisMean, "(", thisStdev, ")");
-
+					thisStdev  /= sqrt(1.0*pvInstances.size());
+					sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", "FairValue(stdev): ", thisMean*issuePrice, "(", thisStdev*issuePrice, ")");
+					std::cout << charBuffer << std::endl;
+		
+					// update db
+					sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisMean*issuePrice);
+					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStdev*issuePrice);
+					sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
+					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
+					std::cout << lineBuffer << std::endl;
+					// mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
 				// text output

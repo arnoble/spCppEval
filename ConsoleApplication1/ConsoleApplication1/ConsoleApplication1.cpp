@@ -142,7 +142,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
-				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, colProductFairValueDate, colProductLast
+				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, colProductFairValueDate, colProductFundingFraction, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -169,7 +169,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int  benchmarkId        = atoi(szAllPrices[colProductBenchmarkId]);
 			double hurdleReturn     = atof(szAllPrices[colProductHurdleReturn])/100.0;
 			double contBenchmarkTER = -log(1.0 - atof(szAllPrices[colProductHurdleReturn]) / 100.0);
-
+			double fundingFraction  = atof(szAllPrices[colProductFundingFraction]);
 			productStartDateString  = szAllPrices[colProductStrikeDate];
 			productCcy              = szAllPrices[colProductCcy];
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
@@ -522,7 +522,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					double thisTenor  = atof(szAllPrices[1]);
 					double thisRate   = atof(szAllPrices[2]);
 					divYieldsTenor[thisUidx].push_back(thisTenor);
-					divYieldsRate[thisUidx].push_back(thisRate / 100.0);
+					divYieldsRate[thisUidx].push_back(thisRate);
 					retcode = mydb.fetch(false);
 				}
 				// add dummy records for underlyings for which there are no divs
@@ -864,12 +864,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData,thisMarketData);
+				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData,thisMarketData,
+				cdsTenor,cdsSpread,fundingFraction);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData, thisMarketData);
+				contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData, thisMarketData,
+				cdsTenor, cdsSpread, fundingFraction);
 			// tidy up
 
 		} // for each product
