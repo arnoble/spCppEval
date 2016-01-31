@@ -126,7 +126,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, issuePrice, bidPrice, askPrice, midPrice;
 			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, 
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
-			bool             capitalOrIncome, above, at;
+			bool             productHasExtrema(false),capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
 
@@ -738,10 +738,11 @@ int _tmain(int argc, _TCHAR* argv[])
 				// DOME: for now ANY barrier with a brel which has different Start/End dates
 				// NOTE: different brels can have different start dates
 				// DOME:  need to check all brels have the same endDate
-					bool isExtremumBarrier = false;
+				bool isExtremumBarrier = false;
 				for (i = 0; i < thisBarrier.brel.size(); i++) {
 					if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate) {
 						isExtremumBarrier = true;
+						productHasExtrema = true;
 					}
 				}
 				thisBarrier.isExtremum = !thisBarrier.isStopLoss && isExtremumBarrier;  // force stopLoss barriers to be monitored daily, rather than be treated as an extremum, so stopLoss barriers do not need special processing in the simulator
@@ -888,13 +889,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData,thisMarketData,
-				cdsTenor,cdsSpread,fundingFraction);
+				cdsTenor, cdsSpread, fundingFraction, productHasExtrema);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 				contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData, thisMarketData,
-				cdsTenor, cdsSpread, fundingFraction);
+				cdsTenor, cdsSpread, fundingFraction, productHasExtrema);
 			// tidy up
 
 		} // for each product

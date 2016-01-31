@@ -1406,7 +1406,7 @@ public:
 		const int                 numBarriers, 
 		const int                 numUl, 
 		const std::vector<int>    ulIdNameMap, 
-		const std::vector<int>    monDateIndx,
+		std::vector<int>          monDateIndx,
 		const double              recoveryRate, 
 		const std::vector<double> hazardCurve,
 		MyDB                      &mydb,
@@ -1430,12 +1430,13 @@ public:
 		const MarketData          &md,
 		const std::vector<double> &cdsTenor,
 		const std::vector<double> &cdsSpread,
-		const double              fundingFraction){
+		const double              fundingFraction,
+		const bool                productHasExtrema){
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
-		int                      i, j, k, len, thisIteration,n;
+		int                      i, j, k, m, len, thisIteration,n;
 		double                   couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
 		std::vector<double>      stdevRatioPctChanges;
 		std::vector< std::vector<double> > someTimepoints[100];
@@ -1529,15 +1530,16 @@ public:
 		int numMonDates = monDateIndx.size(); 
 		double accuracyTol(0.1);
 		// market risk variables and init
-		bool calledByPricer = true;
-		double dt = 1 / 365.25;
-		double rootDt = sqrt(dt);
+		bool   calledByPricer = true;
 		bool useAntithetic = true;
 		double thisT,thatT,thisPrice;
 		std::vector<std::vector<double> > cholMatrix(numUl, std::vector<double>(numUl)), rnCorr(numUl, std::vector<double>(numUl)),
-			antitheticRandom(productDays, std::vector<double>(numUl));
+			antitheticRandom(productDays+1, std::vector<double>(numUl));
 		std::vector<std::vector<std::vector<double>>> mcForwards(numUl, std::vector<std::vector<double>>(numMonDates));
-		std::vector<double> spotLevels(numUl), currentLevels(numUl), currentQuantoLevels(numUl), correlatedRandom(numUl), normalRandom(numUl);
+		std::vector<double> thisEqFxCorr(numUl),thisDivYieldRate(numUl), thisDriftRate(numUl), spotLevels(numUl), currentLevels(numUl), currentQuantoLevels(numUl), correlatedRandom(numUl), normalRandom(numUl);
+		// set up forwardVols for the period to each obsDate
+		std::vector< std::vector< std::vector<double>> >  ObsDateVols(numUl); // numUl x numObsDates x strike
+		std::vector<double>                               ObsDatesT(numMonDates);
 		if (getMarketData){
 			// init correlation matrix
 			// ... initialise to unit diagonal
@@ -1558,75 +1560,160 @@ public:
 			}
 			// finally decompose this correlation matrix
 			CHOL(rnCorr, cholMatrix);
+
+			// set up forwardVols for the period to each obsDate
+			double oneDay  = 1.0 / 365.25;
+			for (i=0; i<numMonDates; i++) {
+				ObsDatesT[i] = monDateIndx[i] * oneDay;
+			}
+			for (i=0; i<numUl; i++) {
+				std::vector< std::vector<double>> &thisFwdVol = md.ulVolsFwdVol[i];
+				std::vector<double>               &thisTenor  = md.ulVolsTenor[i];
+				int numStrikes = thisFwdVol[0].size();
+				int numTenors  = thisFwdVol.size();
+				std::vector<std::vector<double>>  someVolSurface(numMonDates,std::vector<double>(numStrikes));
+				double latestObsVol = -1.0;
+				for (j=0; j<numStrikes; j++) {
+					int thisDateIndx        = 0;
+					int k                   = 0;
+					double cumulativeVariance  = 0.0;
+					double cumulativeT         = 0.0;
+					thatT               = 0.0;
+					while (thisDateIndx < numMonDates && k < numTenors) {
+						//
+						// accumulate vol to the next ObsDate
+						// ... imagine we have volTenors {1,2,3} but Obsdates {2,3}
+						//
+						double thisT   = thisTenor[k];
+						double thisVol = thisFwdVol[k][j];
+						double thisDt;
+						if (ObsDatesT[thisDateIndx] > thisT) {
+							// obsDate is beyond this strikeTenor, so just accumulate the variance and move to the next strikeTenor
+							thisDt             = (thisT - thatT);
+							cumulativeT        = cumulativeT + thisDt;
+							cumulativeVariance = cumulativeVariance + thisVol * thisVol * thisDt;
+							thatT = thisT;
+							k = k + 1;
+						}
+						else {
+							// obsDate is less than this strikeTenor, so accumulate part of this variance and move to the next obsDate
+							thisDt             = ObsDatesT[thisDateIndx] - thatT;
+							if (thisDt == 0.0) { thisDt = oneDay; }  // if evaluationDate is ON an obsDate then Dt can be zero, which would be pathological
+							cumulativeT        = cumulativeT + thisDt;
+							cumulativeVariance = cumulativeVariance + thisVol * thisVol * thisDt;
+							latestObsVol       = sqrt(cumulativeVariance / cumulativeT);
+							someVolSurface[thisDateIndx][j] = latestObsVol;
+							// re-initiaise
+							cumulativeVariance  = 0.0;
+							cumulativeT         = 0.0;
+							thatT               = ObsDatesT[thisDateIndx];
+							thisDateIndx        = thisDateIndx + 1;
+						}
+						// if there is no more vol surface then just repeat the last vol
+						if (k == numTenors) {
+							// if obsDate is beyond the last tenor, just use the cumulative variance to the last tenor
+							latestObsVol = sqrt(cumulativeVariance / cumulativeT);
+							for (m = thisDateIndx; m<numMonDates; m++) {
+								someVolSurface[m][j] = latestObsVol;
+							}
+						}
+					}
+				}
+				ObsDateVols[i] = someVolSurface;
+			}
 		}
 		if (numMcIterations <= 25000){ accuracyTol = 2.0; }
 		else if (numMcIterations <= 50000){ accuracyTol = 1.0; }
 		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>accuracyTol; thisIteration++) {
 			
-
 			// create new random sample for next iteration
 			if (numMcIterations > 1){
-				bool useNewerMethod(true);
-				bool useNewMethod(false);
-				unsigned long int _notionalIx;
-				int thisReturnIndex;
-			
-				if (useNewerMethod){
-					if (getMarketData){
-						// init
-						useAntithetic = !useAntithetic;
-						for (i = 0; i < numUl; i++) {
-							thisPrice = ulPrices[i].price[startPoint];
-							spotLevels[i] = currentLevels[i] = currentQuantoLevels[i] = thisPrice;
-						}
-					}
-					// just uses balanced sampling - we can't do true antithetic sampling
-					for (thisT=-dt,j = startPoint+1; j <= startPoint+productDays; j++){
-						// ************
-						// riskNeutral simulation of underlyings - obsPoints are guaranteed 1 calendar day apart
-						// ************
-						if (getMarketData){
-							thisT += dt;
-							thatT  = thisT + dt;
-							double lognormalAdj = 0.5;
-							GenerateCorrelatedNormal(numUl, correlatedRandom, cholMatrix, normalRandom, useAntithetic, j-startPoint-1, antitheticRandom);
 
+				if (getMarketData){
+					// init
+					useAntithetic = !useAntithetic;
+					for (i = 0; i < numUl; i++) {
+						thisPrice = ulPrices[i].price[startPoint];
+						spotLevels[i] = currentLevels[i] = currentQuantoLevels[i] = thisPrice;
+					}
+					// ************
+					// riskNeutral simulation of underlyings
+					// ...get market data as at each monDay, since marketData is likely less frequent, so makes no sense to sample more often
+					// ************
+					thisT           = 0.0;
+					int thisNumDays = 1;
+					for (int thisMonIndx = 0; thisMonIndx < numMonDates; thisMonIndx++){
+						int thatNumDays     = monDateIndx[thisMonIndx];
+						int thisMonPoint    = startPoint + thatNumDays;
+						double lognormalAdj = 0.5;
+						const std::string   thatDateString(allDates.at(thisMonPoint));
+						double thisReturn, thisSig, thisValue, thatValue;
+
+						// what is the time now
+						thatT   = thatNumDays / 365.25;
+						/*
+						* get market data for each underlying, on this date
+						*/
+						for (i = 0; i < numUl; i++) {
+							// get forward (OIS) drift rate = r2.t2 = r1.t1 + dr.dt
+							std::vector<double>  theseTenors  = md.oisRatesTenor[i];
+							std::vector<double>  theseRates   = md.oisRatesRate[i];
+							thisValue           = interpVector(theseRates, theseTenors, thisT);
+							thatValue           = interpVector(theseRates, theseTenors, thatT);
+							thisDriftRate[i]    = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
+							// get forward div rate = r2.t2 = r1.t1 + dr.d
+							theseTenors = md.divYieldsTenor[i];
+							theseRates  = md.divYieldsRate[i];
+							thisValue           = interpVector(theseRates, theseTenors, thisT);
+							thatValue           = interpVector(theseRates, theseTenors, thatT);
+							thisDivYieldRate[i] = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
+
+							//... any Quanto drift: LEAVE HERE IN CASE correlations become time-dependent
+							// DOME: this assumes all payoffs are quanto
+							// DOME: assumes all fx vols are 10% ...
+							thisEqFxCorr[i]     = md.fxcorrsCorrelation[i].size() == 0 ? 0.0 : md.fxcorrsCorrelation[i][0];
+						}
+						/*
+						*  now generate underlying shocks until this obsDate
+						*/
+						double dt      = productHasExtrema ? (1.0 / 365.25) : (thatT - thisT);
+						double rootDt  = sqrt(dt);
+						for (int thisDay = productHasExtrema ? thisNumDays : thatNumDays; thisDay <= thatNumDays; thisDay++){
+							/*
+							* calculate new prices for thisDt
+							*/
+							thisT          += dt;
+							int thatPricePoint  = startPoint + thisDay;
+							// ... simulate a set of standardNormal shocks
+							GenerateCorrelatedNormal(numUl, correlatedRandom, cholMatrix, normalRandom, useAntithetic, thisDay, antitheticRandom);
 							for (i = 0; i < numUl; i++) {
-								double thisReturn, thisSig, thisValue, thatValue, thisDriftRate, thisDivYieldRate, thisEqFxCorr;
-								// get forward (OIS) drift rate = r2.t2 = r1.t1 + dr.dt
-								std::vector<double>  theseTenors  = md.oisRatesTenor[i];
-								std::vector<double>  theseRates   = md.oisRatesRate[i];
-								thisValue        = interpVector(theseRates, theseTenors, thisT-dt);
-								thatValue        = interpVector(theseRates, theseTenors, thisT);
-								thisDriftRate    = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
-								// get forward div rate = r2.t2 = r1.t1 + dr.d
-								theseTenors = md.divYieldsTenor[i];
-								theseRates  = md.divYieldsRate[i];
-								thisValue        = interpVector(theseRates, theseTenors, thisT - dt);
-								thatValue        = interpVector(theseRates, theseTenors, thisT);
-								thisDivYieldRate = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
-								
-								//... any Quanto drift: LEAVE HERE IN CASE correlations become time-dependent
-								// DOME: this assumes all payoffs are quanto
-								// DOME: assumes all fx vols are 10% ...
-								thisEqFxCorr     = md.fxcorrsCorrelation[i].size() == 0 ? 0.0 : md.fxcorrsCorrelation[i][0];
 								// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
-								thisSig = InterpolateMatrix(md.ulVolsFwdVol[i], md.ulVolsTenor[i], md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
+								thisSig = InterpolateMatrix(ObsDateVols[i], ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 								//... calculate return for thisDt  for this underlying
-								thisReturn  = exp((thisDriftRate - thisDivYieldRate - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
-								currentLevels[i]         = currentLevels[i] * thisReturn;
-								if (int thisMonIndx = std::find(monDateIndx.begin(), monDateIndx.end(), j-startPoint) != monDateIndx.end()) {
-									mcForwards[i][thisMonIndx-1].push_back(currentLevels[i]);
-								}
-								
-								currentQuantoLevels[i]   = currentQuantoLevels[i] * thisReturn *  (calledByPricer ? exp(-thisSig * thisEqFxCorr * 0.15 * dt) : 1.0);
-								ulPrices[i].price[j]     = currentQuantoLevels[i];
+								thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
+								currentLevels[i]       = currentLevels[i] * thisReturn;
+								currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (calledByPricer ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0);
+								ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 							}
 						}
-						// ************
-						// bootstrap resampling of underlyings
-						// ************
-						else {
+						for (i = 0; i < numUl; i++) {
+							mcForwards[i][thisMonIndx].push_back(currentLevels[i]);
+						}
+					}
+				}
+				else {
+					// bootstrap resampling
+					bool useNewerMethod(true);
+					bool useNewMethod(false);
+					unsigned long int _notionalIx;
+					int thisReturnIndex;
+
+					if (useNewerMethod){
+						// just uses balanced sampling - we can't do true antithetic sampling
+						for (j = startPoint + 1; j <= startPoint + productDays; j++){
+							// ************
+							// bootstrap resampling of underlyings
+							// ************
 							_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
 							// SLOW: thisReturnIndex = _notionalIx % totalNumReturns;
 							thisReturnIndex = returnsSeq[_notionalIx];
@@ -1638,32 +1725,31 @@ public:
 							npPos = npPos>1 ? npPos - 1 : maxNpPos;
 						}
 					}
-				}
-				else {
-					if (useNewMethod){   // NEW adds representative to antithetic sampling
-						int thisAntithetic = (int)floor(thisIteration / 2.0);
-						std::vector<int> &thisTrace(resampledIndexs[thisAntithetic]);
-						bool useAntithetic = thisIteration % 2 == 0;
-						for (j = startPoint+1; j <= maxProductDays; j++){
-							int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j - 1] - 1 : thisTrace[j - 1];
-							for (i = 0; i < numUl; i++) {
-								double thisReturn; thisReturn = ulReturns[i][thisIndx];
-								ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+					else {
+						if (useNewMethod){   // NEW adds representative to antithetic sampling
+							int thisAntithetic = (int)floor(thisIteration / 2.0);
+							std::vector<int> &thisTrace(resampledIndexs[thisAntithetic]);
+							bool useAntithetic = thisIteration % 2 == 0;
+							for (j = startPoint + 1; j <= maxProductDays; j++){
+								int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j - 1] - 1 : thisTrace[j - 1];
+								for (i = 0; i < numUl; i++) {
+									double thisReturn; thisReturn = ulReturns[i][thisIndx];
+									ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+								}
 							}
 						}
-					}
-					else{   // OLD method KEEP
-						for (j = 1; j < totalNumReturns; j++){
-							int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
-							for (i = 0; i < numUl; i++) {
-								double thisReturn; thisReturn = ulReturns[i][thisIndx];
-								ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+						else{   // OLD method KEEP
+							for (j = 1; j < totalNumReturns; j++){
+								int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
+								for (i = 0; i < numUl; i++) {
+									double thisReturn; thisReturn = ulReturns[i][thisIndx];
+									ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+								}
 							}
 						}
 					}
 				}
 			}
-			
 
 			// wind 'thisPoint' forwards to next TRADING date, so as to start a new product
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
@@ -2422,7 +2508,7 @@ public:
 						forwardRate            += fundingFraction*interpCurve(cdsTenor,cdsSpread, yearsToBarrier);
 						double discountT        = yearsToBarrier - forwardStartT;
 						double discountFactor   = pow(forwardRate, -discountT);
-
+						sprintf(charBuffer, "%s\t%.2lf", charBuffer, discountFactor);
 						std::cout << charBuffer << std::endl;
 					}
 					// fair value
@@ -2435,8 +2521,8 @@ public:
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStderr*issuePrice);
 					sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
-					//std::cout << lineBuffer << std::endl;
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					std::cout << lineBuffer << std::endl;
+					// mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
 				// text output
