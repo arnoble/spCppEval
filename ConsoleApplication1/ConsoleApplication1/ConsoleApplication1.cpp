@@ -13,17 +13,18 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'notIllustrative' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId ;
 		int              stopProductId ; 
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), doPriips(false), getMarketData(false);
+		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), doPriips(false), getMarketData(false), notIllustrative(false),onlyTheseUls(false);
 		char             lineBuffer[1000], charBuffer[1000];
-		char             startDate[11]      = "";
-		char             endDate[11]        = "";
-		char             useProto[6]        = "";
+		char             onlyTheseUlsBuffer[1000] = "";
+		char             startDate[11]            = "";
+		char             endDate[11]              = "";
+		char             useProto[6]              = "";
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 
@@ -41,6 +42,23 @@ int _tmain(int argc, _TCHAR* argv[])
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
+			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }			
+			if (sscanf(thisArg, "only:%s", lineBuffer)){ 
+				onlyTheseUls = true; 
+				char *token = std::strtok(lineBuffer, ",");
+				std::vector<std::string> tokens;
+				while (token != NULL) {
+					tokens.push_back(token);
+					token = std::strtok(NULL, ",");
+				}
+				strcpy(lineBuffer,"");
+				for (int j=0; j < tokens.size();j++){
+					sprintf(lineBuffer, "%s%s%s%s%s", lineBuffer, (j == 0 ? "" : ","), "'", tokens[j].c_str(), "'");
+				}
+				sprintf(onlyTheseUlsBuffer, "%s%s%s",
+					" join (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid)join underlying u  using (underlyingid)where name not in(",
+					lineBuffer, "))) x using (productid) ");
+			}
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer)){ strcpy(startDate, lineBuffer); }
 			else if (sscanf(thisArg, "endDate:%s",      lineBuffer)){ strcpy(endDate,   lineBuffer); }
 			else if (sscanf(thisArg, "dbServer:%s",     lineBuffer)){ strcpy(dbServer,  lineBuffer); }
@@ -78,7 +96,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		} else {
 			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
 		}
-		sprintf(lineBuffer, "%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto, "cashflows c using (ProductId) ", charBuffer, " and Matured='0' and ProjectedReturn=1 ");
+		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto, "cashflows c using (ProductId) ", 
+			(onlyTheseUls ? onlyTheseUlsBuffer : ""),
+			charBuffer,
+			" and Matured=0 ", 
+			(notIllustrative ? " and Illustrative=0 " : ""), 
+			" and ProjectedReturn=1 ");
 		if (minSecsTaken){
 			sprintf(lineBuffer, "%s%s%d",lineBuffer, " and SecsTaken>=", minSecsTaken);
 		}

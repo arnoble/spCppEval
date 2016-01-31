@@ -19,7 +19,7 @@
 
 
 // mean and stdev
-void MeanAndStdev(std::vector<double> v,double &mean,double &stdev){
+void MeanAndStdev(std::vector<double> v, double &mean, double &stdev, double &stdErr){
 	int N = v.size();
 	// mean
 	double sum = std::accumulate(v.begin(), v.end(), 0.0);
@@ -29,7 +29,8 @@ void MeanAndStdev(std::vector<double> v,double &mean,double &stdev){
 	std::transform(v.begin(), v.end(), diff.begin(),
 		std::bind2nd(std::minus<double>(), mean));
 	double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
-	stdev = std::sqrt(sq_sum / N);
+	stdev  = std::sqrt(sq_sum  / N);
+	stdErr = std::sqrt(sq_sum) / N;
 }
 
 // convert date wchar to char
@@ -2395,7 +2396,7 @@ public:
 				}
 				// report fair value things
 				if (getMarketData && analyseCase == 0){
-					double thisMean, thisStdev;
+					double thisMean, thisStdev, thisStderr;
 					std::string   thisDateString(allDates.at(startPoint));
 					sprintf(charBuffer, "%s", "Spot,Forward,DiscountFactor\nUIDs: ");
 					for (i = 0; i < numUl; i++){
@@ -2413,8 +2414,8 @@ public:
 						thisDateString = allDates.at(thisMonPoint);
 						sprintf(charBuffer, "%s%s", "Fwds(stdev) on: ", thisDateString.c_str());
 						for (i = 0; i < numUl; i++){
-							MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev);
-							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", charBuffer, thisMean, "(",thisStdev,")");
+							MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev, thisStderr);
+							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", charBuffer, thisMean, "(",thisStderr,")");
 						}
 						double yearsToBarrier   = monDateIndx[thisMonIndx]/365.25;
 						double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
@@ -2425,9 +2426,8 @@ public:
 						std::cout << charBuffer << std::endl;
 					}
 					// fair value
-					MeanAndStdev(pvInstances, thisMean, thisStdev);
-					thisStdev  /= sqrt(1.0*pvInstances.size());
-					sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", "FairValue(stdev): ", thisMean*issuePrice, "(", thisStdev*issuePrice, ")");
+					MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
+					sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", "FairValue(stdev): ", thisMean*issuePrice, "(", thisStderr*issuePrice, ")");
 					std::cout << charBuffer << std::endl;
 		
 					// update db
