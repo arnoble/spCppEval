@@ -2432,11 +2432,11 @@ public:
 		
 					// update db
 					sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisMean*issuePrice);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStdev*issuePrice);
+					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStderr*issuePrice);
 					sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
-					std::cout << lineBuffer << std::endl;
-					// mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					//std::cout << lineBuffer << std::endl;
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
 				// text output

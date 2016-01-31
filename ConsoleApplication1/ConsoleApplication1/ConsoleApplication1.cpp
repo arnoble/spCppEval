@@ -108,7 +108,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		if (maxSecsTaken){
 			sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " and (WhenEvaluated is null or SecsTaken<=", maxSecsTaken,")");
 		}
-		
+		sprintf(lineBuffer, "%s%s", lineBuffer, " order by productid");
 		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			int x(atoi(szAllPrices[0])); allProductIds.push_back(x);
