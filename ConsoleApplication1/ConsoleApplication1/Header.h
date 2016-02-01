@@ -16,6 +16,20 @@
 
 #define MAX_SP_BUF       500000
 
+// correlation
+double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues) {
+	int N = aValues.size();
+	double fMean  = std::accumulate(aValues.begin(), aValues.end(), 0.0) / N;
+	double fMean1 = std::accumulate(bValues.begin(), bValues.end(), 0.0) / N;
+	double fVariance = 0.0;
+	for (int i=0; i < N; i++) {
+		double diff       = aValues[i] - fMean;
+		double diff1      = bValues[i] - fMean1;
+		fVariance += diff*diff1;
+	}
+	fVariance /= N;
+	return sqrt(fVariance);
+}
 
 
 // mean and stdev
@@ -2532,7 +2546,7 @@ public:
 					}
 					// fair value
 					MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
-					sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", "FairValueResults(stdev): ", thisMean*issuePrice, "(", thisStderr*issuePrice, ")");
+					sprintf(charBuffer, "%s\t%.2lf%s%.2lf", "FairValueResults(stdev): ", thisMean*issuePrice, ":", thisStderr*issuePrice);
 					std::cout << charBuffer << std::endl;
 		
 					// update db
