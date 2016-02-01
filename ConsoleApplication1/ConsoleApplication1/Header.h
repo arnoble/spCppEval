@@ -182,7 +182,8 @@ double ESnorm(double prob) { return Dnorm(NormSInv(prob)) / prob; }
 
 // Cholesky decomposition of (correlation) matrix
 void CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vector<double>> &outputMatrix) {
-	int i, j, k, N, element, len;
+	int i, j, k, N, len;
+	double element;
 	// init
 	N = matrix.size();
 	std::vector<std::vector<double>>  a(N, std::vector<double>(N));             // the original matrix
@@ -1529,7 +1530,7 @@ public:
 		// *****************
 		int numMonDates = monDateIndx.size(); 
 		double accuracyTol(0.1);
-		// market risk variables and init
+		// market risk variables and initc
 		bool   calledByPricer = true;
 		bool useAntithetic = true;
 		double thisT,thatT,thisPrice;
@@ -1541,6 +1542,15 @@ public:
 		std::vector< std::vector< std::vector<double>> >  ObsDateVols(numUl); // numUl x numObsDates x strike
 		std::vector<double>                               ObsDatesT(numMonDates);
 		if (getMarketData){
+			// debug only: init antitheticRandom and force its use below using 'true' for 'useAntithetic' in the call to GenerateCorrelatedNormal()
+			/*
+			for (i=0; i < antitheticRandom.size();i++){
+				for (j=0; j < numUl;j++){
+					antitheticRandom[i][j] = -1.0;
+				}
+			}
+			*/
+			
 			// init correlation matrix
 			// ... initialise to unit diagonal
 			for (i=0; i<numUl; i++) {        	    
@@ -1685,7 +1695,9 @@ public:
 							thisT          += dt;
 							int thatPricePoint  = startPoint + thisDay;
 							// ... simulate a set of standardNormal shocks
-							GenerateCorrelatedNormal(numUl, correlatedRandom, cholMatrix, normalRandom, useAntithetic, thisDay, antitheticRandom);
+							GenerateCorrelatedNormal(numUl, correlatedRandom, cholMatrix, normalRandom, 
+								useAntithetic,     // if you want to check things using fixed shocks, just set this to 'true' and set the shocks in 'antitheticRandom'
+								thisDay, antitheticRandom);
 							for (i = 0; i < numUl; i++) {
 								// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
 								thisSig = InterpolateMatrix(ObsDateVols[i], ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
@@ -1892,7 +1904,7 @@ public:
 					int thisMonPoint = thisPoint + thisMonDays;
 					const std::string   thisDateString(allDates.at(thisMonPoint));
 					for (i = 0; i < numUl; i++) {
-						thesePrices[i] = ulPrices[i].price.at(thisMonPoint);
+						thesePrices[i] = ulPrices[i].price.at(thisMonPoint);;
 					}
 
 					// test each barrier
@@ -2157,7 +2169,8 @@ public:
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
 							if (getMarketData && calledByPricer) {
-								pvInstances.push_back(thisAmount*pow(b.forwardRate, -(b.yearsToBarrier - forwardStartT)));
+								double thisRate = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
+								pvInstances.push_back(thisAmount*pow(thisRate, -(b.yearsToBarrier - forwardStartT)));
 							}
 							double bmRet = benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn;
 							bmAnnRets.push_back(bmRet);
@@ -2508,12 +2521,12 @@ public:
 						forwardRate            += fundingFraction*interpCurve(cdsTenor,cdsSpread, yearsToBarrier);
 						double discountT        = yearsToBarrier - forwardStartT;
 						double discountFactor   = pow(forwardRate, -discountT);
-						sprintf(charBuffer, "%s\t%.2lf", charBuffer, discountFactor);
+						sprintf(charBuffer, "%s\t%.5lf", charBuffer, discountFactor);
 						std::cout << charBuffer << std::endl;
 					}
 					// fair value
 					MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
-					sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", "FairValue(stdev): ", thisMean*issuePrice, "(", thisStderr*issuePrice, ")");
+					sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", "FairValueResults(stdev): ", thisMean*issuePrice, "(", thisStderr*issuePrice, ")");
 					std::cout << charBuffer << std::endl;
 		
 					// update db
@@ -2521,8 +2534,8 @@ public:
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStderr*issuePrice);
 					sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
-					std::cout << lineBuffer << std::endl;
-					// mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					// std::cout << lineBuffer << std::endl;
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
 				// text output

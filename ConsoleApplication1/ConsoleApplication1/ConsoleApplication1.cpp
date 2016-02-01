@@ -56,7 +56,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					sprintf(lineBuffer, "%s%s%s%s%s", lineBuffer, (j == 0 ? "" : ","), "'", tokens[j].c_str(), "'");
 				}
 				sprintf(onlyTheseUlsBuffer, "%s%s%s",
-					" join (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid)join underlying u  using (underlyingid)where name not in(",
+					" join (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid) join underlying u using (underlyingid) where u.name not in (",
 					lineBuffer, "))) x using (productid) ");
 			}
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer)){ strcpy(startDate, lineBuffer); }
