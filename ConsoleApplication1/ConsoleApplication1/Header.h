@@ -1357,7 +1357,7 @@ public:
 		const UlTimeseries              &baseTimeseies,
 		const boost::gregorian::date    bProductStartDate,
 		const double                    fixedCoupon,
-		const std::string               couponFrequissency, 
+		const std::string               couponFrequency, 
 		const bool                      couponPaidOut,
 		const double                    AMC, 
 		const std::string				productShape,
