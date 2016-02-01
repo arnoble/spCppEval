@@ -1432,7 +1432,7 @@ public:
 		const std::vector<double> &cdsTenor,
 		const std::vector<double> &cdsSpread,
 		const double              fundingFraction,
-		const bool                productHasExtrema){
+		const bool                productNeedsFullPriceRecord){
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
@@ -1543,13 +1543,13 @@ public:
 		std::vector<double>                               ObsDatesT(numMonDates);
 		if (getMarketData){
 			// debug only: init antitheticRandom and force its use below using 'true' for 'useAntithetic' in the call to GenerateCorrelatedNormal()
-			/*
+			
 			for (i=0; i < antitheticRandom.size();i++){
 				for (j=0; j < numUl;j++){
 					antitheticRandom[i][j] = -1.0;
 				}
 			}
-			*/
+			
 			
 			// init correlation matrix
 			// ... initialise to unit diagonal
@@ -1686,9 +1686,9 @@ public:
 						/*
 						*  now generate underlying shocks until this obsDate
 						*/
-						double dt      = productHasExtrema ? (1.0 / 365.25) : (thatT - thisT);
+						double dt      = productNeedsFullPriceRecord ? (1.0 / 365.25) : (thatT - thisT);
 						double rootDt  = sqrt(dt);
-						for (int thisDay = productHasExtrema ? thisNumDays : thatNumDays; thisDay <= thatNumDays; thisDay++){
+						for (int thisDay = productNeedsFullPriceRecord ? thisNumDays : thatNumDays; thisDay <= thatNumDays; thisDay++){
 							/*
 							* calculate new prices for thisDt
 							*/
@@ -1708,6 +1708,12 @@ public:
 								ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 							}
 						}
+						/*
+						* move to next ObsDate
+						*/
+						thisT       = thatT;
+						thisNumDays = thatNumDays + 1;
+						// accumulate simulated prices - to be able to check forwards
 						for (i = 0; i < numUl; i++) {
 							mcForwards[i][thisMonIndx].push_back(currentLevels[i]);
 						}
