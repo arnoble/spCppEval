@@ -571,7 +571,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				// .. parse each record <Date,price0,...,pricen>
 				string thisCcy = "";
 				mydb.prepare((SQLCHAR *)ulSql, 3);
-				retcode = mydb.fetch(true);
+				retcode = mydb.fetch(false);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					string thisCcy   = szAllPrices[0];
 					int    thisUidx  = ulIdNameMap[ccyToUidMap[thisCcy]];
@@ -581,6 +581,13 @@ int _tmain(int argc, _TCHAR* argv[])
 					oisRatesRate[thisUidx].push_back(thisRate / 100.0);
 					retcode = mydb.fetch(false);
 				}
+				// add dummy records for underlyings for which there are no rates
+				for (i = 0; i < numUl; i++) {
+					if (oisRatesTenor[i].size() == 0){
+						oisRatesTenor[i].push_back(10.0);
+						oisRatesRate[i].push_back(0.0);
+					}
+				}
 				//  divYields
 				sprintf(ulSql, "%s%d", "select underlyingid,Tenor,impdivyield Rate from impdivyield d where d.UnderlyingId in (", ulIds[0]);
 				for (i = 1; i < numUl; i++) {
@@ -589,7 +596,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(ulSql, "%s%s", ulSql, ") and userid=3 order by UnderlyingId,Tenor ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 3);
-				retcode = mydb.fetch(true);
+				retcode = mydb.fetch(false);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					int    thisUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
 					double thisTenor  = atof(szAllPrices[1]);
