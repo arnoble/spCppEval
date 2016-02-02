@@ -712,7 +712,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
-				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT,issuePrice);
+				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase);
 			numBarriers = 0;
 
 			// get barriers from DB

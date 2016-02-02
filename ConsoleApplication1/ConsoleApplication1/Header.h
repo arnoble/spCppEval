@@ -1382,16 +1382,18 @@ public:
 		const std::vector<SomeCurve>    baseCurve,
 		const std::vector<int>          &ulIds,
 		const double                    forwardStartT,
-		const double                    issuePrice)
+		const double                    issuePrice,
+		const std::string               ukspaCase)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), productShape(productShape),depositGteed(depositGteed), collateralised(collateralised), 
-		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice) {
+		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), ukspaCase(ukspaCase) {
 	};
 
 	// public members: DOME consider making private
 	int                             maxProductDays,productDays, numUls;
 	double                          forwardStartT,issuePrice;
+	std::string                     ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl;
 	std::vector <double>            baseCurveTenor, baseCurveSpread;
@@ -2555,7 +2557,9 @@ public:
 					sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
 					// std::cout << lineBuffer << std::endl;
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					if (ukspaCase == ""){
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
 				}
 
 				// text output
