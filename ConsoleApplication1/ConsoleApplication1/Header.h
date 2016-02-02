@@ -2293,8 +2293,8 @@ public:
 				}
 
 				// benchmark underperformance
-				double benchmarkProbUnderperf, benchmarkCondUnderperf, benchmarkProbOutperf, benchmarkCondOutperf;
-				double bmRelUnderperfPV, bmRelOutperfPV, bmRelCAGR, cumUnderperfPV, cumOutperfPV;
+				double benchmarkProbUnderperf(0.0), benchmarkCondUnderperf(0.0), benchmarkProbOutperf(0.0), benchmarkCondOutperf(0.0);
+				double bmRelUnderperfPV(0.0), bmRelOutperfPV(0.0), bmRelCAGR(0.0), cumUnderperfPV(0.0), cumOutperfPV(0.0);
 				double cumValue = 0.0, cumValue1 = 0.0;
 				int    cumCount = 0, cumCount1 = 0;
 				cumUnderperfPV = 0.0;
