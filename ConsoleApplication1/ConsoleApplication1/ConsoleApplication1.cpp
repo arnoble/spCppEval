@@ -13,7 +13,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'notIllustrative' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull>" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'notIllustrative' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x>" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId ;
@@ -25,7 +25,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		char             startDate[11]            = "";
 		char             endDate[11]              = "";
 		char             useProto[6]              = "";
-		string           ukspaCase("");
+		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR;
+		string           ukspaCase(""),issuerPartName("");
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 
@@ -60,9 +61,11 @@ int _tmain(int argc, _TCHAR* argv[])
 					" join (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid) join underlying u using (underlyingid) where u.name not in (",
 					lineBuffer, "))) x using (productid) ");
 			}
-			if (sscanf(thisArg, "startDate:%s",  lineBuffer)){ strcpy(startDate, lineBuffer); }
-			if (sscanf(thisArg, "UKSPA:%s", lineBuffer)){ ukspaCase = lineBuffer; getMarketData = true; }
-			else if (sscanf(thisArg, "endDate:%s",      lineBuffer)){ strcpy(endDate,   lineBuffer); }
+			if (sscanf(thisArg, "startDate:%s",  lineBuffer))       { strcpy(startDate, lineBuffer); }
+			if (sscanf(thisArg, "UKSPA:%s", lineBuffer))            { ukspaCase             = lineBuffer; getMarketData = true; }
+			if (sscanf(thisArg, "Issuer:%s", lineBuffer))           { issuerPartName        = lineBuffer; }
+			if (sscanf(thisArg, "fundingFractionFactor:%s", lineBuffer))  { fundingFractionFactor	= atof(lineBuffer);	}
+			else if (sscanf(thisArg, "endDate:%s", lineBuffer))     { strcpy(endDate, lineBuffer); }
 			else if (sscanf(thisArg, "dbServer:%s",     lineBuffer)){ strcpy(dbServer,  lineBuffer); }
 			else if (sscanf(thisArg, "minSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s", lineBuffer)){ maxSecsTaken  = atoi(lineBuffer); }
@@ -98,7 +101,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		} else {
 			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
 		}
-		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto, "cashflows c using (ProductId) ", 
+		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto, "cashflows c using (ProductId) join institution i on (p.counterpartyid=i.institutionid) ", 
 			(onlyTheseUls ? onlyTheseUlsBuffer : ""),
 			charBuffer,
 			" and Matured=0 ", 
@@ -109,6 +112,9 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		if (maxSecsTaken){
 			sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " and (WhenEvaluated is null or SecsTaken<=", maxSecsTaken,")");
+		}
+		if (issuerPartName != ""){
+			sprintf(lineBuffer, "%s%s%s%s", lineBuffer, " and i.name like '%", issuerPartName, "%'");
 		}
 		sprintf(lineBuffer, "%s%s", lineBuffer, " order by productid");
 		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
@@ -167,7 +173,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
-				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, colProductFairValueDate, colProductFundingFraction, colProductLast
+				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -187,14 +193,18 @@ int _tmain(int argc, _TCHAR* argv[])
 				doPaths      = false;
 				cout << "We only doTimepoints/paths if #products is 1 ... if you need timepoints/paths please do each product singly as it can overburden the database..thanks" << endl;
 			};
-			bool stalePrice         = atoi(szAllPrices[colProductStalePrice]) == 1;
-			double fairValuePrice   = atof(szAllPrices[colProductFairValue]);
-			fairValueDateString     = szAllPrices[colProductFairValueDate];
-			bidAskDateString        = szAllPrices[colProductBidAskDate];
-			int  benchmarkId        = atoi(szAllPrices[colProductBenchmarkId]);
-			double hurdleReturn     = atof(szAllPrices[colProductHurdleReturn])/100.0;
-			double contBenchmarkTER = -log(1.0 - atof(szAllPrices[colProductHurdleReturn]) / 100.0);
-			double fundingFraction  = atof(szAllPrices[colProductFundingFraction]);
+			bool stalePrice               = atoi(szAllPrices[colProductStalePrice]) == 1;
+			double fairValuePrice         = atof(szAllPrices[colProductFairValue]);
+			fairValueDateString           = szAllPrices[colProductFairValueDate];
+			bidAskDateString              = szAllPrices[colProductBidAskDate];
+			int  benchmarkId              = atoi(szAllPrices[colProductBenchmarkId]);
+			double hurdleReturn           = atof(szAllPrices[colProductHurdleReturn])/100.0;
+			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductHurdleReturn]) / 100.0);
+			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
+			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
+			if (fundingFractionFactor > MIN_FUNDING_FRACTION_FACTOR){
+				fundingFraction = defaultFundingFraction*fundingFractionFactor;
+				}
 			productStartDateString  = szAllPrices[colProductStrikeDate];
 			productCcy              = szAllPrices[colProductCcy];
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);

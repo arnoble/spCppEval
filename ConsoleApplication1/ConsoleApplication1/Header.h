@@ -14,21 +14,22 @@
 #include <vector>
 #include <regex>
 
-#define MAX_SP_BUF       500000
-
+#define MAX_SP_BUF                         500000
+#define MIN_FUNDING_FRACTION_FACTOR       -10.0
 // correlation
 double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues) {
 	int N = aValues.size();
 	double fMean  = std::accumulate(aValues.begin(), aValues.end(), 0.0) / N;
 	double fMean1 = std::accumulate(bValues.begin(), bValues.end(), 0.0) / N;
-	double fVariance = 0.0;
+	double aVariance = 0.0, bVariance = 0.0, coVariance = 0.0;
 	for (int i=0; i < N; i++) {
 		double diff       = aValues[i] - fMean;
 		double diff1      = bValues[i] - fMean1;
-		fVariance += diff*diff1;
+		aVariance  += diff*diff;
+		bVariance  += diff1*diff1;
+		coVariance += diff*diff1;
 	}
-	fVariance /= N;
-	return sqrt(fVariance);
+	return(coVariance / (sqrt(aVariance)*sqrt(bVariance)));
 }
 
 
@@ -40,8 +41,7 @@ void MeanAndStdev(std::vector<double> v, double &mean, double &stdev, double &st
 	mean = sum / N;
 	// stdev
 	std::vector<double> diff(N);
-	std::transform(v.begin(), v.end(), diff.begin(),
-		std::bind2nd(std::minus<double>(), mean));
+	std::transform(v.begin(), v.end(), diff.begin(),std::bind2nd(std::minus<double>(), mean));
 	double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
 	stdev  = std::sqrt(sq_sum  / N);
 	stdErr = std::sqrt(sq_sum) / N;
