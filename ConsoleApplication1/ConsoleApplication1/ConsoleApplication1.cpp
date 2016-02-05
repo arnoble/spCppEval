@@ -13,7 +13,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'notIllustrative' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x>" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'notIllustrative' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId ;
@@ -26,7 +26,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		char             endDate[11]              = "";
 		char             useProto[6]              = "";
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR;
-		string           ukspaCase(""),issuerPartName("");
+		string           ukspaCase(""), issuerPartName(""), forceFundingFraction("");
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 
@@ -61,10 +61,12 @@ int _tmain(int argc, _TCHAR* argv[])
 					" join (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid) join underlying u using (underlyingid) where u.name not in (",
 					lineBuffer, "))) x using (productid) ");
 			}
-			if (sscanf(thisArg, "startDate:%s",  lineBuffer))       { strcpy(startDate, lineBuffer); }
-			if (sscanf(thisArg, "UKSPA:%s", lineBuffer))            { ukspaCase             = lineBuffer; getMarketData = true; }
-			if (sscanf(thisArg, "Issuer:%s", lineBuffer))           { issuerPartName        = lineBuffer; }
+			if (sscanf(thisArg, "startDate:%s",  lineBuffer))             { strcpy(startDate, lineBuffer); }
+			if (sscanf(thisArg, "UKSPA:%s", lineBuffer))                  { ukspaCase               = lineBuffer; getMarketData = true; }
+			if (sscanf(thisArg, "Issuer:%s", lineBuffer))                 { issuerPartName          = lineBuffer; }
 			if (sscanf(thisArg, "fundingFractionFactor:%s", lineBuffer))  { fundingFractionFactor	= atof(lineBuffer);	}
+			if (sscanf(thisArg, "forceFundingFraction:%s", lineBuffer))   { forceFundingFraction	= lineBuffer; }
+		
 			else if (sscanf(thisArg, "endDate:%s", lineBuffer))     { strcpy(endDate, lineBuffer); }
 			else if (sscanf(thisArg, "dbServer:%s",     lineBuffer)){ strcpy(dbServer,  lineBuffer); }
 			else if (sscanf(thisArg, "minSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
@@ -205,6 +207,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (fundingFractionFactor > MIN_FUNDING_FRACTION_FACTOR){
 				fundingFraction = defaultFundingFraction*fundingFractionFactor;
 				}
+			if (forceFundingFraction != ""){
+				fundingFraction = atof(forceFundingFraction.c_str());
+			}
 			productStartDateString  = szAllPrices[colProductStrikeDate];
 			productCcy              = szAllPrices[colProductCcy];
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
