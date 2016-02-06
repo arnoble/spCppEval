@@ -13,19 +13,18 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'notIllustrative' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'notIllustrative' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
-		int              startProductId ;
-		int              stopProductId ; 
+		int              startProductId, stopProductId,correlationUid(0),correlationOtherId(0) ; 
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), doPriips(false), getMarketData(false), notIllustrative(false),onlyTheseUls(false);
+		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), doPriips(false), getMarketData(false), notIllustrative(false),onlyTheseUls(false),forceEqFxCorr(false);
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
 		char             endDate[11]              = "";
 		char             useProto[6]              = "";
-		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR;
+		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR,forceEqFxCorrelation(0.0);
 		string           ukspaCase(""), issuerPartName(""), forceFundingFraction("");
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
@@ -45,14 +44,21 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
 			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }			
-			if (sscanf(thisArg, "only:%s", lineBuffer)){ 
+			if (sscanf(thisArg, "eqFx:%s", lineBuffer)){
+				forceEqFxCorr = true;
+				char *token = std::strtok(lineBuffer, ":");
+				std::vector<std::string> tokens;
+				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
+				if (tokens.size() != 3){ cerr << "eqFx: incorrect syntax" << endl; exit(1); }
+				correlationUid        = atoi(tokens[0].c_str());
+				correlationOtherId    = atoi(tokens[1].c_str());
+				forceEqFxCorrelation  = atof(tokens[2].c_str());
+			}
+			if (sscanf(thisArg, "only:%s", lineBuffer)){
 				onlyTheseUls = true; 
 				char *token = std::strtok(lineBuffer, ",");
 				std::vector<std::string> tokens;
-				while (token != NULL) {
-					tokens.push_back(token);
-					token = std::strtok(NULL, ",");
-				}
+				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ","); }
 				strcpy(lineBuffer,"");
 				for (int j=0; j < tokens.size();j++){
 					sprintf(lineBuffer, "%s%s%s%s%s", lineBuffer, (j == 0 ? "" : ","), "'", tokens[j].c_str(), "'");
@@ -711,11 +717,13 @@ int _tmain(int argc, _TCHAR* argv[])
 				mydb.prepare((SQLCHAR *)ulSql, 3);
 				retcode   = mydb.fetch(false);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					int    thisUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
-					int    otherUidx  = ulIdNameMap.at(atoi(szAllPrices[1]));
+					int    thisUid    = atoi(szAllPrices[0]);
+					int    thisUidx   = ulIdNameMap.at(thisUid);
+					int    otherId    = atoi(szAllPrices[1]);
+					int    otherUidx  = ulIdNameMap.at(otherId);
 					double thisCorr   = atof(szAllPrices[2]);
 					fxcorrsOtherId[thisUidx].push_back(otherUidx);
-					fxcorrsCorrelation[thisUidx].push_back(thisCorr);
+					fxcorrsCorrelation[thisUidx].push_back(forceEqFxCorr &&	correlationUid == thisUid && correlationOtherId == otherId ? forceEqFxCorrelation :	thisCorr);
 					retcode = mydb.fetch(false);
 				}
 			}
