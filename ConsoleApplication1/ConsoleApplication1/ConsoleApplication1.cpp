@@ -258,6 +258,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (bidPrice > 0.0  && askPrice <= 0.0){ askPrice=bidPrice; }
 			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
+			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty..." << endl; continue; }
 			cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
 			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
@@ -436,7 +437,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			ulPrices           = ulOriginalPrices; // copy constructor called
 			vector<double> thesePrices(numUl), startLevels(numUl);
 			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
-			cerr << "NumPrices:\t" << totalNumDays << "FirstDataDate:\t" << ulOriginalPrices.at(0).date[0] << endl;
+			cout << "NumPrices:\t" << totalNumDays << "FirstDataDate:\t" << ulOriginalPrices.at(0).date[0] << endl;
 			int daysExtant = (bLastDataDate - bProductStartDate).days(); 
 			double forwardStartT(0.0);
 			if (daysExtant < 0){
@@ -988,6 +989,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// further initialisation, given product info
+			// ...check product not matured
+			if (monDateIndx .size() == 0){ continue; }
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
 			spr.maxProductDays = maxBarrierDays + daysExtant;
 			numMonPoints = monDateIndx.size();
