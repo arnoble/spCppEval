@@ -2085,15 +2085,15 @@ public:
 			accruedCoupon = couponValue;
 		}
 		else {
-			int numAllEpisodes(0);
+			int    numAllEpisodes(0);
 			bool hasProportionalAvg(false);   // no couponHistogram, which only shows coupon-counts
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-				if (barrier.at(thisBarrier).capitalOrIncome) {
-					numAllEpisodes += barrier.at(thisBarrier).hit.size();
+				const SpBarrier&    b(barrier.at(thisBarrier));
+				if (b.capitalOrIncome) {
+					numAllEpisodes += b.hit.size();
 				}
 				hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
 			}
-
 			// couponHistogram
 			if (!usingProto && !getMarketData){
 				// ** delete old
@@ -2136,6 +2136,9 @@ public:
 				int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
+				// most likely barrier
+				double maxBarrierProb(0.0), maxBarrierProbMoneyness;
+				bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData && ukspaCase == "" && numMcIterations>1 && !doPriips);
 
 				// ** process barrier results
 				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
@@ -2150,6 +2153,7 @@ public:
 					double              thisYears       = b.yearsToBarrier;
 					double              prob            = b.hasBeenHit ? 1.0 :  sumProportion / numAllEpisodes; // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
 					double              thisProbDefault = probDefault(hazardCurve, thisYears);
+
 					for (i = 0; i < b.hit.size(); i++){
 						thisAmount = b.hit[i].amount;
 						// possibly apply credit adjustment
@@ -2168,6 +2172,18 @@ public:
 						eStrPosPayoff    += b.sumStrPosPayoffs; numStrPosInstances += b.numStrPosPayoffs; 
 						ePosPayoff       += b.sumPosPayoffs;    numPosInstances    += b.numPosPayoffs;
 						eNegPayoff       += b.sumNegPayoffs;    numNegInstances    += b.numNegPayoffs;
+
+						if (doMostLikelyBarrier){
+							if (prob>maxBarrierProb){
+								maxBarrierProb          = prob;
+								maxBarrierProbMoneyness = 0.0;
+								for (int j = 0, len=b.brel.size(); j < len; j++){
+									const SpBarrierRelation&    thisBrel(b.brel.at(j));
+									double thisMoneyness = thisBrel.barrier / thisBrel.moneyness;
+									if (thisMoneyness>maxBarrierProbMoneyness){ maxBarrierProbMoneyness = thisMoneyness; }
+								}
+							}
+						}
 
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount = thisBarrierPayoffs[i];
@@ -2221,6 +2237,13 @@ public:
 						//retcode = mydb.execute(true);
 					}
 					
+				}
+
+				if (doMostLikelyBarrier){
+					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s%.2lf%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
+						"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,
+						"' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
 				if (numPosInstances    > 0)    { ePosPayoff    /= numPosInstances; }
