@@ -2173,7 +2173,7 @@ public:
 						ePosPayoff       += b.sumPosPayoffs;    numPosInstances    += b.numPosPayoffs;
 						eNegPayoff       += b.sumNegPayoffs;    numNegInstances    += b.numNegPayoffs;
 
-						if (doMostLikelyBarrier){
+						if (doMostLikelyBarrier && b.participation<0.0){
 							if (prob>maxBarrierProb){
 								maxBarrierProb          = prob;
 								maxBarrierProbMoneyness = 0.0;
@@ -2240,9 +2240,9 @@ public:
 				}
 
 				if (doMostLikelyBarrier){
-					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s%.2lf%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
+					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 						"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,
-						"' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
+						"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
