@@ -216,6 +216,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			fairValueDateString           = szAllPrices[colProductFairValueDate];
 			bidAskDateString              = szAllPrices[colProductBidAskDate];
 			int  benchmarkId              = atoi(szAllPrices[colProductBenchmarkId]);
+			if (benchmarkId != 0 && getMarketData){ benchmarkId = 0; } // do not need (possibly-not-market-data-tracked) benchmark for a fairvalue calc
 			double hurdleReturn           = atof(szAllPrices[colProductHurdleReturn])/100.0;
 			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductBenchmarkTER]) / 100.0);
 			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
