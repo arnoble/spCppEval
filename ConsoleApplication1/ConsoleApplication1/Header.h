@@ -2137,7 +2137,7 @@ public:
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
 				// most likely barrier
-				double maxBarrierProb(0.0), maxBarrierProbMoneyness;
+				double maxBarrierProb(0.0), maxBarrierProbMoneyness(0.0);
 				bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData && ukspaCase == "" && numMcIterations>1 && !doPriips);
 
 				// ** process barrier results
@@ -2239,7 +2239,7 @@ public:
 					
 				}
 
-				if (doMostLikelyBarrier){
+				if (doMostLikelyBarrier && maxBarrierProb>0.0){
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 						"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,
 						"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");

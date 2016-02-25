@@ -217,7 +217,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			bidAskDateString              = szAllPrices[colProductBidAskDate];
 			int  benchmarkId              = atoi(szAllPrices[colProductBenchmarkId]);
 			double hurdleReturn           = atof(szAllPrices[colProductHurdleReturn])/100.0;
-			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductHurdleReturn]) / 100.0);
+			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductBenchmarkTER]) / 100.0);
 			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
 			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
 			if (fundingFractionFactor > MIN_FUNDING_FRACTION_FACTOR){
