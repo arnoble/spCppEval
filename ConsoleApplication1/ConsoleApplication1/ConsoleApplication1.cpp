@@ -152,7 +152,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, issuePrice, bidPrice, askPrice, midPrice;
 			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, 
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
-			bool             productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
+			bool             useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
 
@@ -188,10 +188,10 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// get product table data
 			enum {
-				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
+				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductUserId = 26, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
-				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductLast
+				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -200,7 +200,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (numMcIterations < thisNumIterations){ thisNumIterations = numMcIterations; }
 			if (thisNumIterations<1)                { thisNumIterations = 1; }
 			int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
-			bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]   ) == 1;
+			int  userId             = getMarketData ? 3 : atoi(szAllPrices[colProductUserId]);
+			bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]) == 1;
 			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
 			bool collateralised     = atoi(szAllPrices[colProductCollateralised]) == 1;
 			bool currencyStruck     = atoi(szAllPrices[colProductCurrencyStruck]) == 1;
@@ -221,6 +222,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductBenchmarkTER]) / 100.0);
 			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
 			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
+			useUserParams                 = atoi(szAllPrices[colProductUseUserParams]);
 			if (fundingFractionFactor > MIN_FUNDING_FRACTION_FACTOR){
 				fundingFraction = defaultFundingFraction*fundingFractionFactor;
 				}
@@ -492,7 +494,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<vector<int>>               fxcorrsOtherId(numUl);
 			vector<vector<double>>            fxcorrsCorrelation(numUl);
 
-			if (getMarketData){
+			if (getMarketData || useUserParams){
 				int    thisUidx;
 				double thisFwdVol,thisTenor,previousVol,previousTenor;
 				vector<double> someVols, someStrikes, someFwdVols;
@@ -544,12 +546,13 @@ int _tmain(int argc, _TCHAR* argv[])
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
-					sprintf(ulSql, "%s%s", ulSql, ") and userid=3 order by UnderlyingId, Tenor, Strike");
+					sprintf(ulSql, "%s%s%d%s", ulSql, ") and userid=",userId," order by UnderlyingId, Tenor, Strike");
 					// .. parse each record <Date,price0,...,pricen>
 					thisUidx    = 0;
 					thisTenor   = -1.0;
 					mydb.prepare((SQLCHAR *)ulSql, 4);
 					retcode = mydb.fetch(true);
+
 					while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 						int    nextUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
 						double nextTenor  = atof(szAllPrices[1]);
@@ -626,7 +629,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 				}
-				sprintf(ulSql, "%s%s", ulSql, ") and userid=3 order by UnderlyingId,Tenor ");
+				sprintf(ulSql, "%s%s%d%s", ulSql, ") and userid=", userId, " order by UnderlyingId,Tenor ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 3);
 				retcode = mydb.fetch(false);
@@ -705,7 +708,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
-					sprintf(ulSql, "%s%s", ulSql, ")  and userid=3 order by UnderlyingId,OtherId ");
+					sprintf(ulSql, "%s%s%d%s", ulSql, ")  and userid=", userId, " order by UnderlyingId,OtherId ");
 					// .. parse each record <Date,price0,...,pricen>
 					mydb.prepare((SQLCHAR *)ulSql, 3);
 					retcode   = mydb.fetch(false);
@@ -728,7 +731,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 				}
-				sprintf(ulSql, "%s%s%s%s", ulSql, ") and y.Name='", productCcy.c_str(),"'  and userid=3 order by UnderlyingId,OtherId ");
+				sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", userId, " order by UnderlyingId,OtherId ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 3);
 				retcode   = mydb.fetch(false);
@@ -994,9 +997,9 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 				}
 				// init database
-				sprintf(lineBuffer, "%s%d", "delete from timepoints where userid=3 and productid=", productId);
+				sprintf(lineBuffer, "%s%d%s%d", "delete from timepoints where userid=", userId, " and productid=", productId);
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				sprintf(lineBuffer, "%s%d", "delete from path where userid=3 and productid=", productId);
+				sprintf(lineBuffer, "%s%d%s%d", "delete from path where userid=", userId, " and productid=", productId);
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				/*
 				retcode = mydb.fetch(true);
@@ -1041,13 +1044,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData,thisMarketData,
+				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData,useUserParams,thisMarketData,
 				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData, thisMarketData,
+				contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData, useUserParams, thisMarketData,
 				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
 			// tidy up
 

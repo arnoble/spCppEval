@@ -1444,6 +1444,7 @@ public:
 		const bool                doPriips,
 		const char                *useProto,
 		const bool                getMarketData, 
+		const bool                useUserParams,
 		const MarketData          &md,
 		const std::vector<double> &cdsTenor,
 		const std::vector<double> &cdsSpread,
@@ -1557,7 +1558,7 @@ public:
 		// set up forwardVols for the period to each obsDate
 		std::vector< std::vector< std::vector<double>> >  ObsDateVols(numUl); // numUl x numObsDates x strike
 		std::vector<double>                               ObsDatesT(numMonDates);
-		if (getMarketData){
+		if (getMarketData || useUserParams){
 			// debug only: init antitheticRandom and force its use below using 'true' for 'useAntithetic' in the call to GenerateCorrelatedNormal()
 			
 			for (i=0; i < antitheticRandom.size();i++){
@@ -1655,7 +1656,7 @@ public:
 			// create new random sample for next iteration
 			if (numMcIterations > 1){
 
-				if (getMarketData){
+				if (getMarketData || useUserParams){
 					// init
 					useAntithetic = !useAntithetic;
 					for (i = 0; i < numUl; i++) {
