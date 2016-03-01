@@ -443,6 +443,7 @@ public:
 	// get info on SQL error
 	void extract_error(
 		char *fn,
+		std::string msg,
 		SQLHANDLE handle,
 		SQLSMALLINT type)
 	{
@@ -452,11 +453,7 @@ public:
 		SQLWCHAR    text[256];
 		SQLSMALLINT len;
 		SQLRETURN   ret;
-		fprintf(stderr,
-			"\n"
-			"The driver reported the following diagnostics whilst running "
-			"%s\n\n",
-			fn);
+		fprintf(stderr,	"\n%s%s%s%s\n",	"Database problem running ",fn," ",msg.c_str());
 
 		do	{
 			ret = SQLGetDiagRec(type, handle, ++i, &state[0], &native, &text[0], (SQLSMALLINT) sizeof(text), &len);
@@ -496,7 +493,7 @@ public:
 
 		fsts = SQLAllocHandle(SQL_HANDLE_DBC, hEnv, hDBC);  // Allocate memory for the connection handle
 		if (!SQL_SUCCEEDED(fsts))	{
-			extract_error("SQLAllocHandle for dbc", hEnv, SQL_HANDLE_ENV);
+			extract_error("SQLAllocHandle for dbc", "",hEnv, SQL_HANDLE_ENV);
 			exit(1);
 		}
 		// Connect to Data Source  
@@ -504,7 +501,7 @@ public:
 		// std::cerr << "Connection params " << szDSN << szUID << szPasswd << "\n";
 		if (!SQL_SUCCEEDED(fsts))	{
 			char thisBuffer[200]; sprintf(thisBuffer,"SQLConnect for connect >>%ls<<", szDSN);
-			extract_error(thisBuffer, hDBC, SQL_HANDLE_DBC);
+			extract_error(thisBuffer, "", hDBC, SQL_HANDLE_DBC);
 			exit(1);
 		}
 		return fsts;
@@ -538,7 +535,7 @@ public:
 			fsts  =  SQLPrepareA(hStmt, thisSQL, SQL_NTS);                  // Prepare the SQL statement	
 			fsts  =  SQLExecute(hStmt);                                     // Execute the SQL statement
 			if (!SQL_SUCCEEDED(fsts))	{
-				extract_error("prepare() failed to SQLExecute ... trying to re-connect", hStmt, SQL_HANDLE_STMT);
+				extract_error("prepare() failed to SQLExecute ... trying to re-connect", "", hStmt, SQL_HANDLE_STMT);
 				// try a new connection...in case of MySQL server restart, or failed internet connection
 				SQLDisconnect(hDBC);  // Disconnect from datasource
 				SQLFreeConnect(hDBC); // Free the allocated connection handle
@@ -563,17 +560,17 @@ public:
 	void bind(int col,char *buffer) {
 		SQLBindCol(hStmt, col, SQL_C_CHAR, buffer, bufSize, &cbModel); // bind columns
 	}
-	SQLRETURN fetch(bool checkForErrors){
+	SQLRETURN fetch(bool checkForErrors,const std::string msg){
 		fsts = SQLFetch(hStmt);
 		if (checkForErrors){
-			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLFetch", hStmt, SQL_HANDLE_STMT);	exit(1); }
+			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLFetch", msg, hStmt, SQL_HANDLE_STMT);	exit(1); }
 		}
 		return fsts;
 	}
-	SQLRETURN execute(bool checkForErrors){
+	SQLRETURN execute(bool checkForErrors, const std::string msg){
 		fsts = SQLExecute(hStmt);
 		if (checkForErrors){
-			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", hStmt, SQL_HANDLE_STMT);	exit(1); }
+			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", msg, hStmt, SQL_HANDLE_STMT);	exit(1); }
 		}
 		return fsts;
 	}
@@ -2235,7 +2232,6 @@ public:
 							"',NumInstances='", numInstances,
 							"' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
-						//retcode = mydb.execute(true);
 					}
 					
 				}
@@ -2316,7 +2312,8 @@ public:
 					}
 				}
 
-				// benchmark underperformance
+				// benchmark underperformance   NOT STRICT
+				// NOTE: these are ARITHMETIC averages, whereas ecGain and ecLoss are essentially CAGRs
 				double benchmarkProbUnderperf(0.0), benchmarkCondUnderperf(0.0), benchmarkProbOutperf(0.0), benchmarkCondOutperf(0.0);
 				double bmRelUnderperfPV(0.0), bmRelOutperfPV(0.0), bmRelCAGR(0.0), cumUnderperfPV(0.0), cumOutperfPV(0.0);
 				double cumValue = 0.0, cumValue1 = 0.0;
@@ -2533,7 +2530,6 @@ public:
 					sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 					std::cout << lineBuffer << std::endl;
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					//retcode = mydb.execute(true);
 					if (analyseCase == 0){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);

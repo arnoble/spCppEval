@@ -135,10 +135,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			sprintf(lineBuffer, "%s%s%s%s", lineBuffer, " and i.name like '%", issuerPartName, "%'");
 		}
 		sprintf(lineBuffer, "%s%s", lineBuffer, " order by productid");
-		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
+		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true,lineBuffer);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			int x(atoi(szAllPrices[0])); allProductIds.push_back(x);
-			retcode = mydb.fetch(false);
+			retcode = mydb.fetch(false,"");
 		}
 		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
@@ -164,26 +164,26 @@ int _tmain(int argc, _TCHAR* argv[])
 			// get general info:  productType, productShape, barrierType
 			// ...productType
 			map<int, string> productTypeMap;
-			sprintf(lineBuffer, "%s", "select * from producttype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
+			sprintf(lineBuffer, "%s", "select * from producttype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true,lineBuffer);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				productTypeMap[atoi(szAllPrices[0])] = szAllPrices[1];
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false,"");
 			}
 			// ...productShape
 			map<int, string> productShapeMap;
-			sprintf(lineBuffer, "%s", "select * from productshape"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
+			sprintf(lineBuffer, "%s", "select * from productshape"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true,lineBuffer);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				productShapeMap[atoi(szAllPrices[0])] = szAllPrices[1];
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false,"");
 			}
 
 
 			// ...barrierType
 			map<int, string> barrierTypeMap;
-			sprintf(lineBuffer, "%s", "select * from barriertype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
+			sprintf(lineBuffer, "%s", "select * from barriertype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true,lineBuffer);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				barrierTypeMap[atoi(szAllPrices[0])] = szAllPrices[1];
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false,"");
 			}
 
 			// get product table data
@@ -195,7 +195,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
-			retcode = mydb.fetch(true);
+			retcode = mydb.fetch(true,lineBuffer);
 			int  thisNumIterations  = forceIterations ? numMcIterations : atoi(szAllPrices[colProductMaxIterations]);
 			if (numMcIterations < thisNumIterations){ thisNumIterations = numMcIterations; }
 			if (thisNumIterations<1)                { thisNumIterations = 1; }
@@ -286,7 +286,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			// ...mult-issuer product's have comma-separated issuers...ASSUMED equal weight
 			sprintf(lineBuffer, "%s%d%s", "select EntityName from institution where institutionid='", counterpartyId, "' ");
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
-			retcode = mydb.fetch(true);
+			retcode = mydb.fetch(true,lineBuffer);
 			string counterpartyName = szAllPrices[0];
 			vector<string> counterpartyNames;
 			splitCommaSepName(counterpartyNames, counterpartyName);
@@ -298,25 +298,25 @@ int _tmain(int argc, _TCHAR* argv[])
 				") and spread is not null group by Maturity order by Maturity");
 
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
-			retcode = mydb.fetch(false);
+			retcode = mydb.fetch(false,lineBuffer);
 			vector<double> cdsTenor, cdsSpread;
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				cdsTenor.push_back(atof(szAllPrices[0]));
 				cdsSpread.push_back(atof(szAllPrices[1]) / 10000.0);
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false,"");
 			}
 
 			// get baseCurve
 			sprintf(lineBuffer, "%s%s%s", "select Tenor,Rate/100 Spread from curve where ccy='", productCcy.c_str(),
 				"' order by Tenor");
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
-			retcode = mydb.fetch(false);
+			retcode = mydb.fetch(false,lineBuffer);
 			vector<SomeCurve> baseCurve;
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				anyCurve.tenor  = atof(szAllPrices[0]);
 				anyCurve.spread = atof(szAllPrices[1]);
 				baseCurve.push_back(anyCurve);
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false,"");
 			}
 
 
@@ -324,30 +324,33 @@ int _tmain(int argc, _TCHAR* argv[])
 			// they can come in any order of UnderlyingId (this is deliberate to aviod the code becoming dependent on any ordering
 			vector<int> ulIds;
 			vector<string> ulCcys;
-			map<string,int> ccyToUidMap;
+			vector<string> ulNames;
+			map<string, int> ccyToUidMap;
 			vector<double> ulERPs;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
-			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy,ERP from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
+			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy,ERP,u.name from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
 				productId, "' ");
 			if (benchmarkId){
-				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",u.ccy,ERP from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
+				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",u.ccy,ERP,u.name from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
 				strcat(lineBuffer, charBuffer);
 			}
-			mydb.prepare((SQLCHAR *)lineBuffer, 3);
-			retcode = mydb.fetch(true);
+			mydb.prepare((SQLCHAR *)lineBuffer, 4);
+			retcode = mydb.fetch(true,lineBuffer);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 				string thisCcy  = szAllPrices[1];
 				double thisERP  = atof(szAllPrices[2]);
+				string thisName = szAllPrices[3];
 				ulCcys.push_back(thisCcy);
 				uid         = atoi(szAllPrices[0]);
 				ccyToUidMap[thisCcy] = uid;
 				if (find(ulIds.begin(), ulIds.end(), uid) == ulIds.end()) {      // build list of uids
 					ulIds.push_back(uid);
 					ulERPs.push_back(thisERP);
+					ulNames.push_back(thisName);
 				}
 				ulIdNameMap.at(uid) = ulIds.size() - 1;
 				// next record
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false,"");
 			}
 			numUl = ulIds.size();
 
@@ -358,7 +361,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					if (productCcy != ulCcys[i]){
 						sprintf(lineBuffer, "%s%s%s%s%s", "select UnderlyingId from underlying where name=concat('", ulCcys[i].c_str(), "','", productCcy.c_str(), "')");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
-						retcode = mydb.fetch(true);
+						retcode = mydb.fetch(true,lineBuffer);
 						if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 							crossRateUids[i] = atoi(szAllPrices[0]);
 						}
@@ -384,8 +387,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			char startDateBuffer[100];
 			if (strlen(endDate)){ strcpy(charBuffer,endDate); }
 			else {
-				mydb.prepare((SQLCHAR *)"select max(date) from prices", 1);
-				retcode = mydb.fetch(true);
+				sprintf(lineBuffer, "%s","select max(date) from prices");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(true,lineBuffer);
 				strcpy(charBuffer, szAllPrices[0]);
 			}	
 			sprintf(startDateBuffer, "%s%s%s", " and Date >= date_sub('",charBuffer,"', interval 5 year) " );
@@ -418,7 +422,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<double> previousPrice(numUl);
 			boost::gregorian::date lastDate;
 			// .. parse each record <Date,price0,...,pricen>
-			retcode = mydb.fetch(true);
+			retcode = mydb.fetch(true,ulSql);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 				int    numDayDiff;
 				boost::gregorian::date bDate(boost::gregorian::from_simple_string(szAllPrices[0]));
@@ -446,7 +450,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				// next row
 				if (firstTime){ firstTime = false; }
 				lastDate = bDate;
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false,"");
 			}
 
 			totalNumDays       = ulOriginalPrices.at(0).price.size();
@@ -496,11 +500,11 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			if (getMarketData || useUserParams){
 				int    thisUidx;
-				double thisFwdVol,thisTenor,previousVol,previousTenor;
+				double thisFwdVol, thisTenor, previousVol, previousTenor;
 				vector<double> someVols, someStrikes, someFwdVols;
 
 				// vols
-				if (ukspaCase != "" && totalNumReturns>2){
+				if (ukspaCase != "" && totalNumReturns > 2){
 					// calc vols  - 5y window, daily returns
 					int startPoint = totalNumDays <= 1825 ? 0 : totalNumDays - 1825;
 					vector<double> tempPrices;
@@ -508,7 +512,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					for (thisUidx = 0; thisUidx < numUl; thisUidx++) {
 						tempPrices.resize(0);
 						tempReturns.resize(0);
-						for (i=startPoint; i<totalNumDays; i++){
+						for (i=startPoint; i < totalNumDays; i++){
 							if (!ulOriginalPrices[thisUidx].nonTradingDay[i]){
 								tempPrices.push_back(ulOriginalPrices[thisUidx].price[i]);
 							}
@@ -517,8 +521,8 @@ int _tmain(int argc, _TCHAR* argv[])
 							double thisReturn = tempPrices[i - 1] > 0.0 ? tempPrices[i] / tempPrices[i - 1] : 1.0;
 							tempReturns.push_back(thisReturn);
 						}
-						double thisMean,thisVol, thisStdErr;
-						MeanAndStdev(tempReturns, thisMean,thisVol, thisStdErr);
+						double thisMean, thisVol, thisStdErr;
+						MeanAndStdev(tempReturns, thisMean, thisVol, thisStdErr);
 						thisVol *= 16.0;
 						if (ukspaCase == "Bear"){
 							thisVol *= 1.1;
@@ -546,12 +550,12 @@ int _tmain(int argc, _TCHAR* argv[])
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
-					sprintf(ulSql, "%s%s%d%s", ulSql, ") and userid=",userId," order by UnderlyingId, Tenor, Strike");
+					sprintf(ulSql, "%s%s%d%s", ulSql, ") and userid=", userId, " order by UnderlyingId, Tenor, Strike");
 					// .. parse each record <Date,price0,...,pricen>
 					thisUidx    = 0;
 					thisTenor   = -1.0;
 					mydb.prepare((SQLCHAR *)ulSql, 4);
-					retcode = mydb.fetch(true);
+					retcode = mydb.fetch(true, ulSql);
 
 					while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 						int    nextUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
@@ -559,7 +563,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						double thisStrike = atof(szAllPrices[2]);
 						double thisVol    = atof(szAllPrices[3]);
 						if (nextTenor != thisTenor){
-							if (someVols.size()>0){
+							if (someVols.size() > 0){
 								ulVolsImpVol[thisUidx].push_back(someVols);
 								someVols.resize(0);
 								ulVolsFwdVol[thisUidx].push_back(someFwdVols);
@@ -578,7 +582,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						// forward vols
 						int numTenors  = ulVolsImpVol[thisUidx].size();
 						int numStrikes = someStrikes.size();
-						if (numTenors>0){ // calc forward vols
+						if (numTenors > 0){ // calc forward vols
 							previousVol   = ulVolsImpVol[thisUidx][numTenors - 1][numStrikes - 1];
 							previousTenor = ulVolsTenor[thisUidx][numTenors - 1];
 							double varianceDiff = (thisVol*thisVol*thisTenor - previousVol*previousVol*previousTenor);
@@ -589,7 +593,7 @@ int _tmain(int argc, _TCHAR* argv[])
 							thisFwdVol  = thisVol;
 						}
 						someFwdVols.push_back(thisFwdVol);
-						retcode = mydb.fetch(false);
+						retcode = mydb.fetch(false, "");
 					}
 					// tail-end charlie
 					if (someVols.size()>0){
@@ -607,7 +611,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				// .. parse each record <Date,price0,...,pricen>
 				string thisCcy = "";
 				mydb.prepare((SQLCHAR *)ulSql, 3);
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false, ulSql);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					string thisCcy   = szAllPrices[0];
 					int    thisUidx  = ulIdNameMap[ccyToUidMap[thisCcy]];
@@ -615,7 +619,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					double thisRate  = atof(szAllPrices[2]);
 					oisRatesTenor[thisUidx].push_back(thisTenor);
 					oisRatesRate[thisUidx].push_back(thisRate / 100.0);
-					retcode = mydb.fetch(false);
+					retcode = mydb.fetch(false, "");
 				}
 				// add dummy records for underlyings for which there are no rates
 				for (i = 0; i < numUl; i++) {
@@ -632,7 +636,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(ulSql, "%s%s%d%s", ulSql, ") and userid=", userId, " order by UnderlyingId,Tenor ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 3);
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false, ulSql);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					int    thisUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
 					double thisTenor  = atof(szAllPrices[1]);
@@ -641,20 +645,20 @@ int _tmain(int argc, _TCHAR* argv[])
 					double driftAdj = 0.0;
 					if (ukspaCase != ""){
 						double thisERP = ulERPs[thisUidx];
-						if (ukspaCase      == "Bear"){ driftAdj =  thisERP; }
-						else if (ukspaCase == "Bull"){ driftAdj = -thisERP;	}
+						if (ukspaCase == "Bear"){ driftAdj =  thisERP; }
+						else if (ukspaCase == "Bull"){ driftAdj = -thisERP; }
 					}
 					divYieldsTenor[thisUidx].push_back(thisTenor);
 					divYieldsRate[thisUidx].push_back(thisRate + driftAdj);
-					retcode = mydb.fetch(false);
+					retcode = mydb.fetch(false, "");
 				}
 				// add dummy records for underlyings for which there are no divs
 				for (i = 0; i < numUl; i++) {
-					if (divYieldsTenor[i].size() == 0){ 
+					if (divYieldsTenor[i].size() == 0){
 						double driftAdj = 0.0;
 						if (ukspaCase != ""){
 							double thisERP = ulERPs[thisUidx];
-							if (ukspaCase      == "Bear"){ driftAdj =  thisERP; }
+							if (ukspaCase == "Bear"){ driftAdj =  thisERP; }
 							else if (ukspaCase == "Bull"){ driftAdj = -thisERP; }
 						}
 						divYieldsTenor[i].push_back(10.0);
@@ -662,15 +666,15 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 				}
 				//  eq-eq corr
-				if (ukspaCase != "" && totalNumReturns>2){
+				if (ukspaCase != "" && totalNumReturns > 2){
 					// calc corrs - 1y window, 3day returns
 					int periodicity = 3;
 					int startPoint = totalNumDays <= 365 ? 0 : totalNumDays - 365;
-					vector<double> tempPrices, tempReturns,tempPrices1,tempReturns1;
+					vector<double> tempPrices, tempReturns, tempPrices1, tempReturns1;
 					for (thisUidx = 0; thisUidx < numUl; thisUidx++) {
 						tempPrices.resize(0);
 						tempReturns.resize(0);
-						for (j=0,i=startPoint; i<totalNumDays; i++){
+						for (j=0, i=startPoint; i < totalNumDays; i++){
 							if (!ulOriginalPrices[thisUidx].nonTradingDay[i]){
 								j += 1;
 								if (j % periodicity == 0){ tempPrices.push_back(ulOriginalPrices[thisUidx].price[i]); }
@@ -680,10 +684,10 @@ int _tmain(int argc, _TCHAR* argv[])
 							double thisReturn = tempPrices[i - 1] > 0.0 ? tempPrices[i] / tempPrices[i - 1] : 1.0;
 							tempReturns.push_back(thisReturn);
 						}
-						for (int otherUidx=thisUidx + 1; otherUidx<numUl; otherUidx++) {
+						for (int otherUidx=thisUidx + 1; otherUidx < numUl; otherUidx++) {
 							tempPrices1.resize(0);
 							tempReturns1.resize(0);
-							for (j=0, i=startPoint; i<totalNumDays; i++){
+							for (j=0, i=startPoint; i < totalNumDays; i++){
 								if (!ulOriginalPrices[otherUidx].nonTradingDay[i]){
 									j += 1;
 									if (j % periodicity == 0){ tempPrices1.push_back(ulOriginalPrices[otherUidx].price[i]); }
@@ -711,7 +715,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					sprintf(ulSql, "%s%s%d%s", ulSql, ")  and userid=", userId, " order by UnderlyingId,OtherId ");
 					// .. parse each record <Date,price0,...,pricen>
 					mydb.prepare((SQLCHAR *)ulSql, 3);
-					retcode   = mydb.fetch(false);
+					retcode   = mydb.fetch(false, ulSql);
 					while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 						int    thisUid    = atoi(szAllPrices[0]);
 						int    otherId    = atoi(szAllPrices[1]);
@@ -723,7 +727,7 @@ int _tmain(int argc, _TCHAR* argv[])
 							thisCorr = forceEqEqCorrelation;
 						}
 						corrsCorrelation[thisUidx].push_back(thisCorr);
-						retcode = mydb.fetch(false);
+						retcode = mydb.fetch(false, "");
 					}
 				}
 				//  eq-fx corr
@@ -734,7 +738,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", userId, " order by UnderlyingId,OtherId ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 3);
-				retcode   = mydb.fetch(false);
+				retcode   = mydb.fetch(false, ulSql);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					int    thisUid    = atoi(szAllPrices[0]);
 					int    thisUidx   = ulIdNameMap.at(thisUid);
@@ -742,8 +746,19 @@ int _tmain(int argc, _TCHAR* argv[])
 					int    otherUidx  = ulIdNameMap.at(otherId);
 					double thisCorr   = atof(szAllPrices[2]);
 					fxcorrsOtherId[thisUidx].push_back(otherUidx);
-					fxcorrsCorrelation[thisUidx].push_back(forceEqFxCorr &&	fxCorrelationUid == thisUid && fxCorrelationOtherId == otherId ? forceEqFxCorrelation :	thisCorr);
-					retcode = mydb.fetch(false);
+					fxcorrsCorrelation[thisUidx].push_back(forceEqFxCorr &&	fxCorrelationUid == thisUid && fxCorrelationOtherId == otherId ? forceEqFxCorrelation : thisCorr);
+					retcode = mydb.fetch(false, "");
+				}
+				// check we have data for all underlyings
+				for (i = 0; i < numUl; i++) {
+					if (ulVolsTenor[i].size() == 0){ 
+						cerr << "No volatilities found for " << ulNames[i] << endl; 
+						exit(1); 
+					}
+					if (divYieldsTenor[i].size() == 0){
+						cerr << "No dividends found for " << ulNames[i] << endl;
+						exit(1);
+					}
 				}
 			}
 			MarketData  thisMarketData(ulVolsTenor,
@@ -773,7 +788,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
-			retcode = mydb.fetch(true);
+			retcode = mydb.fetch(true,lineBuffer);
 			map<char, int>::iterator curr, end;
 			// ...parse each productbarrier row
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
@@ -825,7 +840,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				// ** SQL fetch block
 				sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "barrierrelation where ProductBarrierId='", barrierId, "' order by UnderlyingId");
 				mydb1.prepare((SQLCHAR *)lineBuffer, colBarrierRelationLast);
-				retcode = mydb1.fetch(false);
+				retcode = mydb1.fetch(false,lineBuffer);
 				// ...parse each barrierrelation row
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					double weight           = atof(szAllPrices[brcolWeight]);
@@ -863,7 +878,7 @@ int _tmain(int argc, _TCHAR* argv[])
 							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString,isContinuousALL));
 					}
 					// next barrierRelation record
-					retcode = mydb1.fetch(false);
+					retcode = mydb1.fetch(false,"");
 				}
 
 				switch (thisBarrier.payoffTypeId) {
@@ -942,7 +957,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 				// next barrier record
 				numBarriers += 1;
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false,"");
 			}
 
 
@@ -1002,7 +1017,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(lineBuffer, "%s%d%s%d", "delete from path where userid=", userId, " and productid=", productId);
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				/*
-				retcode = mydb.fetch(true);
+				retcode = mydb.fetch(true,lineBuffer);
 				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					cerr << "Problem deleting: " << lineBuffer << endl;
 				}
