@@ -1035,6 +1035,11 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (monDateIndx .size() == 0){ continue; }
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
 			spr.maxProductDays = maxBarrierDays + daysExtant;
+			// enough data?
+			if (totalNumDays<2 || (thisNumIterations<2 && totalNumDays < spr.maxProductDays)){
+				cerr << "Not enough data for product#:" << productId << endl;
+				exit(1);
+			}
 			numMonPoints = monDateIndx.size();
 			// ...check product not matured
 			if (!numMonPoints || (numMonPoints == 1 && monDateIndx[0] == 0)){ continue; }
