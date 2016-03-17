@@ -2583,7 +2583,7 @@ public:
 				}
 
 				// text output
-				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", 
+				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", 
 						analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
 						100.0*geomReturn, ":", 
 						100.0*earithReturn, ":",
@@ -2592,6 +2592,8 @@ public:
 						100.0*probLoss, ":",
 						ecStrictGain, ":",
 						ecLoss, ":",
+						ecStrictGain*probStrictGain, ":",
+						ecLoss*probLoss, ":",
 						100.0*benchmarkProbOutperf, ":",
 						100.0*benchmarkCondOutperf, ":",
 						100.0*benchmarkProbUnderperf, ":",

@@ -775,6 +775,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			fxcorrsCorrelation 
 			);
 
+			// enough data?
+			if (totalNumDays - 1 < daysExtant){
+				cerr << "Not enough data to determine strike for product#:" << productId << endl;
+				exit(1);
+			}
+
+
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
 				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase);
