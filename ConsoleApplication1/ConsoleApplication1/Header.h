@@ -2127,7 +2127,13 @@ public:
 			for (int analyseCase = 0; analyseCase < (doPriips?1:2); analyseCase++) {
 				if (doDebug){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 				bool     applyCredit = analyseCase == 1;
+				
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));
+				// ukspaCase also now have projectedReturns
+				if (ukspaCase == "Bear")        { projectedReturn = 0.1; }
+				else if (ukspaCase == "Neutral"){ projectedReturn = 0.2; }
+				else if (ukspaCase == "Bull")   { projectedReturn = 0.3; }
+
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
 				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,bmAnnRets,bmRelLogRets,pvInstances;
@@ -2225,7 +2231,7 @@ public:
 					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
-					if (!getMarketData){
+					if (!getMarketData || ukspaCase != ""){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update ", useProto, "barrierprob set Prob='", prob,
 							"',AnnReturn='", annReturn,
 							"',CondPayoff='", mean,
@@ -2474,7 +2480,7 @@ public:
 				double bmRelAverage   = bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf;
 				int    secsTaken      = difftime(time(0), startTime);
 
-				if (!getMarketData){
+				if (!getMarketData || ukspaCase != ""){
 					sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='", secsTaken);
 					sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "cashflows set ExpectedPayoff='", expectedPayoff);
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='", ePosPayoff);
