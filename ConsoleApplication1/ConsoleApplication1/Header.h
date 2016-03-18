@@ -2231,7 +2231,7 @@ public:
 					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
-					if (!getMarketData || ukspaCase != ""){
+					if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update ", useProto, "barrierprob set Prob='", prob,
 							"',AnnReturn='", annReturn,
 							"',CondPayoff='", mean,
@@ -2480,7 +2480,7 @@ public:
 				double bmRelAverage   = bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf;
 				int    secsTaken      = difftime(time(0), startTime);
 
-				if (!getMarketData || ukspaCase != ""){
+				if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
 					sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='", secsTaken);
 					sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "cashflows set ExpectedPayoff='", expectedPayoff);
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='", ePosPayoff);
