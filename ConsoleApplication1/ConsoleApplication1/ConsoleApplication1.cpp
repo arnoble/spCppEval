@@ -882,7 +882,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						// create barrierRelation
 						thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
 							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), 
-							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString,isContinuousALL));
+							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString,isContinuousALL,thisBarrier.isStrikeReset));
 					}
 					// next barrierRelation record
 					retcode = mydb1.fetch(false,"");
@@ -916,7 +916,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				// DOME:  need to check all brels have the same endDate
 				bool isExtremumBarrier = false;
 				for (i = 0; i < thisBarrier.brel.size(); i++) {
-					if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate) {
+					if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate && !thisBarrier.isStrikeReset) {
 						isExtremumBarrier = true;
 						productNeedsFullPriceRecord = true;
 					}
@@ -932,7 +932,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				else {
 					// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
-					if (thisBarrier.isExtremum || !thisBarrier.isContinuous){
+					if (thisBarrier.isExtremum || !thisBarrier.isContinuous || thisBarrier.isStrikeReset){
 						if (find(monDateIndx.begin(), monDateIndx.end(), thisEndDays) == monDateIndx.end()) {
 							monDateIndx.push_back(thisEndDays);
 						}

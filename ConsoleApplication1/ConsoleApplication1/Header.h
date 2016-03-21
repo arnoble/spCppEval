@@ -619,10 +619,12 @@ public:
 		const int           avgInFreq,
 		const std::string   avgInAlgebra,
 		const std::string   productStartDateString,
-		const bool          isContinuousALL)
+		const bool          isContinuousALL,
+		const bool          isStrikeReset)
 		: underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq), avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL)
+		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq), 
+		avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL), isStrikeReset(isStrikeReset)
 	{
 		/*
 		const boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(startDate));
@@ -664,7 +666,7 @@ public:
 
 
 			// ...compute moneyness
-			moneyness    = ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
+			moneyness    = isStrikeReset && startDays>0 ? 1.0 : ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
 			strike      /= moneyness;
 			// ...compute running averages
 			// ... we are either inside an in-progress averaging (avgDays>endDays), or the entire averaging period is in the past (endDays<0)
@@ -693,7 +695,7 @@ public:
 			moneyness      = 1.0;
 		}
 	};
-	const bool        above, at, isAbsolute, isContinuousALL;
+	const bool        above, at, isAbsolute, isContinuousALL, isStrikeReset;
 	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
 	const double      originalStrike,originalBarrier, originalUbarrier,weight;
 	const std::string startDate, endDate, avgInAlgebra;
@@ -1088,8 +1090,8 @@ public:
 				// following line changed as we now correctly do SpBarrierRelation initialisation from strike(strike) to strike(unadjStrike)
 				// ...previously strike /= moneyness was only affecting the parameter value! and not the member variable
 				// thisStrike = thisBrel.strike * startLevels[n] / thisBrel.moneyness;
-				thisStrike   = thisBrel.strike * startLevels[n] ;
 				thisRefLevel = thisBrel.refLevel;  // startLevels[n] / thisBrel.moneyness;
+				thisStrike   = thisBrel.strike * (isStrikeReset ? thisRefLevel : startLevels[n]);
 				if (payoffTypeId == lookbackCallPayoff || payoffTypeId == lookbackPutPayoff) {
 					thisAssetReturn = lookbackLevel[n] / thisRefLevel;
 				}
@@ -1855,7 +1857,10 @@ public:
 						int thisName = ulIdNameMap.at(thisBrel.underlying);
 						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint,ulPrices.at(thisName));
 						if (b.isStrikeReset){
-							int brelStartPoint = thisPoint + thisBrel.startDays; if (brelStartPoint < 0){ brelStartPoint  = 0; } if (brelStartPoint >= totalNumDays){ brelStartPoint  = totalNumDays-1; }
+							int brelStartPoint = thisPoint + thisBrel.startDays; 
+							if (brelStartPoint < 0){ brelStartPoint  = 0; } 
+							// remove next line: we now ensure there are enough prices for the full product term
+							// if (brelStartPoint >= totalNumDays){ brelStartPoint  = totalNumDays-1; }
 							thisBrel.setLevels(ulPrices.at(thisName).price.at(brelStartPoint));
 						}
 						else {
