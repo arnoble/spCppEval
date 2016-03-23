@@ -13,12 +13,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'notIllustrative' 'debug' 'priips' 'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'notIllustrative' 'debug' 'priips'  'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), doPriips(false), getMarketData(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
+		bool             doAnyIdTable;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -42,6 +43,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
+			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
 			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }			
 			if (sscanf(thisArg, "eqFx:%s", lineBuffer)){
@@ -116,7 +118,10 @@ int _tmain(int argc, _TCHAR* argv[])
 		// get list of productIds
 		if (commaSepList == 1) {
 			sprintf(charBuffer, "%s%s%s", " where p.ProductId in (", WcharToChar(argv[1], &numChars),") ");
-		} else {
+		}
+		else if (doAnyIdTable){
+			sprintf(charBuffer, "%s", " join anyid a on (p.ProductId=a.id) ");
+		} else{
 			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
 		}
 		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto, "cashflows c using (ProductId) join institution i on (p.counterpartyid=i.institutionid) ", 
@@ -416,6 +421,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			else if (thisNumIterations>1) { strcat(ulSql, doPriips ? startDateBuffer : " and Date >='1992-12-31' "); }
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
 			strcat(ulSql, " order by Date");
+			// cerr << ulSql << endl;
 			// ...call DB
 			mydb.prepare((SQLCHAR *)ulSql, numUl + 1);
 			bool   firstTime(true);
@@ -474,15 +480,17 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 
-			// benchmark moneyness
+			// benchmark moneyness ... measure performance only from va;luation date
 			double benchmarkMoneyness = 1.0;
+			/*
 			if (benchmarkId != 0){
 				// ...compute moneyness
 				const UlTimeseries  &ulTimeseries =  ulOriginalPrices.at(ulIdNameMap[benchmarkId]);
 				int lastIndx(ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
 				benchmarkMoneyness  = ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
 			}
-
+			*/
+			
 
 			// market data
 			vector< vector<double> >          ulVolsTenor(numUl);
