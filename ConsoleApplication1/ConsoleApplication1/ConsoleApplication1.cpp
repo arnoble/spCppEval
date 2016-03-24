@@ -19,7 +19,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), doPriips(false), getMarketData(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             doAnyIdTable;
+		bool             doUKSPA(false),doAnyIdTable(false);
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -80,7 +80,11 @@ int _tmain(int argc, _TCHAR* argv[])
 					lineBuffer, "))) x using (productid) ");
 			}
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer))             { strcpy(startDate, lineBuffer); }
-			if (sscanf(thisArg, "UKSPA:%s", lineBuffer))                  { ukspaCase               = lineBuffer; getMarketData = true; }
+			if (sscanf(thisArg, "UKSPA:%s", lineBuffer))                  {
+				ukspaCase     = lineBuffer;
+				doUKSPA       = ukspaCase != "";
+				getMarketData = true;
+			}
 			if (sscanf(thisArg, "Issuer:%s", lineBuffer))                 { issuerPartName          = lineBuffer; }
 			if (sscanf(thisArg, "fundingFractionFactor:%s", lineBuffer))  { fundingFractionFactor	= atof(lineBuffer);	}
 			if (sscanf(thisArg, "forceFundingFraction:%s", lineBuffer))   { forceFundingFraction	= lineBuffer; }
@@ -222,7 +226,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			fairValueDateString           = szAllPrices[colProductFairValueDate];
 			bidAskDateString              = szAllPrices[colProductBidAskDate];
 			int  benchmarkId              = atoi(szAllPrices[colProductBenchmarkId]);
-			if (benchmarkId != 0 && getMarketData){ benchmarkId = 0; } // do not need (possibly-not-market-data-tracked) benchmark for a fairvalue calc
+			if (benchmarkId != 0 && !doUKSPA && getMarketData){ benchmarkId = 0; } // do not need (possibly-not-market-data-tracked) benchmark for a fairvalue calc
 			double hurdleReturn           = atof(szAllPrices[colProductHurdleReturn])/100.0;
 			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductBenchmarkTER]) / 100.0);
 			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
@@ -327,24 +331,25 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// get underlyingids for this product from DB
 			// they can come in any order of UnderlyingId (this is deliberate to aviod the code becoming dependent on any ordering
-			vector<int> ulIds;
+			vector<int> ulIds,ulPriceReturnUids;
 			vector<string> ulCcys;
 			vector<string> ulNames;
 			map<string, int> ccyToUidMap;
 			vector<double> ulERPs;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
-			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy,ERP,u.name from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
+			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy,ERP,u.name,PriceReturnUid from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
 				productId, "' ");
 			if (benchmarkId){
-				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",u.ccy,ERP,u.name from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
+				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",u.ccy,ERP,u.name,PriceReturnUid from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
 				strcat(lineBuffer, charBuffer);
 			}
-			mydb.prepare((SQLCHAR *)lineBuffer, 4);
+			mydb.prepare((SQLCHAR *)lineBuffer, 5);
 			retcode = mydb.fetch(true,lineBuffer);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-				string thisCcy  = szAllPrices[1];
-				double thisERP  = atof(szAllPrices[2]);
-				string thisName = szAllPrices[3];
+				string thisCcy            = szAllPrices[1];
+				double thisERP            = atof(szAllPrices[2]);
+				string thisName           = szAllPrices[3];
+				int    thisPriceReturnUid = atoi(szAllPrices[4]);
 				ulCcys.push_back(thisCcy);
 				uid         = atoi(szAllPrices[0]);
 				ccyToUidMap[thisCcy] = uid;
@@ -352,6 +357,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					ulIds.push_back(uid);
 					ulERPs.push_back(thisERP);
 					ulNames.push_back(thisName);
+					ulPriceReturnUids.push_back(thisPriceReturnUid);
 				}
 				ulIdNameMap.at(uid) = ulIds.size() - 1;
 				// next record
@@ -637,7 +643,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 				}
 				//  divYields
-				sprintf(ulSql, "%s%d", "select underlyingid,Tenor,impdivyield Rate from impdivyield d where d.UnderlyingId in (", ulIds[0]);
+				sprintf(ulSql, "%s%s%s%s%s%d", "select underlyingid,Tenor,", doUKSPA ? "divyield" : "impdivyield", " Rate from ", doUKSPA ? "divyield" : "impdivyield"," d where d.UnderlyingId in (", ulIds[0]);
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 				}
@@ -657,17 +663,25 @@ int _tmain(int argc, _TCHAR* argv[])
 						else if (ukspaCase == "Bull"){ driftAdj = -thisERP; }
 					}
 					divYieldsTenor[thisUidx].push_back(thisTenor);
-					divYieldsRate[thisUidx].push_back(thisRate + driftAdj);
+					divYieldsRate[thisUidx].push_back(ukspaCase == "Neutral" ? 0.0 : thisRate + driftAdj);
 					retcode = mydb.fetch(false, "");
 				}
-				// add dummy records for underlyings for which there are no divs
+				// add dummy records for underlyings for which there are no divs (will include, for example total return indices)
 				for (i = 0; i < numUl; i++) {
 					if (divYieldsTenor[i].size() == 0){
 						double driftAdj = 0.0;
 						if (ukspaCase != ""){
-							double thisERP = ulERPs[thisUidx];
-							if (ukspaCase == "Bear"){ driftAdj =  thisERP; }
+							double thisERP = ulERPs[i];
+							if      (ukspaCase == "Bear"){ driftAdj =  thisERP; }
 							else if (ukspaCase == "Bull"){ driftAdj = -thisERP; }
+							else if (ulPriceReturnUids[i]){  // Neutral - see if there is a ulPriceReturnUids
+								sprintf(lineBuffer, "%s%d", "select divyield from divyield where UnderlyingId=", ulPriceReturnUids[i]);
+								mydb.prepare((SQLCHAR *)lineBuffer, 1);
+								retcode = mydb.fetch(false, ulSql);
+								if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+									driftAdj -= atof(szAllPrices[0]);
+								}
+							}
 						}
 						divYieldsTenor[i].push_back(10.0);
 						divYieldsRate[i].push_back(driftAdj);
