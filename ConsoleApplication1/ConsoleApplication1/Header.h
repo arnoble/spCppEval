@@ -16,6 +16,9 @@
 
 #define MAX_SP_BUF                         500000
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
+
+
+
 // correlation
 double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues) {
 	int N = aValues.size();
@@ -157,6 +160,31 @@ void splitCommaSepName(std::vector<std::string> &out, std::string s){
 		out.push_back(match.str());
 	}	
 }
+// split barrierCommand
+void splitBarrierCommand(std::vector<std::string> &out, std::string s){
+
+	std::regex word_regex("([^\(\)]+)");
+	auto words_begin = std::sregex_iterator(s.begin(), s.end(), word_regex);
+	auto words_end   = std::sregex_iterator();
+
+	int numWords = std::distance(words_begin, words_end);
+
+	for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
+		std::smatch match = *i;
+		out.push_back(match.str());
+	}
+}
+// avoids regex - splits delimited string into stringVector
+std::vector<std::string> split(std::string str, char delimiter) {
+	std::vector<std::string> internal;
+	std::stringstream ss(str); // Turn the string into a stream.
+	std::string tok;
+	while (getline(ss, tok, delimiter)) {
+		internal.push_back(tok);
+	}
+	return internal;
+}
+
 
 // ExpectedShortfall for standard normal density
 double Dnorm(double x) { return(exp(-0.5 * x*x) / (2.506628)); }  // standard normal density
@@ -820,6 +848,7 @@ public:
 		const bool              isStrikeReset,
 		const bool              isStopLoss,
 		const bool              isForfeitCoupons,
+		const std::string       barrierCommands,
 		const int               daysExtant,
 		const boost::gregorian::date bProductStartDate,
 		const bool              doFinalAssetReturn,
@@ -829,7 +858,7 @@ public:
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
-		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
+		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), barrierCommands(barrierCommands), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
@@ -863,7 +892,7 @@ public:
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons;
 	const double                    payoff,participation, param1,midPrice;
-	const std::string               nature, settlementDate, description, payoffType;
+	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
@@ -1412,16 +1441,16 @@ public:
 
 
 	// evaluate product at this point in time
-	void evaluate(const int       totalNumDays, 
-		const int                 startPoint, 
-		const int                 lastPoint, 
-		const int                 numMcIterations, 
+	void evaluate(const int       totalNumDays,
+		const int                 startPoint,
+		const int                 lastPoint,
+		const int                 numMcIterations,
 		const int                 historyStep,
-		std::vector<UlTimeseries> &ulPrices, 
+		std::vector<UlTimeseries> &ulPrices,
 		const std::vector<double> ulReturns[],
-		const int                 numBarriers, 
-		const int                 numUl, 
-		const std::vector<int>    ulIdNameMap, 
+		const int                 numBarriers,
+		const int                 numUl,
+		const std::vector<int>    ulIdNameMap,
 		std::vector<int>          monDateIndx,
 		const double              recoveryRate, 
 		const std::vector<double> hazardCurve,
@@ -1449,6 +1478,7 @@ public:
 		const std::vector<double> &cdsSpread,
 		const double              fundingFraction,
 		const bool                productNeedsFullPriceRecord){
+		std::vector<bool>		 barrierDisabled;
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
@@ -1480,6 +1510,7 @@ public:
 		}
 		std::vector<int>   numCouponHits(numIncomeBarriers+1);
 		for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+			barrierDisabled.push_back(false);
 			SpBarrier& b(barrier.at(thisBarrier));
 			b.forwardRate            = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, b.yearsToBarrier); // DOME: very crude for now
 		}
@@ -1650,6 +1681,10 @@ public:
 		}
 		if (numMcIterations <= 25000){ accuracyTol = 2.0; }
 		else if (numMcIterations <= 50000){ accuracyTol = 1.0; }
+		// ***********************
+		// START LOOP McIterations
+		// ***********************
+		int numDisables(0);
 		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>accuracyTol; thisIteration++) {
 			
 			// create new random sample for next iteration
@@ -1785,7 +1820,7 @@ public:
 				}
 			}
 
-			// wind 'thisPoint' forwards to next TRADING date, so as to start a new product
+			// START LOOP wind 'thisPoint' forwards to next TRADING date, so as to start a new product
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
 				if (numMcIterations == 1){  // only need to start on a trading day for HistoricBacktest
 					while (allNonTradingDays.at(thisPoint) && thisPoint < lastPoint) {
@@ -1843,45 +1878,46 @@ public:
 				double                 benchmarkReturn   = 1.0e9;
 				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl), overrideThesePrices(numUl);
 
+				// set up barriers
 				/*
 				* BEWARE ... startLevels[] has same underlyings-order as ulPrices[], so make sure any comparison with them is in the same order
 				*        ... and watch out for useUlMap argument which tells callee function that array arguments are already in the correct synchronised order
 				*/
 				for (i = 0; i < numUl; i++) { startLevels.at(i) = ulPrices.at(i).price.at(thisPoint); }
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+					// if (barrierDisabled[thisBarrier]){ std::cerr << "BarrierDisabled:" << thisBarrier << std::endl;  }
+					barrierDisabled[thisBarrier]= false;
 					SpBarrier& b(barrier.at(thisBarrier));
 					int numBrel = b.brel.size();
 					std::vector<double>	theseExtrema; theseExtrema.reserve(10);
 					for (unsigned int uI = 0; uI < numBrel; uI++){
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
 						int thisName = ulIdNameMap.at(thisBrel.underlying);
-						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint,ulPrices.at(thisName));
+						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint, ulPrices.at(thisName));
 						if (b.isStrikeReset){
-							int brelStartPoint = thisPoint + thisBrel.startDays; 
-							if (brelStartPoint < 0){ brelStartPoint  = 0; } 
+							int brelStartPoint = thisPoint + thisBrel.startDays;
+							if (brelStartPoint < 0){ brelStartPoint  = 0; }
 							// remove next line: we now ensure there are enough prices for the full product term
 							// if (brelStartPoint >= totalNumDays){ brelStartPoint  = totalNumDays-1; }
 							thisBrel.setLevels(ulPrices.at(thisName).price.at(brelStartPoint));
 						}
-						else {
-							thisBrel.setLevels(startLevels.at(thisName));
-						}
+						else { thisBrel.setLevels(startLevels.at(thisName)); }
 						// cater for extremum barriers, where typically averaging does not apply to barrier hit test
 						// ...so set barrierWasHit[thisBarrier] if the extremum condition is met
 						// check to see if extremumBarriers hit
 						if (b.isExtremum) {
 							double thisExtremum;
-							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0           ){ firstPoint  = 0; }
-							int lastPoint  = thisPoint + thisBrel.endDays;   
+							int firstPoint = thisPoint + thisBrel.startDays; if (firstPoint < 0){ firstPoint  = 0; }
+							int lastPoint  = thisPoint + thisBrel.endDays;
 							// accruals only look as far as real data (cannot look further into simulated time
-							if (doAccruals && (lastPoint  > totalNumDays-1)){ lastPoint   = totalNumDays-1; }
+							if (doAccruals && (lastPoint  > totalNumDays - 1)){ lastPoint   = totalNumDays - 1; }
 							const std::vector<double>&  thisTimeseries = ulPrices.at(thisName).price;
 							// 'Continuous'    means ONE-touch  so Above needs MAX  and !Above needs MIN
 							// 'ContinuousALL' means  NO-touch  so Above needs MIN  and !Above needs MAX
 							// ... so we need MAX in these cases
 							if ((thisBrel.above && !thisBrel.isContinuousALL) || (!thisBrel.above && thisBrel.isContinuousALL)) {
 								for (k = firstPoint, thisExtremum = -1.0e20; k <= lastPoint; k++) {
-									if (thisTimeseries[k]>thisExtremum){ thisExtremum = thisTimeseries[k]; }
+									if (thisTimeseries[k] > thisExtremum){ thisExtremum = thisTimeseries[k]; }
 								}
 							}
 							else {
@@ -1889,14 +1925,13 @@ public:
 									if (thisTimeseries[k] < thisExtremum){ thisExtremum = thisTimeseries[k]; }
 								}
 							}
-
 							theseExtrema.push_back(thisExtremum);
 						}
-					}
+					} // END for (unsigned int uI = 0; uI < numBrel; uI++){
 					if (b.isExtremum && (!doAccruals || b.endDays<0)) {
-						if (b.isContinuousGroup && numBrel>1 ) {  // eg product 536, all underlyings must be above their barriers on some common date
+						if (b.isContinuousGroup && numBrel>1) {  // eg product 536, all underlyings must be above their barriers on some common date
 							int firstPoint = thisPoint + b.brel[0].startDays; if (firstPoint < 0){ firstPoint  = 0; }
-							int lastPoint  = thisPoint + b.brel[0].endDays;   
+							int lastPoint  = thisPoint + b.brel[0].endDays;
 							// accruals only look as far as real data (cannot look further into simulated time
 							if (doAccruals && (lastPoint  > totalNumDays - 1)){ lastPoint   = totalNumDays - 1; }
 							std::vector<int> ulNames;
@@ -1905,25 +1940,17 @@ public:
 							}
 							for (k=firstPoint; !barrierWasHit.at(thisBarrier) && k <= lastPoint; k++) {
 								std::vector<double>    tempPrices;
-								for (j=0; j<numBrel; j++) {
-									tempPrices.push_back(ulPrices.at(ulNames[j]).price[k]);
-								}
-								barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(k,ulPrices, tempPrices, false, startLevels);
-								if (barrierWasHit.at(thisBarrier)){
-									int jj=1;
-								}
-							}					
+								for (j=0; j < numBrel; j++) { tempPrices.push_back(ulPrices.at(ulNames[j]).price[k]); }
+								barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(k, ulPrices, tempPrices, false, startLevels);
+							}
 						}
-						else {
-							barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(k,ulPrices, theseExtrema, false, startLevels);
-						}
-						if (doAccruals && b.yearsToBarrier<=0.0){     // for post-strike deals, record if barriers have already been hit
-							b.hasBeenHit = barrierWasHit[thisBarrier]; 
-						}
+						else { barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(k, ulPrices, theseExtrema, false, startLevels); }
+						// for post-strike deals, record if barriers have already been hit
+						if (doAccruals && b.yearsToBarrier <= 0.0){ b.hasBeenHit = barrierWasHit[thisBarrier]; }
 					}
-				}
+				} // END set up barriers
 
-				// go through each monitoring date
+				// START LOOP through each monitoring date to trigger events
 				for (int thisMonIndx = 0; !matured && thisMonIndx < monDateIndx.size(); thisMonIndx++){
 					int thisMonDays  = monDateIndx[thisMonIndx];
 					int thisMonPoint = thisPoint + thisMonDays;
@@ -1931,20 +1958,39 @@ public:
 					for (i = 0; i < numUl; i++) {
 						thesePrices[i] = ulPrices[i].price.at(thisMonPoint);;
 					}
-
-					// test each barrier
+					// START LOOP test each barrier
 					for (int thisBarrier = 0; !matured && thisBarrier<numBarriers; thisBarrier++){
 						SpBarrier &b(barrier[thisBarrier]);
-						// is barrier alive
-						if (b.endDays == thisMonDays || (b.isContinuous && thisMonDays <= b.endDays && thisMonDays >= b.startDays)) {
+						// START is barrier alive
+						bool notDisabled = barrierDisabled[thisBarrier] == false;
+						if ((b.endDays == thisMonDays || (b.isContinuous && thisMonDays <= b.endDays && thisMonDays >= b.startDays)) && notDisabled) {
 							// averaging/lookback - will replace thesePrices with their averages
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls);
-							// is barrier hit
+							// START is barrier hit
 							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || (!b.isExtremum && (b .* (b.isHit))(thisMonPoint,ulPrices, thesePrices, true, startLevels))){
 								barrierWasHit[thisBarrier] = true;
-								if (doAccruals){         // for post-strike deals, record if barriers have already been hit
-									b.hasBeenHit = true; 
-								}  
+								// process barrier commands
+								if (b.barrierCommands != ""){
+									std::vector<std::string> barrierCommands = split(b.barrierCommands, ';');
+									for (int i=0; i<barrierCommands.size(); i++){
+										std::string bCommand  = barrierCommands[i];
+										std::vector<std::string> bCommandBits;
+										splitBarrierCommand(bCommandBits, bCommand);
+										std::vector<std::string> bCommandArgs = split(bCommandBits[1], ',');
+										std::string thisBcommand = bCommandBits[0];
+
+										if (thisBcommand == "disableBarrier"){
+											int targetBarrierId = atoi(bCommandArgs[0].c_str()) - 1;
+											barrierDisabled[targetBarrierId] = true;
+											numDisables++;
+										} 
+										
+									}
+								}
+
+
+								// for post-strike deals, record if barriers have already been hit
+								if (doAccruals){ b.hasBeenHit = true; }  
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds,useUl);
 								// ***********
 								// capitalBarrier hit ... so product terminates
@@ -1998,8 +2044,8 @@ public:
 											thisPayoff += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
 										}
 									}
-								}
-								else {
+								} // END of capital barrier processing
+								else { // income barrier processing
 									if (thisPayoff == 0.0){ // Rainbow option coupons for example, where a 'hit' is only known after the option payoff is calculated 
 										barrierWasHit[thisBarrier] = false;
 									}
@@ -2031,21 +2077,21 @@ public:
 											}
 										}
 									}
-								}
+								} // END income barrier processing
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
 									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, barrierWasHit[thisBarrier] ? b.proportionHits:0.0, 
 										finalAssetReturn, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}
-							}
-							else {
-								// in case you want to see why not hit
+							} // END is barrier hit
+							else {  // in case you want to see why not hit
 								// b.isHit(thisMonPoint,ulPrices,thesePrices,true,startLevels);
 							}
-						}
-					}
-				}
+						} // END is barrier alive
+					} // END LOOP test each barrier
+				} // END LOOP through each monitoring date to trigger events
+
 				// collect statistics for this product episode
 				if (!doAccruals){
 					// count NUMBER of couponHits, and update running count for that NUMBER  
@@ -2056,8 +2102,9 @@ public:
 					}
 					numCouponHits.at(thisNumCouponHits) += 1;
 				}
-			}
+			} // END LOOP wind 'thisPoint' forwards to next TRADING date, so as to start a new product
 
+			// end-this-iteration convergence test
 			if ((thisIteration + 1) % 1000 == 0){ std::cout << "."; }
 			if (thisIteration>750 && (thisIteration + 1) % 10000 == 0){
 				double thisMean       = PayoffMean(barrier);
@@ -2076,7 +2123,8 @@ public:
 				std::cout << std::endl << " MeanPayoff:" << thisMean << " StdevRatio:" << thisStdevRatio << " StdevRatioChange:" << stdevRatioPctChange;
 				stdevRatio = thisStdevRatio;
 			}
-		}
+		} // END LOOP McIterations
+
 		std::cout << std::endl;
 
 

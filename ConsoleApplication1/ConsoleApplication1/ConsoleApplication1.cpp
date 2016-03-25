@@ -813,7 +813,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			enum {
 				colProductBarrierId = 0, colProductId,
 				colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
-				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colStrikeReset, colStopLoss, colAvgInAlgebra, colOriginalStrike, colForfeitCoupons, colProductBarrierLast
+				colStrike, colAvgTenor, colAvgFreq, colAvgType, colCap, colUnderlyingFunctionId, colParam1, colMemory, colIsAbsolute, colAvgInTenor, colAvgInFreq, colStrikeReset, colStopLoss, colAvgInAlgebra, colOriginalStrike, colForfeitCoupons, colCommands,colProductBarrierLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
@@ -833,12 +833,13 @@ int _tmain(int argc, _TCHAR* argv[])
 					productNeedsFullPriceRecord = true;
 					buildAveragingInfo(szAllPrices[colAvgInTenor], szAllPrices[colAvgInFreq], avgInDays, avgInFreq);
 				}
-				int barrierId         = atoi(szAllPrices[colProductBarrierId]);
-				int avgType           = atoi(szAllPrices[colAvgType]);
-				bool isAbsolute       = atoi(szAllPrices[colIsAbsolute]) == 1;
-				bool isStrikeReset    = atoi(szAllPrices[colStrikeReset]) == 1;
-				bool isStopLoss       = atoi(szAllPrices[colStopLoss]) == 1;
-				bool isForfeitCoupons = atoi(szAllPrices[colForfeitCoupons]) == 1;
+				int barrierId          = atoi(szAllPrices[colProductBarrierId]);
+				int avgType            = atoi(szAllPrices[colAvgType]);
+				string barrierCommands = szAllPrices[colCommands];
+				bool isAbsolute        = atoi(szAllPrices[colIsAbsolute]) == 1;
+				bool isStrikeReset     = atoi(szAllPrices[colStrikeReset]) == 1;
+				bool isStopLoss        = atoi(szAllPrices[colStopLoss]) == 1;
+				bool isForfeitCoupons  = atoi(szAllPrices[colForfeitCoupons]) == 1;
 				capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
 				nature = szAllPrices[colNature];
 				payoff = atof(szAllPrices[colPayoff]) / 100.0;
@@ -857,7 +858,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				*/
 				spr.barrier.push_back(SpBarrier(barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
-					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice));
+					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 	
 				// get barrier relations from DB
