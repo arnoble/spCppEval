@@ -643,27 +643,31 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 				}
 				//  divYields
-				sprintf(ulSql, "%s%s%s%s%s%d", "select underlyingid,Tenor,", doUKSPA ? "divyield" : "impdivyield", " Rate from ", doUKSPA ? "divyield" : "impdivyield"," d where d.UnderlyingId in (", ulIds[0]);
+				sprintf(ulSql, "%s%s%s%s%s%d", "select d.underlyingid,Tenor,", doUKSPA ? "d.divyield" : "impdivyield", " Rate,IsTotalReturn from ", doUKSPA ? "divyield" : "impdivyield"," d join underlying u using (underlyingid) where d.UnderlyingId in (", ulIds[0]);
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 				}
 				sprintf(ulSql, "%s%s%d%s", ulSql, ") and userid=", userId, " order by UnderlyingId,Tenor ");
 				// .. parse each record <Date,price0,...,pricen>
-				mydb.prepare((SQLCHAR *)ulSql, 3);
+				mydb.prepare((SQLCHAR *)ulSql, 4);
 				retcode = mydb.fetch(false, ulSql);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					int    thisUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
-					double thisTenor  = atof(szAllPrices[1]);
-					double thisRate   = atof(szAllPrices[2]);
+					int    thisUidx      = ulIdNameMap.at(atoi(szAllPrices[0]));
+					double thisTenor     = atof(szAllPrices[1]);
+					double thisYield     = atof(szAllPrices[2]);
+					bool   isTotalReturn = atoi(szAllPrices[3]) == 1;
+					double thisRate      = thisYield;
 
-					double driftAdj = 0.0;
 					if (ukspaCase != ""){
-						double thisERP = ulERPs[thisUidx];
-						if (ukspaCase == "Bear"){ driftAdj =  thisERP; }
-						else if (ukspaCase == "Bull"){ driftAdj = -thisERP; }
+						thisRate       =  ulERPs[thisUidx] - thisYield;
+						if (ukspaCase == "Bull")        { thisRate = -thisRate; }
+						else if (ukspaCase == "Neutral"){ thisRate = 0.0; }
+						if (isTotalReturn) {
+							thisRate -= thisYield;
+						}
 					}
 					divYieldsTenor[thisUidx].push_back(thisTenor);
-					divYieldsRate[thisUidx].push_back(ukspaCase == "Neutral" ? 0.0 : thisRate + driftAdj);
+					divYieldsRate[thisUidx].push_back(thisRate);
 					retcode = mydb.fetch(false, "");
 				}
 				// add dummy records for underlyings for which there are no divs (will include, for example total return indices)
@@ -672,9 +676,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						double driftAdj = 0.0;
 						if (ukspaCase != ""){
 							double thisERP = ulERPs[i];
-							if      (ukspaCase == "Bear"){ driftAdj =  thisERP; }
-							else if (ukspaCase == "Bull"){ driftAdj = -thisERP; }
-							else if (ulPriceReturnUids[i]){  // Neutral - see if there is a ulPriceReturnUids
+							if (ulPriceReturnUids[i]){  // see if there is a related underlying with a yield 
 								sprintf(lineBuffer, "%s%d", "select divyield from divyield where UnderlyingId=", ulPriceReturnUids[i]);
 								mydb.prepare((SQLCHAR *)lineBuffer, 1);
 								retcode = mydb.fetch(false, ulSql);
@@ -682,6 +684,8 @@ int _tmain(int argc, _TCHAR* argv[])
 									driftAdj -= atof(szAllPrices[0]);
 								}
 							}
+							if (ukspaCase == "Bear")     { driftAdj  = thisERP + 2.0*driftAdj; }
+							else if (ukspaCase == "Bull"){ driftAdj  = -thisERP; }
 						}
 						divYieldsTenor[i].push_back(10.0);
 						divYieldsRate[i].push_back(driftAdj);

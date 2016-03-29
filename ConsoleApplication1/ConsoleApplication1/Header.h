@@ -2046,7 +2046,7 @@ public:
 									}
 								} // END of capital barrier processing
 								else { // income barrier processing
-									if (thisPayoff == 0.0){ // Rainbow option coupons for example, where a 'hit' is only known after the option payoff is calculated 
+									if (thisPayoff == 0.0 && b.barrierCommands ==""){ // Rainbow option coupons for example, where a 'hit' is only known after the option payoff is calculated 
 										barrierWasHit[thisBarrier] = false;
 									}
 									else {
