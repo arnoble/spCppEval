@@ -2214,7 +2214,14 @@ public:
 					for (i = 0; i < b.hit.size(); i++){
 						thisAmount = b.hit[i].amount;
 						// possibly apply credit adjustment
-						if (applyCredit) { thisAmount *= ((double)rand() / (RAND_MAX)) < thisProbDefault ? actualRecoveryRate : 1; }
+						if (applyCredit) { 
+							double thisRecoveryRate;
+							thisRecoveryRate = ((double)rand() / (RAND_MAX)) < thisProbDefault ? actualRecoveryRate : 1.0;
+							thisAmount      *= thisRecoveryRate;
+							if (thisAmount >  midPrice){ eStrPosPayoff  += thisAmount; numStrPosInstances++; }
+							if (thisAmount >= midPrice){ ePosPayoff     += thisAmount; numPosInstances++; }
+							else{                        eNegPayoff     += thisAmount; numNegInstances++; }
+						}
 						thisBarrierPayoffs.push_back(thisAmount);
 						thisBarrierSumPayoffs += thisAmount;
 					}
@@ -2226,10 +2233,11 @@ public:
 						numCapitalInstances         += numInstances;
 						sumPayoffs                  += b.sumPayoffs;
 						sumPossiblyCreditAdjPayoffs += thisBarrierSumPayoffs;
-						eStrPosPayoff    += b.sumStrPosPayoffs; numStrPosInstances += b.numStrPosPayoffs; 
-						ePosPayoff       += b.sumPosPayoffs;    numPosInstances    += b.numPosPayoffs;
-						eNegPayoff       += b.sumNegPayoffs;    numNegInstances    += b.numNegPayoffs;
-
+						if (!applyCredit) {
+							eStrPosPayoff    += b.sumStrPosPayoffs; numStrPosInstances += b.numStrPosPayoffs;
+							ePosPayoff       += b.sumPosPayoffs;    numPosInstances    += b.numPosPayoffs;
+							eNegPayoff       += b.sumNegPayoffs;    numNegInstances    += b.numNegPayoffs;
+						}
 						if (doMostLikelyBarrier && b.participation<0.0){
 							if (prob>maxBarrierProb){
 								maxBarrierProb          = prob;
@@ -2528,7 +2536,7 @@ public:
 				if (doWinLoseAnnualised){ winLose = sumNegRet ? (sumPosRet / -sumNegRet)*sqrt(duration) : 1000.0; }
 				else { winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0; }
 				if (winLose > 1000.0){ winLose = 1000.0; }
-				double expectedPayoff = sumPayoffs / numAnnRets;
+				double expectedPayoff = (applyCredit ? sumPossiblyCreditAdjPayoffs : sumPayoffs) / numAnnRets;
 				double earithReturn   = pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
 				double bmRelAverage   = bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf;
 				int    secsTaken      = difftime(time(0), startTime);
