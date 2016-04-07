@@ -198,8 +198,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		//
 		// get CDS info
 		//
-		char   *fields[] = { "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MOODY_LONG_TERM",
-			"RTG_FITCH_LT_ISSUER_DEFAULT", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT", "" };
+		char   *fields[] = { "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MDY_SEN_UNSECURED_DEBT",
+			"RTG_FITCH_SEN_UNSECURED", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT", "" };
 		char   *fieldFormat[] = { "%s", "%.2lf", "%s", "%.2lf", "%s", "%s", "%s" };
 		double  fieldScaling[] = { 0, 1000000000.0, 0, 1, 0, 0, 0 };
 		char   *fieldName[] = { "SPrating", "MarketCap", "Currency", "TierOne", "Moody", "Fitch", "drsk1yprobdefault" };
