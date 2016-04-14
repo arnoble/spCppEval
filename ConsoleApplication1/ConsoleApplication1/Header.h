@@ -1534,10 +1534,11 @@ public:
 		// ... but since all the blocks are the same, we just use element index % p from the single block 0,1,...,p
 		// ... ta-daa!!
 		const unsigned int longNumOfSequences(1000);
-		unsigned long int maxNpPos = longNumOfSequences*totalNumReturns;  // if maxNpPos is TOO large then sampling from its deceasing value is tantamount to no balancedResampling as the sample space essentially never shrinks materially
+		const unsigned int firstObs = doPriips ? max(0,totalNumReturns - 365 * 5) : 0;
+		unsigned long int maxNpPos = longNumOfSequences*(totalNumReturns - firstObs);  // if maxNpPos is TOO large then sampling from its deceasing value is tantamount to no balancedResampling as the sample space essentially never shrinks materially
 		unsigned long int npPos    = maxNpPos;
 		// faster to put repeated indices in a vector, compared to modulo arithmetic, and we only need manageable arrays eg 100y of daily data is 36500 points, repeated 1000 - 36,500,000 which is well within the MAX_SIZE
-		std::vector<unsigned int> returnsSeq; returnsSeq.reserve(maxNpPos); for (i=0; i < longNumOfSequences; i++){ for (j=0; j<totalNumReturns; j++) { returnsSeq.push_back(j); } }
+		std::vector<unsigned int> returnsSeq; returnsSeq.reserve(maxNpPos); for (i=0; i < longNumOfSequences; i++){ for (j=firstObs; j<totalNumReturns; j++) { returnsSeq.push_back(j); } }
 		std::vector<std::vector <int>> resampledIndexs;
 		if (0){  // the OLD memory-hog
 			// prebuild all nonparametric bootstrap samples (each of sixe productDays) in resampledIndexes

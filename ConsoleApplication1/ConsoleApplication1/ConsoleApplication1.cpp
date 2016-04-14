@@ -399,6 +399,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			
 
 			// get PRIIPs start date to use
+			/*   truncate data only at the resampling stage, in case product was struck more than 5y ago
 			char priipsStartDatePhrase[100];
 			if (doPriips){
 				if (strlen(endDate)){ strcpy(charBuffer, endDate); }
@@ -410,7 +411,8 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				sprintf(priipsStartDatePhrase, "%s%s%s", " and Date >= date_sub('", charBuffer, "', interval 5 year) ");
 			}
-			// ...form sql joins
+			*/
+						// ...form sql joins
 			sprintf(ulSql, "%s", "select p0.Date Date");
 			for (i = 0; i<numUl; i++) { 
 				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", "*p",(numUl + i),".price");}
@@ -430,7 +432,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(lineBuffer, "%s%d%s%d%s%s", " and p", i, ".underlyingId='", ulIds.at(i), "'", (crossRateUids[i] ? crossRateBuffer : "")); strcat(ulSql, lineBuffer);
 			}
 			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
-			else if (thisNumIterations>1) { strcat(ulSql, doPriips ? priipsStartDatePhrase : " and Date >='1992-12-31' "); }
+			else if (thisNumIterations>1) { strcat(ulSql, /* doPriips ? priipsStartDatePhrase : */ " and Date >='1992-12-31' "); }
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
 			strcat(ulSql, " order by Date");
 			// cerr << ulSql << endl;
