@@ -18,6 +18,18 @@
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
 
 
+// structs
+struct PriipsStruct	{
+	double pvReturn, yearsToPayoff;
+
+	PriipsStruct(double pvReturn, double yearsToPayoff) : pvReturn(pvReturn), yearsToPayoff(yearsToPayoff) {}
+
+	bool operator < (const PriipsStruct& other) const	{
+		return (pvReturn < other.pvReturn);
+	}
+};
+
+
 
 // correlation
 double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues) {
@@ -2171,7 +2183,7 @@ public:
 			}
 			
 
-			// process resultsfor
+			// process results
 			const double tol = 1.0e-6;
 			const double unwindPayoff = 0.1;
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
@@ -2190,6 +2202,7 @@ public:
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
 				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,bmAnnRets,bmRelLogRets,pvInstances;
+				std::vector<PriipsStruct> priipsInstances; priipsInstances.reserve(numMcIterations);
 				int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
@@ -2271,9 +2284,15 @@ public:
 							allPayoffs.push_back(thisAmount);
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
-							if (getMarketData && calledByPricer) {
+							// pv payoffs
+							if ( getMarketData && calledByPricer) {
 								double thisRate = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
-								pvInstances.push_back(thisAmount*pow(thisRate, -(b.yearsToBarrier - forwardStartT)));
+								pvInstances.push_back((thisAmount)*pow(thisRate, -(b.yearsToBarrier - forwardStartT)));
+							}
+							if (doPriips){
+								double thisReturn = thisAmount / midPrice;
+								double thisT      = (b.yearsToBarrier - forwardStartT);
+								priipsInstances.push_back(PriipsStruct(thisReturn*pow(b.forwardRate, -thisT), thisT));
 							}
 							double bmRet = benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn;
 							bmAnnRets.push_back(bmRet);
@@ -2420,6 +2439,7 @@ public:
 				const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
+				if (doPriips){ sort(priipsInstances.begin(), priipsInstances.end()); }
 				double averageReturn = sumAnnRets / numAnnRets;
 				double vaR975        = 100.0*allAnnRets[floor(numAnnRets*(0.025))];
 
@@ -2491,6 +2511,10 @@ public:
 				double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++){ eShortfall     += allAnnRets[i]; }	eShortfall     /= numShortfall;
 				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	eShortfallTest /= numShortfall;
 				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall))     / ESnorm(confLevel);
+				if (doPriips){
+					PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
+					esVol  = (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration);
+				}
 				double esVolTest = (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest);
 				if (averageReturn < -0.99){ esVol = 1000.0; esVolTest = 1000.0; }  // eg a product guaranteed to lose 100%
 				double scaledVol = esVol * sqrt(duration);
