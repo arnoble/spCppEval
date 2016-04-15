@@ -1457,7 +1457,7 @@ public:
 		// PRIIPs init
 		if (doPriips){
 			// drifts and discounting all at the rfr for the RecommendedHoldingPeriod, assumed to be max term
-			priipsRate = interpCurve(baseCurveTenor, baseCurveSpread, maxYears);
+			priipsRate = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, maxYears);
 		}
 	}
 
