@@ -1119,7 +1119,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					double sliceMean, sliceStdev, sliceStderr;
 					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(firstPriipsPoint)) / (totalNumDays-firstPriipsPoint);
-					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRate) / 365.0 - dailyDriftContRate - 0.5*sliceStdev*sliceStdev);
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - 0.5*sliceStdev*sliceStdev);
 					// change underlyings' drift rate
 					for (j = 0; j < ulReturns[i].size(); j++) {
 						ulReturns[i][j] *= priipsDailyDriftCorrection;

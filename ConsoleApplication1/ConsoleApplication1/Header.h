@@ -1436,7 +1436,7 @@ public:
 	// public members: DOME consider making private
 	bool                            doPriips;
 	int                             maxProductDays, productDays, numUls;
-	double                          forwardStartT, issuePrice, priipsRate;
+	double                          forwardStartT, issuePrice, priipsRfr;
 	std::string                     ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl;
@@ -1457,7 +1457,7 @@ public:
 		// PRIIPs init
 		if (doPriips){
 			// drifts and discounting all at the rfr for the RecommendedHoldingPeriod, assumed to be max term
-			priipsRate = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, maxYears);
+			priipsRfr = interpCurve(baseCurveTenor, baseCurveSpread, maxYears);
 		}
 	}
 
@@ -2325,7 +2325,7 @@ public:
 							if (doPriips){
 								double thisReturn = thisAmount / midPrice;
 								double thisT      = (b.yearsToBarrier - forwardStartT);
-								priipsInstances.push_back(PriipsStruct(thisReturn*pow(priipsRate, -thisT), thisT));
+								priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0+priipsRfr, -thisT), thisT));
 							}
 							double bmRet = benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn;
 							bmAnnRets.push_back(bmRet);
