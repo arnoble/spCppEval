@@ -818,7 +818,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
-				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase);
+				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,doPriips,ulNames);
 			numBarriers = 0;
 
 			// get barriers from DB
@@ -1095,13 +1095,40 @@ int _tmain(int argc, _TCHAR* argv[])
 			bootstrapCDS(fullCurve, dpCurve, recoveryRate);
 			for (j = 0, len = fullCurve.size(); j<len; j++) {
 				hazardCurve.push_back(dpCurve[j]);
-			}
+			}			
 
 			// possibly impose user-defined view of expectedReturn: only need to bump ulReturns
 
 			// initialise product, now we have all the state
-			spr.init();
+			spr.init(maxYears);
 			
+
+			// PRIIPs init
+			if (doPriips){
+				int firstPriipsPoint = max(1, totalNumDays - 365 * 5);
+				// DOME: check 
+				// ... at least 2y of daily data
+				// ... monthly data is penalised by RiskScore +1
+
+				// calculate ACTUAL drift rates
+				for (i = 0; i < numUl; i++) {
+					vector<double> thisSlice;
+					for (j = firstPriipsPoint-1; j < totalNumDays-1; j++) {
+						thisSlice.push_back(ulReturns[i][j]);
+					}
+					double sliceMean, sliceStdev, sliceStderr;
+					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
+					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(firstPriipsPoint)) / (totalNumDays-firstPriipsPoint);
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRate) / 365.0 - dailyDriftContRate - 0.5*sliceStdev*sliceStdev);
+					// change underlyings' drift rate
+					for (j = 0; j < ulReturns[i].size(); j++) {
+						ulReturns[i][j] *= priipsDailyDriftCorrection;
+					}
+				}
+			}
+
+
+
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,

@@ -1398,6 +1398,7 @@ private:
 	int productId;
 	const std::vector <bool>        &allNonTradingDays;
 	const std::vector <int>         &ulIds;
+	const std::vector<std::string>  &ulNames;
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate;
 	const int                       daysExtant;
@@ -1423,16 +1424,19 @@ public:
 		const std::vector<int>          &ulIds,
 		const double                    forwardStartT,
 		const double                    issuePrice,
-		const std::string               ukspaCase)
+		const std::string               ukspaCase,
+		const bool                      doPriips,
+		const std::vector<std::string>  &ulNames)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), productShape(productShape),depositGteed(depositGteed), collateralised(collateralised), 
-		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), ukspaCase(ukspaCase) {
-	};
+		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
+		ukspaCase(ukspaCase),doPriips(doPriips),ulNames(ulNames) {};
 
 	// public members: DOME consider making private
-	int                             maxProductDays,productDays, numUls;
-	double                          forwardStartT,issuePrice;
+	bool                            doPriips;
+	int                             maxProductDays, productDays, numUls;
+	double                          forwardStartT, issuePrice, priipsRate;
 	std::string                     ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl;
@@ -1440,7 +1444,7 @@ public:
 	std::vector<boost::gregorian::date> allBdates;
 
 	// init
-	void init(){
+	void init(const double maxYears){
 		// ...prebuild all dates outside loop
 		int numAllDates = allDates.size();	allBdates.reserve(numAllDates);
 		for (int thisPoint = 0; thisPoint < numAllDates; thisPoint += 1) { allBdates.push_back(boost::gregorian::from_simple_string(allDates.at(thisPoint))); }
@@ -1449,6 +1453,12 @@ public:
 		numUls = ulIds.size();
 		for (int i=0; i < numUls; i++){ useUl.push_back(true); }
 		barrier.reserve(100); // for more efficient push_back
+		
+		// PRIIPs init
+		if (doPriips){
+			// drifts and discounting all at the rfr for the RecommendedHoldingPeriod, assumed to be max term
+			priipsRate = interpCurve(baseCurveTenor, baseCurveSpread, maxYears);
+		}
 	}
 
 
@@ -1497,6 +1507,7 @@ public:
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                      i, j, k, m, len, thisIteration,n;
 		double                   couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
+		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector<double>      stdevRatioPctChanges;
 		std::vector< std::vector<double> > someTimepoints[100];
 		std::vector<double>           someLevels[100], somePaths[100]; 
@@ -1538,7 +1549,12 @@ public:
 		unsigned long int maxNpPos = longNumOfSequences*(totalNumReturns - firstObs);  // if maxNpPos is TOO large then sampling from its deceasing value is tantamount to no balancedResampling as the sample space essentially never shrinks materially
 		unsigned long int npPos    = maxNpPos;
 		// faster to put repeated indices in a vector, compared to modulo arithmetic, and we only need manageable arrays eg 100y of daily data is 36500 points, repeated 1000 - 36,500,000 which is well within the MAX_SIZE
-		std::vector<unsigned int> returnsSeq; returnsSeq.reserve(maxNpPos); for (i=0; i < longNumOfSequences; i++){ for (j=firstObs; j<totalNumReturns; j++) { returnsSeq.push_back(j); } }
+		std::vector<unsigned int> returnsSeq; returnsSeq.reserve(maxNpPos); 
+		for (i=0; i < longNumOfSequences; i++){ 
+			for (j=firstObs; j<totalNumReturns; j++) { 
+				returnsSeq.push_back(j); 
+			} 
+		}
 		std::vector<std::vector <int>> resampledIndexs;
 		if (0){  // the OLD memory-hog
 			// prebuild all nonparametric bootstrap samples (each of sixe productDays) in resampledIndexes
@@ -1805,6 +1821,11 @@ public:
 							}
 							// wind back one unit
 							npPos = npPos>1 ? npPos - 1 : maxNpPos;
+						}
+						if (doPriips){
+							for (i = 0; i < numUl; i++) {
+								simulatedReturnsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint]);
+							}
 						}
 					}
 					else {
@@ -2149,6 +2170,17 @@ public:
 			accruedCoupon = couponValue;
 		}
 		else {
+			// check PRIIPs simulated drifts
+			if (doPriips){
+				double thisMean, thisStd, thisStderr;
+				for (i = 0; i < numUl; i++) {
+					MeanAndStdev(simulatedReturnsToMaxYears[i],thisMean, thisStd, thisStderr);
+					std::cout << "PRIIPs annualised drift rate:" << exp(365.0*log(thisMean) / productDays)  << " for:" << ulNames[i] <<  std::endl;
+				}
+			}
+
+
+
 			int    numAllEpisodes(0);
 			bool hasProportionalAvg(false);   // no couponHistogram, which only shows coupon-counts
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
@@ -2293,7 +2325,7 @@ public:
 							if (doPriips){
 								double thisReturn = thisAmount / midPrice;
 								double thisT      = (b.yearsToBarrier - forwardStartT);
-								priipsInstances.push_back(PriipsStruct(thisReturn*pow(b.forwardRate, -thisT), thisT));
+								priipsInstances.push_back(PriipsStruct(thisReturn*pow(priipsRate, -thisT), thisT));
 							}
 							double bmRet = benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn;
 							bmAnnRets.push_back(bmRet);
