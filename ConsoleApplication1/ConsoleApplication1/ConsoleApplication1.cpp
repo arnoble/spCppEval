@@ -484,7 +484,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int daysExtant = (bLastDataDate - bProductStartDate).days(); 
 			double forwardStartT(0.0);
 			if (daysExtant < 0){
-				forwardStartT = daysExtant / 365.25;
+				if (!doUKSPA && !doPriips){ forwardStartT = daysExtant / 365.25; }
 				daysExtant = 0; 
 			}
 			int tradingDaysExtant(0);

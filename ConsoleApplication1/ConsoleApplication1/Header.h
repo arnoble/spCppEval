@@ -2324,7 +2324,7 @@ public:
 							}
 							if (doPriips){
 								double thisReturn = thisAmount / midPrice;
-								double thisT      = (b.yearsToBarrier - forwardStartT);
+								double thisT      = b.yearsToBarrier;
 								priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0+priipsRfr, -thisT), thisT));
 							}
 							double bmRet = benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn;
