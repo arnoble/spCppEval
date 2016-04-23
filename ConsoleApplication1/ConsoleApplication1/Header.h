@@ -915,6 +915,7 @@ public:
 	std::vector <double>            bmrs; // benchmark returns
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
+	std::vector <double>            couponValues;
 
 	// number of days until barrier end date
 	int getEndDays() const { return endDays; }
@@ -1264,13 +1265,14 @@ public:
 
 		return(thisPayoff);
 	}
-	void storePayoff(const std::string thisDateString, const double amount, const double proportion, const double finalAssetReturn, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn ){
+	void storePayoff(const std::string thisDateString, const double amount, const double couponValue, const double proportion, const double finalAssetReturn, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn ){
 		sumPayoffs     += amount;
 		if (amount >  midPrice){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
 		if (amount >= midPrice){ sumPosPayoffs    += amount; numPosPayoffs++; }
 		else{                    sumNegPayoffs    += amount; numNegPayoffs++; }
 		sumProportion  += proportion;
 		hit.push_back(SpPayoff(thisDateString, amount));
+		couponValues.push_back(couponValue);
 		if (doFinalAssetReturn){ fars.push_back(finalAssetReturn); }
 		if (storeBenchmarkReturn){ bmrs.push_back(benchmarkReturn); }
 	}
@@ -2053,8 +2055,6 @@ public:
 												}
 											}
 										}
-										// add accumulated couponValue, unless b.forfeitCoupons is set
-										if (!b.isForfeitCoupons){ thisPayoff += couponValue + accruedCoupon; }
 										if (couponFrequency.size()) {  // add fixed coupon
 											/*
 											boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(allDates.at(thisMonPoint)));
@@ -2075,8 +2075,10 @@ public:
 											double numFixedCoupons = /*floor*/(daysElapsed / couponPeriod); // allow fractional coupons
 											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / 365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
-											thisPayoff += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
+											couponValue = fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
 										}
+										// add accumulated couponValue, unless b.forfeitCoupons is set
+										if (!b.isForfeitCoupons){ thisPayoff += couponValue + accruedCoupon; }
 									}
 								} // END of capital barrier processing
 								else { // income barrier processing
@@ -2105,7 +2107,7 @@ public:
 													}
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
-														bOther.storePayoff(thisDateString, payoffOther, 1.0, finalAssetReturn,doFinalAssetReturn,0,false);
+														bOther.storePayoff(thisDateString, payoffOther, payoffOther, 1.0, finalAssetReturn,doFinalAssetReturn,0,false);
 													//}
 												}
 											}
@@ -2114,7 +2116,7 @@ public:
 								} // END income barrier processing
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
-									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, barrierWasHit[thisBarrier] ? b.proportionHits:0.0, 
+									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, couponValue,barrierWasHit[thisBarrier] ? b.proportionHits:0.0, 
 										finalAssetReturn, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}
@@ -2234,7 +2236,7 @@ public:
 
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
-				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,bmAnnRets,bmRelLogRets,pvInstances;
+				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,allCouponRets,bmAnnRets,bmRelLogRets,pvInstances;
 				std::vector<PriipsStruct> priipsInstances; priipsInstances.reserve(numMcIterations);
 				int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
@@ -2244,13 +2246,14 @@ public:
 				bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData && ukspaCase == "" && numMcIterations>1 && !doPriips);
 
 				// ** process barrier results
-				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
+				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumCouponRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
 				int    numCapitalInstances(0), numStrPosInstances(0), numPosInstances(0), numNegInstances(0), numParInstances(0);
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					if (doDebug){ std::cerr << "Starting analyseResults  for barrier \n" << thisBarrier << std::endl; }
 					const SpBarrier&    b(barrier.at(thisBarrier));
 					double              thisBarrierSumPayoffs(0.0), thisAmount;
 					std::vector<double> thisBarrierPayoffs; thisBarrierPayoffs.reserve(100000);
+					std::vector<double> thisBarrierCouponValues; thisBarrierCouponValues.reserve(100000);
 					int                 numInstances    = b.hit.size();
 					double              sumProportion   = b.sumProportion;
 					double              thisYears       = b.yearsToBarrier;
@@ -2268,6 +2271,7 @@ public:
 							if (thisAmount >= midPrice){ ePosPayoff     += thisAmount; numPosInstances++; }
 							else{                        eNegPayoff     += thisAmount; numNegInstances++; }
 						}
+						thisBarrierCouponValues.push_back(b.couponValues[i]);
 						thisBarrierPayoffs.push_back(thisAmount);
 						thisBarrierSumPayoffs += thisAmount;
 					}
@@ -2297,9 +2301,10 @@ public:
 						}
 
 						for (i = 0; i < b.hit.size(); i++){
-							double thisAmount = thisBarrierPayoffs[i];
-							double thisAnnRet = min(0.2,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
-							
+							double thisAmount    = thisBarrierPayoffs[i];
+							double thisAnnRet    = min(0.2,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+							double thisCouponRet = exp(log(1.0 +  thisBarrierCouponValues[i]/ midPrice) / thisYears) - 1.0;
+
 							// maybe save finalAssetReturns
 							if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
 								if (farCounter){ strcat(farBuffer, ","); }
@@ -2317,6 +2322,8 @@ public:
 							allPayoffs.push_back(thisAmount);
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
+							allCouponRets.push_back(thisCouponRet);
+
 							// pv payoffs
 							if ( getMarketData && calledByPricer) {
 								double thisRate = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
@@ -2332,7 +2339,8 @@ public:
 							sumYearsToBarrier += thisYears;
 							bmRelLogRets.push_back(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) - log(1 + bmRet)*thisYears);
 							sumAnnRets += thisAnnRet;
-							
+							sumCouponRets += thisCouponRet;
+
 							if (thisAnnRet > -tol &&  thisAnnRet < tol) { sumParAnnRets += thisAnnRet; numParInstances++; }
 							if (thisAnnRet >  0.0 ) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
 							if (thisAnnRet > -tol ) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
@@ -2473,8 +2481,9 @@ public:
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
 				if (doPriips){ sort(priipsInstances.begin(), priipsInstances.end()); }
-				double averageReturn = sumAnnRets / numAnnRets;
-				double vaR975        = 100.0*allAnnRets[floor(numAnnRets*(0.025))];
+				double averageReturn        = sumAnnRets    / numAnnRets;
+				double averageCouponReturn  = sumCouponRets / numAnnRets;
+				double vaR975               = 100.0*allAnnRets[floor(numAnnRets*(0.025))];
 
 				// SRRI vol
 				struct srriParams { double conf, normStds, normES; };
@@ -2611,6 +2620,7 @@ public:
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolStds='", srriStds);
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolConf='", srriConf);
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',AverageAnnRet='", averageReturn);
+					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CouponReturn='", averageCouponReturn);
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRvol='", srriVol);
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRstrictVol='", cesrStrictVol);
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='", esVol);
