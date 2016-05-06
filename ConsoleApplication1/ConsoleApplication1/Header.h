@@ -2569,10 +2569,12 @@ public:
 				}
 				geomReturn = exp(geomReturn / sumDuration) - 1;
 				double sharpeRatio = scaledVol > 0.0 ? (geomReturn / scaledVol>1000.0 ? 1000.0 : geomReturn / scaledVol) : 1000.0;
-				std::vector<double> cesrBuckets = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
+				std::vector<double> cesrBuckets   = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
+				std::vector<double> priipsBuckets = { 0.0, 0.005, .05, .12, .2, .30, .80 };
 				std::vector<double> cubeBuckets ={ 0.0, 0.026, 0.052, 0.078, 0.104, 0.130, 0.156, 0.182, 0.208, 0.234, 0.260, 0.40 };
-				double riskCategory   = calcRiskCategory(cesrBuckets,scaledVol,1.0);  
-				double riskScore1to10 = calcRiskCategory(cubeBuckets, scaledVol, 0.0);
+				double riskCategory    = calcRiskCategory(cesrBuckets,   scaledVol, 1.0);  
+				double riskScorePriips = calcRiskCategory(priipsBuckets, scaledVol, 1.0);
+				double riskScore1to10  = calcRiskCategory(cubeBuckets,   scaledVol, 0.0);
 
 				// WinLose
 				double sumNegRet(0.0), sumPosRet(0.0),sumBelowDepo(0.0);
@@ -2635,6 +2637,7 @@ public:
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", earithReturn);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='", sharpeRatio);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScore1to10='", riskScore1to10);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='", winLose);
 						std::time_t rawtime;	struct std::tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
