@@ -399,7 +399,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			
 
 			// get PRIIPs start date to use
-			/*   truncate data only at the resampling stage, in case product was struck more than 5y ago
+			/*   commented out because, now, we truncate data only at the RESAMPLING stage, in case product was struck more than 5y ago
 			char priipsStartDatePhrase[100];
 			if (doPriips){
 				if (strlen(endDate)){ strcpy(charBuffer, endDate); }
@@ -1101,9 +1101,21 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// initialise product, now we have all the state
 			spr.init(maxYears);
-			
 
-			// PRIIPs init
+			// get accrued coupons
+			double accruedCoupon(0.0);
+			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
+				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData,useUserParams,thisMarketData,
+				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
+
+			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
+			spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+				contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
+				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
+			
+			// PRIIPs adjust driftrate to riskfree
 			if (doPriips){
 				int firstPriipsPoint = max(1, totalNumDays - 365 * 5);
 				// DOME: check 
@@ -1113,35 +1125,23 @@ int _tmain(int argc, _TCHAR* argv[])
 				// calculate ACTUAL drift rates
 				for (i = 0; i < numUl; i++) {
 					vector<double> thisSlice;
-					for (j = firstPriipsPoint-1; j < totalNumDays-1; j++) {
+					for (j = firstPriipsPoint - 1; j < totalNumDays - 1; j++) {
 						thisSlice.push_back(ulReturns[i][j]);
 					}
 					double sliceMean, sliceStdev, sliceStderr;
 					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
-					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(firstPriipsPoint)) / (totalNumDays-firstPriipsPoint);
+					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(firstPriipsPoint)) / (totalNumDays - firstPriipsPoint);
 					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - 0.5*sliceStdev*sliceStdev);
 					// change underlyings' drift rate
 					for (j = 0; j < ulReturns[i].size(); j++) {
 						ulReturns[i][j] *= priipsDailyDriftCorrection;
 					}
 				}
+				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true, useProto, getMarketData, useUserParams, thisMarketData,
+					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
 			}
-
-
-
-			// get accrued coupons
-			double accruedCoupon(0.0);
-			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData,useUserParams,thisMarketData,
-				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
-
-			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
-			spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, doPriips, useProto, getMarketData, useUserParams, thisMarketData,
-				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
-			// tidy up
 
 		} // for each product
 		std::cout << "timeTaken:" << difftime(time(0), startTime) << "secs" << endl;

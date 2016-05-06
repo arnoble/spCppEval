@@ -1493,7 +1493,7 @@ public:
 		const std::vector<int>    timepointDays,
 		const std::vector<std::string> timepointNames,
 		const std::vector<double> simPercentiles,
-		const bool                doPriips,
+		const bool                doPriipsVol,
 		const char                *useProto,
 		const bool                getMarketData, 
 		const bool                useUserParams,
@@ -1824,7 +1824,7 @@ public:
 							// wind back one unit
 							npPos = npPos>1 ? npPos - 1 : maxNpPos;
 						}
-						if (doPriips){
+						if (doPriipsVol){
 							for (i = 0; i < numUl; i++) {
 								simulatedReturnsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint]);
 							}
@@ -2173,7 +2173,7 @@ public:
 		}
 		else {
 			// check PRIIPs simulated drifts
-			if (doPriips){
+			if (doPriipsVol){
 				double thisMean, thisStd, thisStderr;
 				for (i = 0; i < numUl; i++) {
 					MeanAndStdev(simulatedReturnsToMaxYears[i],thisMean, thisStd, thisStderr);
@@ -2243,7 +2243,7 @@ public:
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
 				// most likely barrier
 				double maxBarrierProb(0.0), maxBarrierProbMoneyness(0.0);
-				bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData && ukspaCase == "" && numMcIterations>1 && !doPriips);
+				bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData && ukspaCase == "" && numMcIterations>1 && !doPriipsVol);
 
 				// ** process barrier results
 				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumCouponRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
@@ -2329,7 +2329,7 @@ public:
 								double thisRate = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
 								pvInstances.push_back((thisAmount)*pow(thisRate, -(b.yearsToBarrier - forwardStartT)));
 							}
-							if (doPriips){
+							if (doPriipsVol){
 								double thisReturn = thisAmount / midPrice;
 								double thisT      = b.yearsToBarrier;
 								priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0+priipsRfr, -thisT), thisT));
@@ -2480,10 +2480,12 @@ public:
 				const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
-				if (doPriips){ sort(priipsInstances.begin(), priipsInstances.end()); }
+				if (doPriipsVol){ sort(priipsInstances.begin(), priipsInstances.end()); }
 				double averageReturn        = sumAnnRets    / numAnnRets;
 				double averageCouponReturn  = sumCouponRets / numAnnRets;
-				double vaR975               = 100.0*allAnnRets[floor(numAnnRets*(0.025))];
+				double vaR90                = 100.0*allAnnRets[floor(numAnnRets*(0.1))];
+				double vaR50                = 100.0*allAnnRets[floor(numAnnRets*(0.5))];
+				double vaR10                = 100.0*allAnnRets[floor(numAnnRets*(0.9))];
 
 				// SRRI vol
 				struct srriParams { double conf, normStds, normES; };
@@ -2553,7 +2555,7 @@ public:
 				double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++){ eShortfall     += allAnnRets[i]; }	eShortfall     /= numShortfall;
 				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	eShortfallTest /= numShortfall;
 				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall))     / ESnorm(confLevel);
-				if (doPriips){
+				if (doPriipsVol){
 					PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
 					esVol  = (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration);
 				}
@@ -2608,59 +2610,63 @@ public:
 				int    secsTaken      = difftime(time(0), startTime);
 
 				if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
-					sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='", secsTaken);
-					sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "cashflows set ExpectedPayoff='", expectedPayoff);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='", ePosPayoff);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedLossPayoff='", eNegPayoff);
-					sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FirstDataDate='", allDates[0].c_str());
-					sprintf(lineBuffer, "%s%s%s", lineBuffer, "',LastDataDate='", allDates[totalNumDays - 1].c_str());
-					sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumResamples='", thisIteration);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='", duration);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolStds='", srriStds);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolConf='", srriConf);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',AverageAnnRet='", averageReturn);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CouponReturn='", averageCouponReturn);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRvol='", srriVol);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRstrictVol='", cesrStrictVol);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvol='", esVol);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolTest='", esVolTest);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolBelowDepo='", esVolBelowDepo);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolNegRet='", esVolNegRet);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
-					// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", earithReturn);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='", sharpeRatio);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScore1to10='", riskScore1to10);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='", winLose);
-					std::time_t rawtime;	struct std::tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
-					strftime(charBuffer, 100L, "%Y-%m-%d %H:%M:%S", timeinfo);
-					sprintf(lineBuffer, "%s%s%s", lineBuffer, "',WhenEvaluated='", charBuffer);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='", probEarliest);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='", probEarly);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR975);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='", ecGain);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='", ecStrictGain);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='", ecLoss);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='", probGain);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='", probStrictGain);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='", probLoss);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecPar='", numParInstances ? sumParAnnRets / (double)numParInstances : 0.0);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probPar='", (double)numParInstances / (double)numAnnRets);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='", eShortfall*100.0);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='", eShortfallDepo*100.0);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbShortfall='", benchmarkProbUnderperf);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondShortfall='", benchmarkCondUnderperf*100.0);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbOutperf='", benchmarkProbOutperf);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondOutperf='", benchmarkCondOutperf*100.0);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelCAGR='", bmRelCAGR);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelOutperfPV='", bmRelOutperfPV);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelUnderperfPV='", bmRelUnderperfPV);
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelAverage='", bmRelAverage);
-					sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
-
+					sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
+					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "ESvol='", esVol);
+					if (!doPriipsVol){  // PRIIPs only saves vol
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedPayoff='", expectedPayoff);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='", ePosPayoff);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedLossPayoff='", eNegPayoff);
+						sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FirstDataDate='", allDates[0].c_str());
+						sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',LastDataDate='", allDates[totalNumDays - 1].c_str());
+						sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumResamples='", thisIteration);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',Duration='", duration);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolStds='", srriStds);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolConf='", srriConf);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',AverageAnnRet='", averageReturn);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CouponReturn='", averageCouponReturn);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRvol='", srriVol);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRstrictVol='", cesrStrictVol);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolTest='", esVolTest);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolBelowDepo='", esVolBelowDepo);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolNegRet='", esVolNegRet);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
+						// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", earithReturn);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='", sharpeRatio);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScore1to10='", riskScore1to10);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',WinLose='", winLose);
+						std::time_t rawtime;	struct std::tm * timeinfo;  time(&rawtime);	timeinfo = localtime(&rawtime);
+						strftime(charBuffer, 100L, "%Y-%m-%d %H:%M:%S", timeinfo);
+						sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',WhenEvaluated='", charBuffer);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='", probEarliest);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='", probEarly);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='",  vaR90);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1='", vaR50);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2='", vaR10);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='", ecGain);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='", ecStrictGain);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='", ecLoss);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='", probGain);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='", probStrictGain);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='", probLoss);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecPar='", numParInstances ? sumParAnnRets / (double)numParInstances : 0.0);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probPar='", (double)numParInstances / (double)numAnnRets);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='", eShortfall*100.0);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='", eShortfallDepo*100.0);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbShortfall='", benchmarkProbUnderperf);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondShortfall='", benchmarkCondUnderperf*100.0);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbOutperf='", benchmarkProbOutperf);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondOutperf='", benchmarkCondOutperf*100.0);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelCAGR='", bmRelCAGR);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelOutperfPV='", bmRelOutperfPV);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelUnderperfPV='", bmRelUnderperfPV);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelAverage='", bmRelAverage);
+						sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumEpisodes='", numAllEpisodes);
+						sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',SecsTaken='", secsTaken);
+					}
 					sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 					std::cout << lineBuffer << std::endl;
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
