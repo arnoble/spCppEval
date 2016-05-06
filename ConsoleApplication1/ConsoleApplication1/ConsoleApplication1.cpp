@@ -818,7 +818,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
-				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,doPriips,ulNames);
+				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,doPriips,ulNames,
+			(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice);
 			numBarriers = 0;
 
 			// get barriers from DB

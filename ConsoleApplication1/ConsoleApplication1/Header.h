@@ -1404,9 +1404,9 @@ private:
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate;
 	const int                       daysExtant;
-	const double                    fixedCoupon, AMC, midPrice;
+	const double                    fixedCoupon, AMC, midPrice,askPrice,fairValue;
 	const std::string               couponFrequency, productShape;
-	const bool                      depositGteed, collateralised,couponPaidOut;
+	const bool                      validFairValue,depositGteed, collateralised,couponPaidOut;
 	const std::vector<SomeCurve>    baseCurve;
 
 public:
@@ -1428,12 +1428,15 @@ public:
 		const double                    issuePrice,
 		const std::string               ukspaCase,
 		const bool                      doPriips,
-		const std::vector<std::string>  &ulNames)
+		const std::vector<std::string>  &ulNames,
+		const bool                      validFairValue, 
+		const double                    fairValue, 
+		const double                    askPrice)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), productShape(productShape),depositGteed(depositGteed), collateralised(collateralised), 
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
-		ukspaCase(ukspaCase),doPriips(doPriips),ulNames(ulNames) {};
+		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice){};
 
 	// public members: DOME consider making private
 	bool                            doPriips;
@@ -2555,9 +2558,20 @@ public:
 				double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++){ eShortfall     += allAnnRets[i]; }	eShortfall     /= numShortfall;
 				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	eShortfallTest /= numShortfall;
 				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall))     / ESnorm(confLevel);
+				double priipsImpliedCost;
 				if (doPriipsVol){
 					PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
-					esVol  = (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration);
+					esVol              = (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration);
+					if (validFairValue){
+						priipsImpliedCost  =  fairValue / askPrice;
+					}
+					else {
+						double sumPriipsPvs(0.0);
+						int    numPriipsPvs = priipsInstances.size();
+						for (int i=0; i < numPriipsPvs; i++){ sumPriipsPvs += priipsInstances[i].pvReturn; }
+						priipsImpliedCost  = (sumPriipsPvs / numPriipsPvs) / askPrice;
+					}
+					priipsImpliedCost  =  exp(log(priipsImpliedCost)/duration) - 1.0;
 				}
 				double esVolTest = (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest);
 				if (averageReturn < -0.99){ esVol = 1000.0; esVolTest = 1000.0; }  // eg a product guaranteed to lose 100%
@@ -2614,7 +2628,10 @@ public:
 				if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
 					sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "ESvol='", esVol);
-					if (!doPriipsVol){  // PRIIPs only saves vol
+					if (doPriipsVol){
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsImpliedCost='", priipsImpliedCost);
+					}
+					else {  // PRIIPs only saves vol and PriipsImpliedCost
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedPayoff='", expectedPayoff);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='", ePosPayoff);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
