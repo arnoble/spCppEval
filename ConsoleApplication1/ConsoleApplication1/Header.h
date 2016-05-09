@@ -2558,9 +2558,10 @@ public:
 				double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++){ eShortfall     += allAnnRets[i]; }	eShortfall     /= numShortfall;
 				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	eShortfallTest /= numShortfall;
 				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall))     / ESnorm(confLevel);
-				double priipsImpliedCost;
+				double priipsImpliedCost,priipsVaR;
 				if (doPriipsVol){
 					PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
+					priipsVaR          = thisPriip.pvReturn;
 					esVol              = (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration);
 					if (validFairValue){
 						priipsImpliedCost  =  fairValue / askPrice;
@@ -2629,7 +2630,9 @@ public:
 					sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "ESvol='", esVol);
 					if (doPriipsVol){
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsImpliedCost='", priipsImpliedCost);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVaR='", priipsVaR);
 					}
 					else {  // PRIIPs only saves vol and PriipsImpliedCost
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedPayoff='", expectedPayoff);
