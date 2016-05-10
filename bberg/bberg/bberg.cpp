@@ -200,11 +200,14 @@ int _tmain(int argc, _TCHAR* argv[])
 		//
 		char   *fields[] = { "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MDY_SEN_UNSECURED_DEBT",
 			"RTG_FITCH_SEN_UNSECURED", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT", "" };
+		char   *sovereignFields[] ={ "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MOODY_LONG_TERM",
+			"RTG_FITCH_LT_LC_ISSUER_DEFAULT", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT", "" };
+
 		char   *fieldFormat[] = { "%s", "%.2lf", "%s", "%.2lf", "%s", "%s", "%s" };
 		double  fieldScaling[] = { 0, 1000000000.0, 0, 1, 0, 0, 0 };
 		char   *fieldName[] = { "SPrating", "MarketCap", "Currency", "TierOne", "Moody", "Fitch", "drsk1yprobdefault" };
 		if (!doDebug  && doCDS) {
-			if (!doDebug) {
+			if (!doDebug) {				
 				// now get info for each institution
 				sprintf(lineBuffer, "%s%s%d%s%d%s",
 					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
@@ -218,12 +221,18 @@ int _tmain(int argc, _TCHAR* argv[])
 					char *cdsBberg = szAllBufs[3];
 					char *cpBberg = szAllBufs[4];
 					double  thePrice = -1.0;
+					bool    isaSovereign = false;
 					// first record - get static data for institution
 					if (doStatic && (institutionId != atoi(szAllBufs[0]))){
+						// detect if institution is a sovereigh
+						getBbergPrices(cpBberg, "COMPANY_IS_PRIVATE", thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+						if (!strcmp(resultBuffer, "")){
+							isaSovereign = true;
+						}
 						institutionId = atoi(szAllBufs[0]);
 						for (int i = 0; strcmp(fields[i], ""); i++){
 							strcpy(resultBuffer, "");
-							getBbergPrices(cpBberg, fields[i], thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+							getBbergPrices(cpBberg, isaSovereign ? sovereignFields[i]:fields[i], thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
 							if (strcmp(resultBuffer, "")){
 								if (fieldScaling[i]){
 									sprintf(resultBuffer, fieldFormat[i], atof(resultBuffer) / fieldScaling[i]);
