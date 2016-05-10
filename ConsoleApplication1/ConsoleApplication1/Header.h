@@ -1879,7 +1879,7 @@ public:
 					}
 
 					// save path
-					if (doPaths && !usingProto){
+					if (doPaths && !usingProto && !doPriipsVol){
 						for (i=0; i < numTimepoints; i++){
 							int thisTpDays = timepointDays[i];
 							bool firstTime = true;
@@ -2196,7 +2196,7 @@ public:
 				hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
 			}
 			// couponHistogram
-			if (!usingProto && !getMarketData){
+			if (!usingProto && !getMarketData && !doPriipsVol){
 				// ** delete old
 				sprintf(lineBuffer, "%s%d%s%d%s", "delete from couponhistogram where ProductId='", productId, "' and IsBootstrapped='", numMcIterations == 1 ? 0 : 1, "'");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -2214,7 +2214,7 @@ public:
 			// doFinalAssetReturn
 			char farBuffer[100000];
 			int  farCounter(0),totalFarCounter(0);
-			if (doFinalAssetReturn && !usingProto  && !getMarketData){
+			if (doFinalAssetReturn && !usingProto  && !getMarketData && !doPriipsVol){
 				strcpy(farBuffer, "insert into finalassetreturns values ");
 				sprintf(lineBuffer, "%s%d%s", "delete from finalassetreturns where productid='", productId, "'");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -2309,7 +2309,7 @@ public:
 							double thisCouponRet = exp(log(1.0 +  thisBarrierCouponValues[i]/ midPrice) / thisYears) - 1.0;
 
 							// maybe save finalAssetReturns
-							if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
+							if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000 && !doPriipsVol){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
 								if (farCounter){ strcat(farBuffer, ","); }
 								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i], ")");
 								farCounter += 1;
@@ -2355,7 +2355,7 @@ public:
 					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
-					if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
+					if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update ", useProto, "barrierprob set Prob='", prob,
 							"',AnnReturn='", annReturn,
 							"',CondPayoff='", mean,
@@ -2366,7 +2366,7 @@ public:
 					
 				}
 
-				if (doMostLikelyBarrier && maxBarrierProb>0.0){
+				if (!doPriipsVol && doMostLikelyBarrier && maxBarrierProb>0.0){
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 						"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,
 						"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
@@ -2385,7 +2385,7 @@ public:
 				// ...first recognises the fact that a 6y annuity is worth more than a 1y annuityexpe
 				// ...second assumes annualised returns have equal duration
 				bool doWinLoseAnnualised = true; // as you want
-				if (analyseCase == 0 && !usingProto && !getMarketData) {
+				if (analyseCase == 0 && !usingProto && !getMarketData  && !doPriipsVol) {
 					if (doDebug){ std::cerr << "Starting analyseResults WinLose for case \n" << analyseCase << std::endl; }
 					sprintf(lineBuffer, "%s%d%s", "delete from winlose where productid='", productId, "';");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -2418,7 +2418,7 @@ public:
 
 
 				// possibly track timepoints
-				if (doTimepoints && analyseCase == 0 && !usingProto && !getMarketData){
+				if (doTimepoints && analyseCase == 0 && !usingProto && !getMarketData && !doPriipsVol){
 					for (i=0; i < numTimepoints; i++){
 						int thisTpDays   = timepointDays[i];
 						std::string name = timepointNames[i];
@@ -2522,7 +2522,7 @@ public:
 
 
 				// pctiles and other calcs
-				if (numMcIterations > 1 && analyseCase == 0 && !usingProto && !getMarketData) {
+				if (numMcIterations > 1 && analyseCase == 0 && !usingProto && !getMarketData && !doPriipsVol) {
 					if (doDebug){ std::cerr << "Starting analyseResults PcTile for case \n" << analyseCase << std::endl; }
 
 					// pctiles
