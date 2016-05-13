@@ -29,6 +29,17 @@ struct PriipsStruct	{
 	}
 };
 
+struct PriipsAnnRet	{
+	double annRet, yearsToPayoff;
+
+	PriipsAnnRet(double annRet, double yearsToPayoff) : annRet(annRet), yearsToPayoff(yearsToPayoff) {}
+
+	bool operator < (const PriipsAnnRet& other) const	{
+		return (annRet < other.annRet);
+	}
+};
+
+
 
 
 // correlation
@@ -2241,6 +2252,8 @@ public:
 				double   probEarly(0.0), probEarliest(0.0);
 				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,allCouponRets,bmAnnRets,bmRelLogRets,pvInstances;
 				std::vector<PriipsStruct> priipsInstances; priipsInstances.reserve(numMcIterations);
+				std::vector<PriipsAnnRet> priipsAnnRetInstances; priipsAnnRetInstances.reserve(numMcIterations);
+				
 				int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
@@ -2332,10 +2345,15 @@ public:
 								double thisRate = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
 								pvInstances.push_back((thisAmount)*pow(thisRate, -(b.yearsToBarrier - forwardStartT)));
 							}
-							if (doPriipsVol){
-								double thisReturn = thisAmount / midPrice;
+							if (doPriips){
 								double thisT      = b.yearsToBarrier;
-								priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0+priipsRfr, -thisT), thisT));
+								if (doPriipsVol){
+									double thisReturn = thisAmount / midPrice;
+									priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0 + priipsRfr, -thisT), thisT));
+								}
+								else {
+									priipsAnnRetInstances.push_back(PriipsAnnRet(thisAnnRet, thisT));
+								}
 							}
 							double bmRet = benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn;
 							bmAnnRets.push_back(bmRet);
@@ -2483,13 +2501,21 @@ public:
 				const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
-				if (doPriipsVol){ sort(priipsInstances.begin(), priipsInstances.end()); }
+				if (doPriips){
+					if (doPriipsVol){ sort(priipsInstances.begin(), priipsInstances.end()); }
+					else            { sort(priipsAnnRetInstances.begin(), priipsAnnRetInstances.end()); }
+				}
 				double averageReturn        = sumAnnRets    / numAnnRets;
 				double averageCouponReturn  = sumCouponRets / numAnnRets;
 				double vaR90                = 100.0*allAnnRets[floor(numAnnRets*(0.1))];
 				double vaR50                = 100.0*allAnnRets[floor(numAnnRets*(0.5))];
 				double vaR10                = 100.0*allAnnRets[floor(numAnnRets*(0.9))];
-
+				double varYears, var1Years, var2Years;
+				if (doPriips && !doPriipsVol){
+					varYears  = priipsAnnRetInstances[floor(numAnnRets*(0.1))].yearsToPayoff;
+					var1Years = priipsAnnRetInstances[floor(numAnnRets*(0.5))].yearsToPayoff;
+					var2Years = priipsAnnRetInstances[floor(numAnnRets*(0.9))].yearsToPayoff;
+				}
 				// SRRI vol
 				struct srriParams { double conf, normStds, normES; };
 
@@ -2635,6 +2661,13 @@ public:
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVaR='", priipsVaR);
 					}
 					else {  // PRIIPs only saves vol and PriipsImpliedCost
+						if (doPriips){
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsRealWorldVol='", esVol);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsRealWorldDuration='", duration);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaRyears='",  varYears);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1years='", var1Years);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2years='", var2Years);
+						}
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedPayoff='", expectedPayoff);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='", ePosPayoff);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedStrictGainPayoff='", eStrPosPayoff);
