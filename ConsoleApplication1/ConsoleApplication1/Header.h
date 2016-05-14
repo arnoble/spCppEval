@@ -1921,8 +1921,9 @@ public:
 				boost::gregorian::date &bStartDate(allBdates.at(thisPoint));
 
 				for (i=0; i < numUls; i++){ useUl[i] = true; }
-				bool                   matured = false;
-				couponValue                    = 0.0;
+				bool                   matured         = false;
+				int                    maturityBarrier = -1;
+				couponValue                            = 0.0;
 				double                 thisPayoff;
 				double                 finalAssetReturn  = 1.0e9;
 				double                 benchmarkReturn   = 1.0e9;
@@ -2058,7 +2059,8 @@ public:
 											benchmarkReturn = thesePrices[n] / thisRefLevel;
 										}
 										// END 
-										matured = true;
+										matured         = true;
+										maturityBarrier = thisBarrier;
 										// add forwardValue of paidOutCoupons
 										if (couponPaidOut) {
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
@@ -2146,7 +2148,7 @@ public:
 				if (!doAccruals){
 					// count NUMBER of couponHits, and update running count for that NUMBER  
 					int thisNumCouponHits=0;
-					for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+					for (int thisBarrier = 0; thisBarrier <= maturityBarrier; thisBarrier++){
 						SpBarrier &b(barrier[thisBarrier]);
 						if (!b.capitalOrIncome && (b.hasBeenHit || barrierWasHit[thisBarrier]) && b.proportionHits == 1.0){ thisNumCouponHits += 1; }
 					}
@@ -2207,7 +2209,7 @@ public:
 				hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
 			}
 			// couponHistogram
-			if (!usingProto && !getMarketData && !doPriipsVol){
+			if (!usingProto && !getMarketData && !doPriips && ukspaCase == ""){
 				// ** delete old
 				sprintf(lineBuffer, "%s%d%s%d%s", "delete from couponhistogram where ProductId='", productId, "' and IsBootstrapped='", numMcIterations == 1 ? 0 : 1, "'");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
