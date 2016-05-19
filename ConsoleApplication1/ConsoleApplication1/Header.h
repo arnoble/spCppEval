@@ -2246,9 +2246,10 @@ public:
 				
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));
 				// ukspaCase also now have projectedReturns
-				if (ukspaCase == "Bear")        { projectedReturn = 0.1; }
-				else if (ukspaCase == "Neutral"){ projectedReturn = 0.2; }
-				else if (ukspaCase == "Bull")   { projectedReturn = 0.3; }
+				if (ukspaCase == "Bear")              { projectedReturn = 0.1; }
+				else if (ukspaCase == "Neutral")      { projectedReturn = 0.2; }
+				else if (ukspaCase == "Bull")         { projectedReturn = 0.3; }
+				if (getMarketData && ukspaCase == "") { projectedReturn = 0.4; }
 
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
@@ -2375,7 +2376,8 @@ public:
 					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
-					if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
+					// if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
+					if (!doPriipsVol && (ukspaCase != "" || analyseCase == 0)){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update ", useProto, "barrierprob set Prob='", prob,
 							"',AnnReturn='", annReturn,
 							"',CondPayoff='", mean,
@@ -2654,7 +2656,8 @@ public:
 				double bmRelAverage   = bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf;
 				int    secsTaken      = difftime(time(0), startTime);
 
-				if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
+				// if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
+				if (ukspaCase != "" || analyseCase == 0){
 					sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "ESvol='", esVol);
 					if (doPriipsVol){
