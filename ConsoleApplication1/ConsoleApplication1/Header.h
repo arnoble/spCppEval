@@ -2295,6 +2295,9 @@ public:
 						thisBarrierSumPayoffs += thisAmount;
 					}
 
+					double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
+					double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
+
 					if (b.capitalOrIncome) {
 						if (!foundEarliest)                        { foundEarliest = true; probEarliest = prob; }
 						if (b.settlementDate < lastSettlementDate) {                       probEarly   += prob; }
@@ -2344,9 +2347,8 @@ public:
 							allCouponRets.push_back(thisCouponRet);
 
 							// pv payoffs
-							if ( getMarketData && calledByPricer) {
-								double thisRate = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
-								pvInstances.push_back((thisAmount)*pow(thisRate, -(b.yearsToBarrier - forwardStartT)));
+							if (getMarketData && calledByPricer) {
+								pvInstances.push_back((thisAmount)*thisDiscountFactor);
 							}
 							if (doPriips){
 								double thisT      = b.yearsToBarrier;
@@ -2377,12 +2379,15 @@ public:
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
 					// if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
-					if (!doPriipsVol && (ukspaCase != "" || analyseCase == 0)){
-						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d%s%d%s%.2lf%s", "update ", useProto, "barrierprob set Prob='", prob,
-							"',AnnReturn='", annReturn,
-							"',CondPayoff='", mean,
-							"',NumInstances='", numInstances,
-							"' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
+					if (!doPriipsVol && (!getMarketData || analyseCase == 0)){
+						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d", "update ", useProto, "barrierprob set Prob=", prob,
+							",AnnReturn=", annReturn,
+							",CondPayoff=", mean,
+							",NumInstances=", numInstances);
+						if (getMarketData && ukspaCase == ""){
+							sprintf(lineBuffer, "%s%s%.5lf%s%.5lf%s%.5lf", lineBuffer, ",NonCreditPayoff=", b.yearsToBarrier, ",Reason1Prob=", thisDiscountRate, ",Reason2Prob=", thisDiscountFactor);
+						}
+						sprintf(lineBuffer, "%s%s%d%s%.2lf%s",lineBuffer," where ProductBarrierId=", barrier.at(thisBarrier).barrierId, " and ProjectedReturn=", projectedReturn, "");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 					
