@@ -2662,7 +2662,7 @@ public:
 				int    secsTaken      = difftime(time(0), startTime);
 
 				// if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
-				if (ukspaCase != "" || analyseCase == 0){
+				if (!getMarketData || analyseCase == 0){
 					sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "ESvol='", esVol);
 					if (doPriipsVol){
