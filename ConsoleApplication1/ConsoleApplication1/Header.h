@@ -2377,7 +2377,6 @@ public:
 					double mean      = numInstances ? thisBarrierSumPayoffs / numInstances : 0.0;
 					// watch out that b.yearsToBarrier is not zero
 					double annReturn = numInstances && b.yearsToBarrier>0 && midPrice>0 ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
-					if (!(annReturn >= 0.0) && !(annReturn < 1000.0)){ annReturn = 0.0;  }
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
 					// if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
