@@ -2043,7 +2043,7 @@ public:
 								// for post-strike deals, record if barriers have already been hit
 								if (doAccruals){ b.hasBeenHit = true; }  
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds,useUl);
-								// ***********
+								// ***********barrierprob
 								// capitalBarrier hit ... so product terminates
 								// ***********
 								if (b.capitalOrIncome){
@@ -2375,7 +2375,9 @@ public:
 					}
 
 					double mean      = numInstances ? thisBarrierSumPayoffs / numInstances : 0.0;
-					double annReturn = numInstances ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
+					// watch out that b.yearsToBarrier is not zero
+					double annReturn = numInstances && b.yearsToBarrier>0 && midPrice>0 ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
+					if (!(annReturn >= 0.0) && !(annReturn < 1000.0)){ annReturn = 0.0;  }
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
 					// if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
@@ -2388,6 +2390,7 @@ public:
 							sprintf(lineBuffer, "%s%s%.5lf%s%.5lf%s%.5lf", lineBuffer, ",NonCreditPayoff=", b.yearsToBarrier, ",Reason1Prob=", thisDiscountRate, ",Reason2Prob=", thisDiscountFactor);
 						}
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s",lineBuffer," where ProductBarrierId=", barrier.at(thisBarrier).barrierId, " and ProjectedReturn=", projectedReturn, "");
+						std::cerr << lineBuffer << std::endl;
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 					
@@ -2502,7 +2505,7 @@ public:
 					benchmarkCondOutperf = cumValue1 / cumCount1;
 					bmRelOutperfPV       = cumOutperfPV / cumCount1;
 				}
-				bmRelCAGR = exp(bmRelCAGR / sumYearsToBarrier) - 1.0;
+				bmRelCAGR = sumYearsToBarrier>0.0 ? exp(bmRelCAGR / sumYearsToBarrier) - 1.0 : 0.0;
 
 				
 
@@ -2597,7 +2600,7 @@ public:
 				if (doPriipsVol){
 					PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
 					priipsVaR          = thisPriip.pvReturn;
-					esVol              = (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration);
+					esVol              = duration>0 && thisPriip.yearsToPayoff>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration) : 0.0;
 					if (validFairValue){
 						priipsImpliedCost  =  fairValue / askPrice;
 					}
