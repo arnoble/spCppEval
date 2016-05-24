@@ -820,7 +820,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			// enough data?
 			if (totalNumDays - 1 < daysExtant){
 				cerr << "Not enough data to determine strike for product#:" << productId << endl;
-				exit(1);
+				if (doDebug){ exit(1); }
+				continue;
 			}
 
 
@@ -1089,7 +1090,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			// enough data?
 			if (totalNumDays<2 || (thisNumIterations<2 && totalNumDays < spr.maxProductDays)){
 				cerr << "Not enough data for product#:" << productId << endl;
-				exit(1);
+				if (doDebug){ exit(1); }
+				continue;
 			}
 			numMonPoints = monDateIndx.size();
 			// ...check product not matured

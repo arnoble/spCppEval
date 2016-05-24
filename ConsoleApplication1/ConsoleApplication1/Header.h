@@ -2219,7 +2219,7 @@ public:
 						sprintf(lineBuffer, "%s%d%s%d%s%.5lf%s%d%s",
 							"insert into couponhistogram (ProductId,NumCoupons,Prob,IsBootstrapped) values (", productId, ",",
 							thisNumHits, ",", ((double)numCouponHits[thisNumHits]) / numAllEpisodes, ",", numMcIterations == 1 ? 0 : 1, ")");
-						if (strstr(lineBuffer, "#IN")){
+						if (strstr(lineBuffer, "#")){
 							std::cerr << lineBuffer << std::endl;
 							exit(1);
 						}
@@ -2339,7 +2339,7 @@ public:
 								if (farCounter == 100){
 									totalFarCounter += farCounter;
 									strcat(farBuffer, ";");
-									if (strstr(lineBuffer, "#IN")){
+									if (strstr(lineBuffer, "#")){
 										std::cerr << lineBuffer << std::endl;
 										exit(1);
 									}
@@ -2399,7 +2399,7 @@ public:
 							sprintf(lineBuffer, "%s%s%.5lf%s%.5lf%s%.5lf", lineBuffer, ",NonCreditPayoff=", b.yearsToBarrier, ",Reason1Prob=", thisDiscountRate, ",Reason2Prob=", thisDiscountFactor);
 						}
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s",lineBuffer," where ProductBarrierId=", barrier.at(thisBarrier).barrierId, " and ProjectedReturn=", projectedReturn, "");
-						if (strstr(lineBuffer,"#IN")){
+						if (strstr(lineBuffer,"#")){
 							std::cerr << lineBuffer << std::endl;
 							exit(1);
 						}
@@ -2420,7 +2420,7 @@ public:
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 						"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,
 						"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
-					if (strstr(lineBuffer, "#IN")){
+					if (strstr(lineBuffer, "#")){
 						std::cerr << lineBuffer << std::endl;
 						exit(1);
 					}
@@ -2464,7 +2464,7 @@ public:
 
 						sprintf(lineBuffer, "%s%d%s%.4lf%s%.6lf%s",
 							"insert into winlose values (", productId, ",", 100.0*winLoseMinRet, ",", winLose, ");");
-						if (strstr(lineBuffer, "#IN")){
+						if (strstr(lineBuffer, "#")){
 							std::cerr << lineBuffer << std::endl;
 							exit(1);
 						}
@@ -2495,7 +2495,7 @@ public:
 								double value = timepointLevels[i][j][thisIndx];
 								sprintf(lineBuffer, "%s%s%d%s%d%s%d%s%s%s%lf%s%lf%s", lineBuffer, "(3,", productId, ",", ulId, ",", thisTpDays, ",'", name.c_str(), "',", pctile, ",", value, ")");
 							}
-							if (strstr(lineBuffer, "#IN")){
+							if (strstr(lineBuffer, "#")){
 								std::cerr << lineBuffer << std::endl;
 								exit(1);
 							}
@@ -2585,7 +2585,7 @@ public:
 				// replaced the following line with the next one as 'averageReturn' rather than 'historicalReturn' is how we do ESvol
 				// BUT DO NOT DELETE as 'historicalReturn' may be the better way: DOME
 				//var srriVol        = -100*(srriStds - Math.sqrt(srriStds*srriStds+4*0.5*(Math.log(1+historicalReturn/100) - Math.log(1+srriConfRet/100))));
-				double srriVol       = -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn) - log(1 + srriConfRet))));
+				double srriVol       = (1 + srriConfRet)>0.0 ?  - (srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn) - log(1 + srriConfRet)))): 1000.0;
 
 
 
@@ -2615,7 +2615,7 @@ public:
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s%.4lf%s%d%s%d%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1, ")");
 					}
 					sprintf(lineBuffer, "%s%s", lineBuffer, ";");
-					if (strstr(lineBuffer, "#IN")){
+					if (strstr(lineBuffer, "#")){
 						std::cerr << lineBuffer << std::endl;
 						exit(1);
 					}
@@ -2631,12 +2631,12 @@ public:
 				int numShortfallTest(floor(confLevelTest*numAnnRets));
 				double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++){ eShortfall     += allAnnRets[i]; }	eShortfall     /= numShortfall;
 				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	eShortfallTest /= numShortfall;
-				double esVol     = (log(1 + averageReturn) - log(1 + eShortfall))     / ESnorm(confLevel);
+				double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 				double priipsImpliedCost,priipsVaR;
 				if (doPriipsVol){
 					PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
 					priipsVaR          = thisPriip.pvReturn;
-					esVol              = duration>0 && thisPriip.yearsToPayoff>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration) : 0.0;
+					esVol              = thisPriip.pvReturn>0.0 && duration>0 && thisPriip.yearsToPayoff>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration) : 0.0;
 					if (validFairValue){
 						priipsImpliedCost  =  fairValue / askPrice;
 					}
@@ -2648,7 +2648,7 @@ public:
 					}
 					priipsImpliedCost  =  exp(log(priipsImpliedCost)/duration) - 1.0;
 				}
-				double esVolTest = (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest);
+				double esVolTest = (1 + averageReturn)>0.0 && (1 + eShortfallTest)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest): 0.0;
 				if (averageReturn < -0.99){ esVol = 1000.0; esVolTest = 1000.0; }  // eg a product guaranteed to lose 100%
 				double scaledVol = esVol * sqrt(duration);
 				double geomReturn(0.0);	
@@ -2676,15 +2676,15 @@ public:
 				}
 				double probBelowDepo  = (double)numBelowDepo / (double)numAnnRets;
 				double eShortfallDepo = numBelowDepo ? sumBelowDepo / (double)numBelowDepo : 0.0;
-				double esVolBelowDepo = (log(1 + averageReturn) - log(1 + eShortfallDepo)) / ESnorm(probBelowDepo);
+				double esVolBelowDepo = (1 + averageReturn)>0.0 && (1 + eShortfallDepo)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfallDepo)) / ESnorm(probBelowDepo) : 0.0;
 				double eNegRet        = numNegRet ? sumNegRet / (double)numNegRet : 0.0;
 				double probNegRet     = (double)numNegRet / (double)numAnnRets;
-				double esVolNegRet    = (log(1 + averageReturn) - log(1 + eNegRet)) / ESnorm(probNegRet);
+				double esVolNegRet    = (1 + averageReturn)>0.0 && (1 + eNegRet)>0.0 ? (log(1 + averageReturn) - log(1 + eNegRet)) / ESnorm(probNegRet) : 0.0;
 				double strPosDuration(sumStrPosDurations / numStrPosPayoffs), posDuration(sumPosDurations / numPosPayoffs), negDuration(sumNegDurations / numNegPayoffs);
 				double ecGain         = 100.0*(numPosPayoffs ? exp(log(sumPosPayoffs / midPrice / numPosPayoffs) / posDuration) - 1.0 : 0.0);
 				
 				double ecStrictGain   = 100.0*(numStrPosPayoffs ? exp(log(sumStrPosPayoffs / midPrice / numStrPosPayoffs) / strPosDuration) - 1.0 : 0.0);
-				double ecLoss         = -100.0*(numNegPayoffs ? exp(log(sumNegPayoffs / midPrice / numNegPayoffs) / negDuration) - 1.0 : 0.0);
+				double ecLoss         = -100.0*(numNegPayoffs && sumNegPayoffs>0.0 ? exp(log(sumNegPayoffs / midPrice / numNegPayoffs) / negDuration) - 1.0 : 0.0);
 				double probGain       = numPosRet ? ((double)numPosRet) / numAnnRets : 0;
 				double probStrictGain = numStrPosPayoffs ? ((double)numStrPosPayoffs) / numCapitalInstances : 0;
 				double probLoss       = 1 - probGain;
@@ -2774,14 +2774,14 @@ public:
 					}
 					sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 					std::cout << lineBuffer << std::endl;
-					if (strstr(lineBuffer, "#IN")){
+					if (strstr(lineBuffer, "#")){
 						std::cerr << lineBuffer << std::endl;
 						exit(1);
 					}
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					if (analyseCase == 0){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
-						if (strstr(lineBuffer, "#IN")){
+						if (strstr(lineBuffer, "#")){
 							std::cerr << lineBuffer << std::endl;
 							exit(1);
 						}
@@ -2831,7 +2831,7 @@ public:
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
 					// std::cout << lineBuffer << std::endl;
 					if (ukspaCase == ""){
-						if (strstr(lineBuffer, "#IN")){
+						if (strstr(lineBuffer, "#")){
 							std::cerr << lineBuffer << std::endl;
 							exit(1);
 						}
