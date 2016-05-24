@@ -104,6 +104,13 @@ int _tmain(int argc, _TCHAR* argv[])
 				cout << "Will not do PRIIPs as you have entered a startDate" << endl;
 			}
 		}
+		if (doDebug){
+			FILE * pFile;
+			int n;
+			char name[100];
+			pFile = fopen("debug.txt", "w");
+			fclose(pFile);
+		}
 		const int        maxUls(100);
 		const int        bufSize(1000);
 		RETCODE          retcode;

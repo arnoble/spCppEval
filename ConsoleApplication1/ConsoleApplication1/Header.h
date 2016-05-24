@@ -2219,6 +2219,10 @@ public:
 						sprintf(lineBuffer, "%s%d%s%d%s%.5lf%s%d%s",
 							"insert into couponhistogram (ProductId,NumCoupons,Prob,IsBootstrapped) values (", productId, ",",
 							thisNumHits, ",", ((double)numCouponHits[thisNumHits]) / numAllEpisodes, ",", numMcIterations == 1 ? 0 : 1, ")");
+						if (strstr(lineBuffer, "#IN")){
+							std::cerr << lineBuffer << std::endl;
+							exit(1);
+						}
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 				}
@@ -2335,6 +2339,10 @@ public:
 								if (farCounter == 100){
 									totalFarCounter += farCounter;
 									strcat(farBuffer, ";");
+									if (strstr(lineBuffer, "#IN")){
+										std::cerr << lineBuffer << std::endl;
+										exit(1);
+									}
 									mydb.prepare((SQLCHAR *)farBuffer, 1);
 									strcpy(farBuffer, "insert into finalassetreturns values ");
 									farCounter = 0;
@@ -2375,8 +2383,10 @@ public:
 					}
 
 					double mean      = numInstances ? thisBarrierSumPayoffs / numInstances : 0.0;
-					// watch out that b.yearsToBarrier is not zero
-					double annReturn = numInstances && b.yearsToBarrier>0 && midPrice>0 ? (exp(log(((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice) / b.yearsToBarrier) - 1.0) : 0.0;
+					// watch out: b.yearsToBarrier might be zero, or returnToAnnualise might be negative (if a product capital barrier was entered that way...
+					double returnToAnnualise = ((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice;
+					double annReturn         = returnToAnnualise>0.0 && numInstances && b.yearsToBarrier>0 && midPrice>0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
+					// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
 					// if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
@@ -2389,7 +2399,18 @@ public:
 							sprintf(lineBuffer, "%s%s%.5lf%s%.5lf%s%.5lf", lineBuffer, ",NonCreditPayoff=", b.yearsToBarrier, ",Reason1Prob=", thisDiscountRate, ",Reason2Prob=", thisDiscountFactor);
 						}
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s",lineBuffer," where ProductBarrierId=", barrier.at(thisBarrier).barrierId, " and ProjectedReturn=", projectedReturn, "");
-						std::cerr << lineBuffer << std::endl;
+						if (strstr(lineBuffer,"#IN")){
+							std::cerr << lineBuffer << std::endl;
+							exit(1);
+						}
+						if (doDebug){
+							FILE * pFile;
+							int n;
+							char name[100];
+							pFile = fopen("debug.txt", "a");
+							fprintf(pFile, "%s\n", lineBuffer);
+							fclose(pFile);
+						}	
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 					
@@ -2399,6 +2420,10 @@ public:
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 						"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,
 						"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
+					if (strstr(lineBuffer, "#IN")){
+						std::cerr << lineBuffer << std::endl;
+						exit(1);
+					}
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
@@ -2439,6 +2464,10 @@ public:
 
 						sprintf(lineBuffer, "%s%d%s%.4lf%s%.6lf%s",
 							"insert into winlose values (", productId, ",", 100.0*winLoseMinRet, ",", winLose, ");");
+						if (strstr(lineBuffer, "#IN")){
+							std::cerr << lineBuffer << std::endl;
+							exit(1);
+						}
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 						winLoseMinRet += thisWinLoseClick;
 					}
@@ -2465,6 +2494,10 @@ public:
 								int thisIndx = floor(numTpLevels*simPercentiles[k]);
 								double value = timepointLevels[i][j][thisIndx];
 								sprintf(lineBuffer, "%s%s%d%s%d%s%d%s%s%s%lf%s%lf%s", lineBuffer, "(3,", productId, ",", ulId, ",", thisTpDays, ",'", name.c_str(), "',", pctile, ",", value, ")");
+							}
+							if (strstr(lineBuffer, "#IN")){
+								std::cerr << lineBuffer << std::endl;
+								exit(1);
 							}
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 						}
@@ -2582,6 +2615,10 @@ public:
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s%.4lf%s%d%s%d%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1, ")");
 					}
 					sprintf(lineBuffer, "%s%s", lineBuffer, ";");
+					if (strstr(lineBuffer, "#IN")){
+						std::cerr << lineBuffer << std::endl;
+						exit(1);
+					}
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
@@ -2737,9 +2774,17 @@ public:
 					}
 					sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 					std::cout << lineBuffer << std::endl;
+					if (strstr(lineBuffer, "#IN")){
+						std::cerr << lineBuffer << std::endl;
+						exit(1);
+					}
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					if (analyseCase == 0){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
+						if (strstr(lineBuffer, "#IN")){
+							std::cerr << lineBuffer << std::endl;
+							exit(1);
+						}
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 				}
@@ -2786,6 +2831,10 @@ public:
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
 					// std::cout << lineBuffer << std::endl;
 					if (ukspaCase == ""){
+						if (strstr(lineBuffer, "#IN")){
+							std::cerr << lineBuffer << std::endl;
+							exit(1);
+						}
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 				}
