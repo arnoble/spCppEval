@@ -572,12 +572,16 @@ public:
 	}
 	void prepare(SQLCHAR* thisSQL,int numCols) {
 		int numAttempts = 0;
-		/* DEBUG ONLY
+		// DEBUG ONLY
 		if (strlen((char*)thisSQL)>MAX_SP_BUF){
 			std::cerr << "String len:" << strlen((char*)thisSQL) << " will overflow\n";
 			exit(102);
 		}
-		*/
+		if (strstr((char*)thisSQL, "#")){
+			std::cerr << "SQL must not contain hash symbol: " << thisSQL << std::endl;
+			exit(1);
+		}
+
 		if (hStmt != NULL) {
 			SQLFreeStmt(hStmt, SQL_DROP);
 		}
@@ -671,11 +675,12 @@ public:
 		const std::string   avgInAlgebra,
 		const std::string   productStartDateString,
 		const bool          isContinuousALL,
-		const bool          isStrikeReset)
+		const bool          isStrikeReset,
+		const bool          isStopLoss)
 		: underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
 		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq), 
-		avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL), isStrikeReset(isStrikeReset)
+		avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss)
 	{
 		/*
 		const boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(startDate));
@@ -717,7 +722,8 @@ public:
 
 
 			// ...compute moneyness
-			moneyness    = isStrikeReset && startDays>0 ? 1.0 : ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
+			//    ... isStopLoss is monitored daily, sdo if barrier is also isStrikeReset, the moneyness will always be 1.0
+			moneyness    = isStrikeReset && (startDays>0 || isStopLoss) ? 1.0 : ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
 			strike      /= moneyness;
 			// ...compute running averages
 			// ... we are either inside an in-progress averaging (avgDays>endDays), or the entire averaging period is in the past (endDays<0)
@@ -746,7 +752,7 @@ public:
 			moneyness      = 1.0;
 		}
 	};
-	const bool        above, at, isAbsolute, isContinuousALL, isStrikeReset;
+	const bool        above, at, isAbsolute, isContinuousALL, isStrikeReset,isStopLoss;
 	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
 	const double      originalStrike,originalBarrier, originalUbarrier,weight;
 	const std::string startDate, endDate, avgInAlgebra;
@@ -839,7 +845,7 @@ public:
 	void setLevels(const double ulPrice) {
 		refLevel      = ulPrice / moneyness;
 		barrierLevel  = barrier  * ulPrice / moneyness;
-		if (uBarrier != NULL) {	uBarrierLevel = uBarrier * ulPrice / moneyness;	}
+ 		if (uBarrier != NULL) {	uBarrierLevel = uBarrier * ulPrice / moneyness;	}
 	}
 
 };
@@ -2009,12 +2015,24 @@ public:
 					for (i = 0; i < numUl; i++) {
 						thesePrices[i] = ulPrices[i].price.at(thisMonPoint);;
 					}
+					int lastTradingIndx = thisMonPoint - (thisMonPoint>0 ? 1:0);
+					while (lastTradingIndx && ulPrices[0].nonTradingDay[lastTradingIndx]){ lastTradingIndx -= 1; }
 					// START LOOP test each barrier
 					for (int thisBarrier = 0; !matured && thisBarrier<numBarriers; thisBarrier++){
 						SpBarrier &b(barrier[thisBarrier]);
 						// START is barrier alive
 						bool notDisabled = barrierDisabled[thisBarrier] == false;
 						if ((b.endDays == thisMonDays || (b.isContinuous && thisMonDays <= b.endDays && thisMonDays >= b.startDays)) && notDisabled) {
+							// strikeReset AND stopLoss means we want YESTERDAY's close
+							if (b.isStrikeReset && b.isStopLoss){
+								int numBrel = b.brel.size();
+								for (unsigned int uI = 0; uI < numBrel; uI++){
+									SpBarrierRelation& thisBrel(b.brel.at(uI));
+									int thisName = ulIdNameMap.at(thisBrel.underlying);
+									thisBrel.setLevels(ulPrices.at(thisName).price.at(lastTradingIndx));
+								}
+							}
+
 							// averaging/lookback - will replace thesePrices with their averages
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls);
 							// START is barrier hit
@@ -2389,16 +2407,17 @@ public:
 					// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL barrierProb
+					// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
 					// if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
 					if (!doPriipsVol && (!getMarketData || analyseCase == 0)){
-						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d", "update ", useProto, "barrierprob set Prob=", prob,
-							",AnnReturn=", annReturn,
-							",CondPayoff=", mean,
-							",NumInstances=", numInstances);
+						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d", "update ", useProto, "barrierprob set Prob='", prob,
+							"',AnnReturn='", annReturn,
+							"',CondPayoff='", mean,
+							"',NumInstances='", numInstances);
 						if (getMarketData && ukspaCase == ""){
-							sprintf(lineBuffer, "%s%s%.5lf%s%.5lf%s%.5lf", lineBuffer, ",NonCreditPayoff=", b.yearsToBarrier, ",Reason1Prob=", thisDiscountRate, ",Reason2Prob=", thisDiscountFactor);
+							sprintf(lineBuffer, "%s%s%.5lf%s%.5lf%s%.5lf", lineBuffer, "',NonCreditPayoff='", b.yearsToBarrier, "',Reason1Prob='", thisDiscountRate, "',Reason2Prob='", thisDiscountFactor);
 						}
-						sprintf(lineBuffer, "%s%s%d%s%.2lf%s",lineBuffer," where ProductBarrierId=", barrier.at(thisBarrier).barrierId, " and ProjectedReturn=", projectedReturn, "");
+						sprintf(lineBuffer, "%s%s%d%s%.2lf%s",lineBuffer,"' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
 						if (strstr(lineBuffer,"#")){
 							std::cerr << lineBuffer << std::endl;
 							exit(1);
