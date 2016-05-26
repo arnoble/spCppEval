@@ -39,6 +39,13 @@ struct PriipsAnnRet	{
 	}
 };
 
+struct finalAssetInfo	{
+	double ret;
+	int    assetIndx, barrierIndx;
+
+	finalAssetInfo(double ret, int assetIndx, int barrierIndx) : ret(ret), assetIndx(assetIndx), barrierIndx(barrierIndx) {}
+};
+
 
 
 
@@ -928,7 +935,7 @@ public:
 	double                          variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          proportionHits, sumProportion, forwardRate;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
-	std::vector <double>            fars; // final asset returns
+	std::vector <finalAssetInfo>    fars; // final asset returns
 	std::vector <double>            bmrs; // benchmark returns
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
@@ -1129,6 +1136,7 @@ public:
 		const std::string                       productShape,
 		const bool                             doFinalAssetReturn,
 		double                                 &finalAssetReturn,
+		int                                    &finalAssetIndx,
 		const std::vector<int>                 &ulIds,
 		std::vector<bool>                      &useUl) {
 		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
@@ -1160,6 +1168,7 @@ public:
 				double thisSpotReturn   = thesePrices[n] / startLevels[n];
 				if (finalAssetReturn > thisSpotReturn)  { 
 					finalAssetReturn = thisSpotReturn; 
+					finalAssetIndx   = thisBrel.underlying;
 				}
 
 				// the typical optionPayoff = max(0,return) is done below in the 'for' loops initialised with 'optionPayoff=0'
@@ -1282,7 +1291,8 @@ public:
 
 		return(thisPayoff);
 	}
-	void storePayoff(const std::string thisDateString, const double amount, const double couponValue, const double proportion, const double finalAssetReturn, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn ){
+	void storePayoff(const std::string thisDateString, const double amount, const double couponValue, const double proportion, 
+		const double finalAssetReturn, const int finalAssetIndx, const int barrierIndx, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn){
 		sumPayoffs     += amount;
 		if (amount >  midPrice){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
 		if (amount >= midPrice){ sumPosPayoffs    += amount; numPosPayoffs++; }
@@ -1290,7 +1300,7 @@ public:
 		sumProportion  += proportion;
 		hit.push_back(SpPayoff(thisDateString, amount));
 		couponValues.push_back(couponValue);
-		if (doFinalAssetReturn){ fars.push_back(finalAssetReturn); }
+		if (doFinalAssetReturn){ fars.push_back(finalAssetInfo(finalAssetReturn,finalAssetIndx,barrierIndx)); }
 		if (storeBenchmarkReturn){ bmrs.push_back(benchmarkReturn); }
 	}
 	// do any averaging
@@ -1932,6 +1942,7 @@ public:
 				couponValue                            = 0.0;
 				double                 thisPayoff;
 				double                 finalAssetReturn  = 1.0e9;
+				int                    finalAssetIndx;
 				double                 benchmarkReturn   = 1.0e9;
 				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl), overrideThesePrices(numUl);
 
@@ -2060,7 +2071,7 @@ public:
 
 								// for post-strike deals, record if barriers have already been hit
 								if (doAccruals){ b.hasBeenHit = true; }  
-								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn,ulIds,useUl);
+								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn, finalAssetIndx,ulIds, useUl);
 								// ***********barrierprob
 								// capitalBarrier hit ... so product terminates
 								// ***********
@@ -2141,7 +2152,7 @@ public:
 													}
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
-														bOther.storePayoff(thisDateString, payoffOther, payoffOther, 1.0, finalAssetReturn,doFinalAssetReturn,0,false);
+														bOther.storePayoff(thisDateString, payoffOther, payoffOther, 1.0, finalAssetReturn,finalAssetIndx,thisBarrier,doFinalAssetReturn,0,false);
 													//}
 												}
 											}
@@ -2151,7 +2162,7 @@ public:
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
 									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, couponValue,barrierWasHit[thisBarrier] ? b.proportionHits:0.0, 
-										finalAssetReturn, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured);
+										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}
 							} // END is barrier hit
@@ -2247,12 +2258,15 @@ public:
 			}
 			
 			// doFinalAssetReturn
-			char farBuffer[100000];
+			char farBuffer[100000], farBuffer1[100000];
 			int  farCounter(0),totalFarCounter(0);
 			if (doFinalAssetReturn && !usingProto  && !getMarketData && !doPriipsVol){
 				strcpy(farBuffer, "insert into finalassetreturns values ");
 				sprintf(lineBuffer, "%s%d%s", "delete from finalassetreturns where productid='", productId, "'");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				strcpy(lineBuffer, "delete from finalassetinfo");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				strcpy(farBuffer1, "insert into finalassetinfo values");
 			}
 			
 
@@ -2351,18 +2365,18 @@ public:
 
 							// maybe save finalAssetReturns
 							if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000 && !doPriipsVol){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
-								if (farCounter){ strcat(farBuffer, ","); }
-								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i], ")");
+								if (farCounter){ strcat(farBuffer, ","); strcat(farBuffer1, ","); }
+								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i].ret,")");
+								sprintf(farBuffer1, "%s%s%d%s%.3lf%s%.3lf%s%d%s%d%s", farBuffer1, "(", productId, ",", thisAmount, ",", b.fars[i].ret,
+									",", b.fars[i].assetIndx, ",", b.fars[i].barrierIndx, ")");
 								farCounter += 1;
 								if (farCounter == 100){
 									totalFarCounter += farCounter;
-									strcat(farBuffer, ";");
-									if (strstr(lineBuffer, "#")){
-										std::cerr << lineBuffer << std::endl;
-										exit(1);
-									}
+									strcat(farBuffer, ";"); strcat(farBuffer1, ";");
 									mydb.prepare((SQLCHAR *)farBuffer, 1);
-									strcpy(farBuffer, "insert into finalassetreturns values ");
+									mydb.prepare((SQLCHAR *)farBuffer1, 1);
+									strcpy(farBuffer,  "insert into finalassetreturns values ");
+									strcpy(farBuffer1, "insert into finalassetinfo values");
 									farCounter = 0;
 								}
 							}
