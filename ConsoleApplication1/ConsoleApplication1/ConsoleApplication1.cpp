@@ -962,7 +962,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				// DOME:  need to check all brels have the same endDate
 				bool isExtremumBarrier = false;
 				for (i = 0; i < thisBarrier.brel.size(); i++) {
-					if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate && !thisBarrier.isStrikeReset) {
+					if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate /* not sure why I had this: && !thisBarrier.isStrikeReset */) {
 						isExtremumBarrier = true;
 						productNeedsFullPriceRecord = true;
 					}
@@ -989,6 +989,8 @@ int _tmain(int argc, _TCHAR* argv[])
 							if (thisBrel.startDate != thisBrel.endDate) {
 								int startDays      = (thisBrel.bStartDate - bProductStartDate).days() - daysExtant;
 								int endDays        = (thisBrel.bEndDate - bProductStartDate).days() - daysExtant;
+								// don't want fair value simulations to redo history
+								if (getMarketData && startDays < 0){ startDays = 0; }
 								if (startDays < thisBarrier.startDays){
 									thisBarrier.startDays = startDays;
 								}
@@ -1085,7 +1087,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// further initialisation, given product info
 			// ...check product not matured
-			if (monDateIndx .size() == 0){ continue; }
+			if (monDateIndx.size() == 0){ continue; }
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
 			spr.maxProductDays = maxBarrierDays + daysExtant;
 			// enough data?
