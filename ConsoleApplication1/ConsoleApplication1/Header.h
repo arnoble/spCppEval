@@ -102,13 +102,12 @@ static wchar_t* charToWChar(const char* text)
 
 // calculate averaging days and freq
 void buildAveragingInfo(const char* avgTenorText, const char* avgFreqText, int &avgDays, int &avgFreq) {
-	std::map<char, int> avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['y'] = 365;
+	std::map<char, int> avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 	std::map<char, int>::iterator curr, end;
-
+	char buf[10];
 	int tenorPeriodDays = 0;
-	char avgChar1 = avgTenorText[0];
-	int numTenor  = (avgChar1 - '0');
-	char avgChar2 = tolower(avgTenorText[1]);
+	int tenorLen  = strlen(avgTenorText);
+	char avgChar2 = tolower(avgTenorText[tenorLen-1]);
 	/* one way to do it
 	for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
 	if (curr->first == avgChar2){ found = true; tenorPeriodDays = curr->second; }
@@ -117,11 +116,13 @@ void buildAveragingInfo(const char* avgTenorText, const char* avgFreqText, int &
 		tenorPeriodDays = avgTenor[avgChar2];
 	}
 	else { throw std::out_of_range("map_at()"); }
+	strncpy(buf, avgTenorText, tenorLen - 1);
+	int numTenor = atoi(buf);
+	avgDays  = numTenor * tenorPeriodDays;  // maybe add 1 since averaging invariably includes both end dates
 
-	avgDays = numTenor * tenorPeriodDays;  // maybe add 1 since averaging invariably includes both end dates
 	int avgFreqLen = strlen(avgFreqText);
 	int avgFreqStride = 1;
-	if (avgFreqLen > 1){ char buf[10];  strncpy(buf, avgFreqText, avgFreqLen-1); avgFreqStride = atoi(buf); }
+	if (avgFreqLen > 1){ strncpy(buf, avgFreqText, avgFreqLen-1); avgFreqStride = atoi(buf); }
 	avgChar2 = tolower(avgFreqText[avgFreqLen-1]);
 	if (avgTenor.find(avgChar2) != avgTenor.end()){
 		avgFreq = avgTenor[avgChar2] * avgFreqStride;
@@ -2649,15 +2650,14 @@ public:
 					priipsVaR          = thisPriip.pvReturn;
 					esVol              = thisPriip.pvReturn>0.0 && duration>0 && thisPriip.yearsToPayoff>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration) : 0.0;
 					if (validFairValue){
-						priipsImpliedCost  =  fairValue / askPrice;
+						priipsImpliedCost  =  1.0 - fairValue / askPrice;
 					}
 					else {
 						double sumPriipsPvs(0.0);
 						int    numPriipsPvs = priipsInstances.size();
 						for (int i=0; i < numPriipsPvs; i++){ sumPriipsPvs += priipsInstances[i].pvReturn; }
-						priipsImpliedCost  = (sumPriipsPvs / numPriipsPvs) / askPrice;
+						priipsImpliedCost  = 1.0 - (sumPriipsPvs / numPriipsPvs) / askPrice;
 					}
-					priipsImpliedCost  =  exp(log(priipsImpliedCost)/duration) - 1.0;
 				}
 				double esVolTest = (1 + averageReturn)>0.0 && (1 + eShortfallTest)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest): 0.0;
 				if (averageReturn < -0.99){ esVol = 1000.0; esVolTest = 1000.0; }  // eg a product guaranteed to lose 100%
