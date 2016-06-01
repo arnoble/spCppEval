@@ -2359,7 +2359,7 @@ public:
 
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount    = thisBarrierPayoffs[i];
-							double thisAnnRet    = thisYears <= 0.0 ? 0.0 : min(0.2,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+							double thisAnnRet    = thisYears <= 0.0 ? 0.0 : min(0.3,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 							double thisCouponRet = thisYears <= 0.0 ? 0.0 : exp(log(1.0 + thisBarrierCouponValues[i] / midPrice) / thisYears) - 1.0;
 
 							// maybe save finalAssetReturns
