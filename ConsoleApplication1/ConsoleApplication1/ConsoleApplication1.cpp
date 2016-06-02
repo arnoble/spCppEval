@@ -212,7 +212,8 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductUserId = 26, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
-				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductLast
+				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
+				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -244,6 +245,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
 			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
 			useUserParams                 = atoi(szAllPrices[colProductUseUserParams]);
+			string forceStartDate         = szAllPrices[colProductForceStartDate];
 			if (fundingFractionFactor > MIN_FUNDING_FRACTION_FACTOR){
 				fundingFraction = defaultFundingFraction*fundingFractionFactor;
 				}
@@ -440,7 +442,10 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(lineBuffer, "%s%d%s%d%s%s", " and p", i, ".underlyingId='", ulIds.at(i), "'", (crossRateUids[i] ? crossRateBuffer : "")); strcat(ulSql, lineBuffer);
 			}
 			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
-			else if (thisNumIterations>1) { strcat(ulSql, /* doPriips ? priipsStartDatePhrase : */ " and Date >='1992-12-31' "); }
+			else {
+				if (forceStartDate != "0000-00-00"){ sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", forceStartDate, "'"); }
+				else if (thisNumIterations>1) { strcat(ulSql, /* doPriips ? priipsStartDatePhrase : */ " and Date >='1992-12-31' "); }
+			}
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
 			strcat(ulSql, " order by Date");
 			// cerr << ulSql << endl;
