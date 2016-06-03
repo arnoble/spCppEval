@@ -203,36 +203,43 @@ int _tmain(int argc, _TCHAR* argv[])
 		char   *sovereignFields[] ={ "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MOODY_LONG_TERM",
 			"RTG_FITCH_LT_LC_ISSUER_DEFAULT", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT", "" };
 
-		char   *fieldFormat[] = { "%s", "%.2lf", "%s", "%.2lf", "%s", "%s", "%s" };
-		double  fieldScaling[] = { 0, 1000000000.0, 0, 1, 0, 0, 0 };
-		char   *fieldName[] = { "SPrating", "MarketCap", "Currency", "TierOne", "Moody", "Fitch", "drsk1yprobdefault" };
+		char   *fieldFormat[]   = { "%s", "%.2lf", "%s", "%.2lf", "%s", "%s", "%s" };
+		double  fieldScaling[]  = { 0, 1000000000.0, 0, 1, 0, 0, 0 };
+		bool    fieldEscalate[] = { false, true, false, true, false, false, true }; 
+		char   *fieldName[]     = { "SPrating", "MarketCap", "Currency", "TierOne", "Moody", "Fitch", "drsk1yprobdefault" };
 		if (!doDebug  && doCDS) {
 			if (!doDebug) {				
 				// now get info for each institution
 				sprintf(lineBuffer, "%s%s%d%s%d%s",
-					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg from  ",
+					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg,cp.BbergIssuerPrice from  ",
 					" product p join institution i on (p.CounterpartyId=i.InstitutionId),institution cp left join cdsspread cds using (institutionid)  where p.ProductId >='",
 					startProductId, "' and p.ProductId <= '", stopProductId, "' and i.entityname like concat('%',cp.entityname,'%') order by institutionId,maturity;");
-				mydb.prepare((SQLCHAR *)lineBuffer, 5); 	retcode = mydb.fetch(true);
+				mydb.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb.fetch(true);
 				int     institutionId = -1;
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-					char *cpName = szAllBufs[1];
-					char *mat = szAllBufs[2];
-					char *cdsBberg = szAllBufs[3];
-					char *cpBberg = szAllBufs[4];
-					double  thePrice = -1.0;
-					bool    isaSovereign = false;
+					char *cpName              = szAllBufs[1];
+					char *mat                 = szAllBufs[2];
+					char *cdsBberg            = szAllBufs[3];
+					char *cpBberg             = szAllBufs[4];
+					char *cpBbergIssuerPrice  = szAllBufs[5];
+					double  thePrice          = -1.0;
+					bool    isaSovereign      = false;
 					// first record - get static data for institution
 					if (doStatic && (institutionId != atoi(szAllBufs[0]))){
-						// detect if institution is a sovereigh
+						// detect if institution is a sovereign
 						getBbergPrices(cpBberg, "COMPANY_IS_PRIVATE", thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
 						if (!strcmp(resultBuffer, "")){
 							isaSovereign = true;
 						}
 						institutionId = atoi(szAllBufs[0]);
 						for (int i = 0; strcmp(fields[i], ""); i++){
+							char *fieldPtr = isaSovereign ? sovereignFields[i] : fields[i];
 							strcpy(resultBuffer, "");
-							getBbergPrices(cpBberg, isaSovereign ? sovereignFields[i]:fields[i], thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+							getBbergPrices(cpBberg, fieldPtr, thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+							// if that field does not exist, try cpBbergIssuerPrice (typically the group parent
+							if (!strcmp(resultBuffer, "") && fieldEscalate[i]){
+								getBbergPrices(cpBbergIssuerPrice, fieldPtr, thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+							}
 							if (strcmp(resultBuffer, "")){
 								if (fieldScaling[i]){
 									sprintf(resultBuffer, fieldFormat[i], atof(resultBuffer) / fieldScaling[i]);
