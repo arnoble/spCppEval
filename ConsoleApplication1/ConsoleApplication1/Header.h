@@ -1532,7 +1532,8 @@ public:
 		const std::vector<double> &cdsTenor,
 		const std::vector<double> &cdsSpread,
 		const double              fundingFraction,
-		const bool                productNeedsFullPriceRecord){
+		const bool                productNeedsFullPriceRecord,
+		const bool                ovveridePriipsStartDate){
 		std::vector<bool>		 barrierDisabled;
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
@@ -1571,6 +1572,7 @@ public:
 			b.forwardRate            = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, b.yearsToBarrier); // DOME: very crude for now
 		}
 
+
 		// we do not need to pre-build the samples (uses too much memory, and we may not need all the samples anyway if there is convergence)
 		// ... we imagine a virtual balancedResampling scheme
 		// ... with N samples of length p we have the Np sequence 0,1,...,p,0,1,...p   
@@ -1578,7 +1580,7 @@ public:
 		// ... but since all the blocks are the same, we just use element index % p from the single block 0,1,...,p
 		// ... ta-daa!!
 		const unsigned int longNumOfSequences(1000);
-		const unsigned int firstObs = doPriips ? max(0,totalNumReturns - 365 * 5) : 0;
+		const unsigned int firstObs = (doPriips && !ovveridePriipsStartDate ) ? max(0, totalNumReturns - 365 * 5) : 0;
 		unsigned long int maxNpPos = longNumOfSequences*(totalNumReturns - firstObs);  // if maxNpPos is TOO large then sampling from its deceasing value is tantamount to no balancedResampling as the sample space essentially never shrinks materially
 		unsigned long int npPos    = maxNpPos;
 		// faster to put repeated indices in a vector, compared to modulo arithmetic, and we only need manageable arrays eg 100y of daily data is 36500 points, repeated 1000 - 36,500,000 which is well within the MAX_SIZE

@@ -19,7 +19,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             doPriips(false), doPriipsVolOnly(false), doUKSPA(false), doAnyIdTable(false);
+		bool             doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -100,8 +100,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		if (doPriips){
 			if (strlen(startDate)){
-				doPriips = false;
-				cout << "Will not do PRIIPs as you have entered a startDate" << endl;
+				ovveridePriipsStartDate = true;
+				cout << "Will ovveride PRIIPs start date as you have entered a startDate" << endl;
 			}
 		}
 		if (doDebug){
@@ -1126,14 +1126,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData,useUserParams,thisMarketData,
-				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
+				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,false);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			if (!doPriipsVolOnly){
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
-					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
+					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate);
 			}
 			
 			// PRIIPs adjust driftrate to riskfree
@@ -1161,7 +1161,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true, useProto, getMarketData, useUserParams, thisMarketData,
-					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord);
+					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate);
 			}
 
 		} // for each product

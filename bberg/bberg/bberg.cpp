@@ -232,13 +232,23 @@ int _tmain(int argc, _TCHAR* argv[])
 							isaSovereign = true;
 						}
 						institutionId = atoi(szAllBufs[0]);
+
 						for (int i = 0; strcmp(fields[i], ""); i++){
 							char *fieldPtr = isaSovereign ? sovereignFields[i] : fields[i];
 							strcpy(resultBuffer, "");
 							getBbergPrices(cpBberg, fieldPtr, thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
-							// if that field does not exist, try cpBbergIssuerPrice (typically the group parent
-							if (!strcmp(resultBuffer, "") && fieldEscalate[i]){
-								getBbergPrices(cpBbergIssuerPrice, fieldPtr, thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+							if (!strcmp(resultBuffer, "")) {
+								// if that field does not exist, try the sovereign version of FLDS - eg InvestecBank has its MOODY credit rating there ...
+								if (!isaSovereign){
+									getBbergPrices(cpBberg, sovereignFields[i], thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+								}
+								// if that field does not exist, try cpBbergIssuerPrice (typically the group parent)
+								if (!strcmp(resultBuffer, "") && fieldEscalate[i]){
+									getBbergPrices(cpBbergIssuerPrice, fieldPtr, thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+									if (!isaSovereign){
+										getBbergPrices(cpBbergIssuerPrice, sovereignFields[i], thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
+									}
+								}
 							}
 							if (strcmp(resultBuffer, "")){
 								if (fieldScaling[i]){
