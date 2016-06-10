@@ -687,7 +687,7 @@ public:
 		const bool          isStopLoss)
 		: underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
-		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq), 
+		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq),
 		avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss)
 	{
 		/*
@@ -730,9 +730,9 @@ public:
 
 
 			// ...compute moneyness
-			//    ... isStopLoss is monitored daily, sdo if barrier is also isStrikeReset, the moneyness will always be 1.0
-			moneyness    = isStrikeReset && (startDays>0 || isStopLoss) ? 1.0 : ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant];
-			strike      /= moneyness;
+			calcMoneyness(ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant]);
+			originalMoneyness = moneyness;
+
 			// ...compute running averages
 			// ... we are either inside an in-progress averaging (avgDays>endDays), or the entire averaging period is in the past (endDays<0)
 			if (avgDays && avgDays > endDays){
@@ -760,18 +760,24 @@ public:
 			moneyness      = 1.0;
 		}
 	};
-	const bool        above, at, isAbsolute, isContinuousALL, isStrikeReset,isStopLoss;
+	const bool        above, at, isAbsolute, isContinuousALL, isStrikeReset, isStopLoss;
 	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
 	const double      originalStrike,originalBarrier, originalUbarrier,weight;
 	const std::string startDate, endDate, avgInAlgebra;
 	int               count, j, k, startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0, endDaysDiff=0;
-	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness;
+	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness, originalMoneyness;
 	bool              readyForAvgObs;
 	std::vector<double> runningAverage;
 	std::vector<bool>   avgWasHit;
 	boost::gregorian::date bStartDate,bEndDate;
 	std::vector<double>  theseAvgPrices;
 
+	// calculate moneyness
+	void calcMoneyness(const double thisMoneyness){
+		//    ... isStopLoss is monitored daily, so if barrier is also isStrikeReset, the moneyness will always be 1.0
+		moneyness    = isStrikeReset && (startDays>0 || isStopLoss) ? 1.0 : thisMoneyness ;
+		strike       = originalStrike/moneyness;
+	}
 
 	// ** handle AvgInAlgebra
 	// ... parse algebra and evaluate it on data
@@ -899,8 +905,8 @@ public:
 	{
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
-		endDays = (bEndDate - bProductStartDate).days() - daysExtant;
-		startDays = endDays;
+		endDays                = (bEndDate - bProductStartDate).days() - daysExtant;
+		startDays              = endDays;
 		yearsToBarrier         = endDays / 365.25;
 		sumPayoffs             = 0.0;
 		variableCoupon         = 0.0;
@@ -1533,7 +1539,8 @@ public:
 		const std::vector<double> &cdsSpread,
 		const double              fundingFraction,
 		const bool                productNeedsFullPriceRecord,
-		const bool                ovveridePriipsStartDate){
+		const bool                ovveridePriipsStartDate,
+		double                    &fairValue){
 		std::vector<bool>		 barrierDisabled;
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
@@ -2828,7 +2835,8 @@ public:
 					MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
 					sprintf(charBuffer, "%s\t%.2lf%s%.2lf", "FairValueResults(stdev): ", thisMean*issuePrice, ":", thisStderr*issuePrice);
 					std::cout << charBuffer << std::endl;
-		
+					fairValue = thisMean*issuePrice;
+
 					// update db
 					sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisMean*issuePrice);
 					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStderr*issuePrice);
