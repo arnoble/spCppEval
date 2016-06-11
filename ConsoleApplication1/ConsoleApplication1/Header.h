@@ -292,7 +292,11 @@ void GenerateCorrelatedNormal(const int numUnderlyings,
 	std::vector<double>                    &normalRandom,
 	const bool                             useAntithetic,
 	const int                              antitheticRow,
-	std::vector<std::vector<double>>       &antitheticRandom) {
+	std::vector<std::vector<double>>       &antitheticRandom,
+	const bool                             conserveRands,
+	const bool                             consumeRands,
+	int                                    &randnoIndx,
+	std::vector<double>                    &randnosStore) {
 	int    i, j, k;
 	double anyDouble;
 	// get correlated standard Normal shocks
@@ -301,7 +305,17 @@ void GenerateCorrelatedNormal(const int numUnderlyings,
 			normalRandom[j] = -antitheticRandom[antitheticRow][j];
 		}
 		else {
-			normalRandom[j] = NormSInv((double)rand() / RAND_MAX);
+			double thisRandno;
+			if (consumeRands){
+				thisRandno = randnosStore[randnoIndx++];
+			}
+			else{
+				thisRandno = (double)rand() / RAND_MAX;
+				if (conserveRands){
+					randnosStore.push_back(thisRandno);
+				}
+			}
+			normalRandom[j]   = NormSInv(thisRandno);
 			antitheticRandom[antitheticRow][j] = normalRandom[j];
 		}
 	}
@@ -1473,13 +1487,14 @@ public:
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice){};
 
 	// public members: DOME consider making private
+	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips;
 	int                             maxProductDays, productDays, numUls;
 	double                          forwardStartT, issuePrice, priipsRfr;
 	std::string                     ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl;
-	std::vector <double>            baseCurveTenor, baseCurveSpread;
+	std::vector <double>            baseCurveTenor, baseCurveSpread,randnosStore;
 	std::vector<boost::gregorian::date> allBdates;
 
 	// init
@@ -1540,11 +1555,15 @@ public:
 		const double              fundingFraction,
 		const bool                productNeedsFullPriceRecord,
 		const bool                ovveridePriipsStartDate,
-		double                    &fairValue){
+		double                    &fairValue,
+		const bool                conserveRands,
+		const bool                consumeRands
+		){
 		std::vector<bool>		 barrierDisabled;
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
+		int                      randnoIndx       =  0;
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                      i, j, k, m, len, thisIteration,n;
 		double                   couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
@@ -1586,7 +1605,6 @@ public:
 		// ... we have an integer "nPpos" indexing this Np vector and every time we want a random sample we choose index=rand()*(nPpos--) which is notionally in the index/p "block"
 		// ... but since all the blocks are the same, we just use element index % p from the single block 0,1,...,p
 		// ... ta-daa!!
-		const unsigned int longNumOfSequences(1000);
 		const unsigned int firstObs = (doPriips && !ovveridePriipsStartDate ) ? max(0, totalNumReturns - 365 * 5) : 0;
 		unsigned long int maxNpPos = longNumOfSequences*(totalNumReturns - firstObs);  // if maxNpPos is TOO large then sampling from its deceasing value is tantamount to no balancedResampling as the sample space essentially never shrinks materially
 		unsigned long int npPos    = maxNpPos;
@@ -1756,7 +1774,8 @@ public:
 		// START LOOP McIterations
 		// ***********************
 		int numDisables(0);
-		for (thisIteration = 0; thisIteration < numMcIterations && fabs(stdevRatioPctChange)>accuracyTol; thisIteration++) {
+		int randnosStoreSize = randnosStore.size();
+		for (thisIteration = 0; thisIteration < numMcIterations && (!consumeRands || randnoIndx<=randnosStoreSize) && fabs(stdevRatioPctChange)>accuracyTol; thisIteration++) {
 			
 			// create new random sample for next iteration
 			if (numMcIterations > 1){
@@ -1820,7 +1839,12 @@ public:
 								// ... simulate a set of standardNormal shocks
 								GenerateCorrelatedNormal(numUl, correlatedRandom, cholMatrix, normalRandom,
 									useAntithetic,     // if you want to check things using fixed shocks, just set this to 'true' and set the shocks in 'antitheticRandom'
-									thisDay, antitheticRandom);
+									thisDay, 
+									antitheticRandom,
+									conserveRands,
+									consumeRands,
+									randnoIndx,
+									randnosStore);
 								for (i = 0; i < numUl; i++) {
 									// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
 									thisSig = InterpolateMatrix(ObsDateVols[i], ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
@@ -2284,7 +2308,7 @@ public:
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
-			for (int analyseCase = 0; analyseCase < (doPriips?1:2); analyseCase++) {
+			for (int analyseCase = 0; analyseCase < (doPriips || getMarketData ? 1 : 2); analyseCase++) {
 				if (doDebug){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 				bool     applyCredit = analyseCase == 1;
 				
@@ -2650,8 +2674,8 @@ public:
 				const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
 				int numShortfall(    floor(confLevel    *numAnnRets));
 				int numShortfallTest(floor(confLevelTest*numAnnRets));
-				double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++){ eShortfall     += allAnnRets[i]; }	eShortfall     /= numShortfall;
-				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	eShortfallTest /= numShortfall;
+				double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){     eShortfall     += allAnnRets[i]; }	if (numShortfall){ eShortfall     /= numShortfall; }
+				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	if (numShortfall){ eShortfallTest /= numShortfall; }
 				double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 				double priipsImpliedCost,priipsVaR;
 				if (doPriipsVol){
@@ -2833,7 +2857,7 @@ public:
 					}
 					// fair value
 					MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
-					sprintf(charBuffer, "%s\t%.2lf%s%.2lf", "FairValueResults(stdev): ", thisMean*issuePrice, ":", thisStderr*issuePrice);
+					sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%d", "FairValueResults(stdev):numEpisodes ", thisMean*issuePrice, ":", thisStderr*issuePrice,":",thisIteration);
 					std::cout << charBuffer << std::endl;
 					fairValue = thisMean*issuePrice;
 
@@ -2843,7 +2867,7 @@ public:
 					sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
 					// std::cout << lineBuffer << std::endl;
-					if (ukspaCase == ""){
+					if (!consumeRands && ukspaCase == ""){
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 				}
