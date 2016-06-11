@@ -2681,6 +2681,10 @@ public:
 				if (doPriipsVol){
 					PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
 					priipsVaR          = thisPriip.pvReturn;
+					if (3.842 < 2.0*log(thisPriip.pvReturn)){
+						std::cerr << "Too high a percentile return " << thisPriip.pvReturn << "\n";
+						exit(1);
+					}
 					esVol              = thisPriip.pvReturn>0.0 && duration>0 && thisPriip.yearsToPayoff>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration) : 0.0;
 					if (validFairValue){
 						priipsImpliedCost  =  1.0 - fairValue / askPrice;
