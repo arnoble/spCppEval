@@ -1142,7 +1142,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, fairValue, doDeltas,false);
 				if (doDeltas && daysExtant>0){
 					double bumpSize = 0.05;
-					vector<double> bumpAmount; bumpAmount.push_back(1.0 - bumpSize); bumpAmount.push_back(1.0 + bumpSize);
+					vector<double> bumpAmount; bumpAmount.push_back(-bumpSize); bumpAmount.push_back(bumpSize);
 					// bump each underlying by 1%up then 1%down
 					sprintf(lineBuffer, "%s%d", "delete from deltas where ProductId=",productId);
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -1150,7 +1150,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						for (i=0; i < numUl; i++){
 							int ulId = ulIds[i];
 							// bump spot
-							double newSpot      = spots[i] * bumpAmount[bumpDirection];
+							double newSpot      = spots[i] * (1.0 + bumpAmount[bumpDirection]);
 							double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
 							ulPrices[i].price[totalNumDays - 1] = newSpot;
 							// moneyness
@@ -1176,7 +1176,7 @@ int _tmain(int argc, _TCHAR* argv[])
 								numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 								contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
 								cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doDeltas,true);
-							double  delta = (bumpedFairValue / fairValue - 1.0) / bumpSize;
+							double  delta = (bumpedFairValue / fairValue - 1.0) / bumpAmount[bumpDirection];
 							sprintf(lineBuffer, "%s", "replace into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
 							sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", bumpDirection, ",'", lastDataDateString.c_str(), "',", ulIds[i], ",", productId, ")");
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
