@@ -1566,7 +1566,7 @@ public:
 		int                      randnoIndx       =  0;
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                      i, j, k, m, len, thisIteration,n;
-		double                   couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
+		double                   anyDouble,anyDouble1,couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector<double>      stdevRatioPctChanges;
 		std::vector< std::vector<double> > someTimepoints[100];
@@ -2389,14 +2389,15 @@ public:
 								}
 							}
 						}
-
+						double avgBarrierCoupon;
+						// MeanAndStdev(thisBarrierCouponValues, avgBarrierCoupon, anyDouble, anyDouble1);
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount    = thisBarrierPayoffs[i];
 							double thisAnnRet    = thisYears <= 0.0 ? 0.0 : min(0.3,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
-							double thisCouponRet = thisYears <= 0.0 ? 0.0 : exp(log(1.0 + thisBarrierCouponValues[i] / midPrice) / thisYears) - 1.0;
+							double thisCouponRet = thisYears <= 0.0 ? 0.0 : exp(log((1.0 + thisBarrierCouponValues[i]) / midPrice) / thisYears) - 1.0;
 
 							// maybe save finalAssetReturns
-							if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000 && !doPriipsVol){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
+								if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000 && !doPriipsVol){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
 								if (farCounter){ strcat(farBuffer, ","); strcat(farBuffer1, ","); }
 								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i].ret,")");
 								sprintf(farBuffer1, "%s%s%d%s%.3lf%s%.3lf%s%d%s%d%s", farBuffer1, "(", productId, ",", thisAmount, ",", b.fars[i].ret,
