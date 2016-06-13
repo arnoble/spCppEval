@@ -192,7 +192,7 @@ private:
 	SQLHDBC   hDBC;
 	SQLRETURN fsts;
 	const int bufSize=256;
-	SQLLEN    cbModel;		               // Model buffer bytes recieved
+	SQLLEN    cbModel;		               // Model buffer bytes received
 	HSTMT     hStmt;
 	char     **bindBuffer;
 
