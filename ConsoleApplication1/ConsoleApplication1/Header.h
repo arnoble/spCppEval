@@ -2861,7 +2861,7 @@ public:
 					}
 					// fair value
 					MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
-					sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%d", "FairValueResults(stdev):numEpisodes ", thisMean*issuePrice, ":", thisStderr*issuePrice,":",thisIteration);
+					sprintf(charBuffer, "%s\t%.2lf%s%.2lf", "FairValueResults(stdev):", thisMean*issuePrice, ":", thisStderr*issuePrice);
 					std::cout << charBuffer << std::endl;
 					fairValue = thisMean*issuePrice;
 
