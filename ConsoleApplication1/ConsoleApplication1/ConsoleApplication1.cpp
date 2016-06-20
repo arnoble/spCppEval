@@ -118,7 +118,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		const int        bufSize(1000);
 		RETCODE          retcode;
 		SomeCurve        anyCurve;
-		time_t           startTime;
+		time_t           startTime = time(0);
 		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
 		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut", 
@@ -156,7 +156,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " and (WhenEvaluated is null or SecsTaken<=", maxSecsTaken,")");
 		}
 		if (issuerPartName != ""){
-			sprintf(lineBuffer, "%s%s%s%s", lineBuffer, " and i.name like '%", issuerPartName, "%'");
+			sprintf(lineBuffer, "%s%s%s%s", lineBuffer, " and i.name like '%", issuerPartName.c_str(), "%'");
 		}
 		sprintf(lineBuffer, "%s%s", lineBuffer, " order by productid");
 		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true,lineBuffer);
@@ -446,7 +446,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
 			else {
-				if (forceStartDate != "0000-00-00"){ sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", forceStartDate, "'"); }
+				if (forceStartDate != "0000-00-00"){ sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", forceStartDate.c_str(), "'"); }
 				else if (thisNumIterations>1) { strcat(ulSql, /* doPriips ? priipsStartDatePhrase : */ " and Date >='1992-12-31' "); }
 			}
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }

@@ -117,12 +117,17 @@ void buildAveragingInfo(const char* avgTenorText, const char* avgFreqText, int &
 	}
 	else { throw std::out_of_range("map_at()"); }
 	strncpy(buf, avgTenorText, tenorLen - 1);
+	buf[tenorLen - 1] = '\0';
 	int numTenor = atoi(buf);
 	avgDays  = numTenor * tenorPeriodDays;  // maybe add 1 since averaging invariably includes both end dates
 
 	int avgFreqLen = strlen(avgFreqText);
 	int avgFreqStride = 1;
-	if (avgFreqLen > 1){ strncpy(buf, avgFreqText, avgFreqLen-1); avgFreqStride = atoi(buf); }
+	if (avgFreqLen > 1){ 
+		strncpy(buf, avgFreqText, avgFreqLen-1); 
+		buf[avgFreqLen - 1] = '\0';
+		avgFreqStride = atoi(buf);
+	}
 	avgChar2 = tolower(avgFreqText[avgFreqLen-1]);
 	if (avgTenor.find(avgChar2) != avgTenor.end()){
 		avgFreq = avgTenor[avgChar2] * avgFreqStride;
@@ -523,17 +528,20 @@ public:
 		SQLINTEGER  i = 0;
 		SQLINTEGER  native;
 		SQLWCHAR    state[7];
-		SQLWCHAR    text[256];
+		SQLWCHAR    text[512];
 		SQLSMALLINT len;
 		SQLRETURN   ret;
+		size_t      numChars;
+		char        *cptr,*cptr1;
 		fprintf(stderr,	"\n%s%s%s%s\n",	"Database problem running ",fn," ",msg.c_str());
 
 		do	{
-			ret = SQLGetDiagRec(type, handle, ++i, &state[0], &native, &text[0], (SQLSMALLINT) sizeof(text), &len);
+			ret = SQLGetDiagRec(type, handle, ++i, &state[0], &native, &text[0], (SQLSMALLINT) sizeof(text)/2, &len);
 			if (SQL_SUCCEEDED(ret)) {
-				text[len] = '\0';
-				state[5] = '\0';
-				printf("%c%c%c%c%c:%d:%s:%d\n", state[0], state[1], state[2], state[3], state[4], native, text, len);
+				cptr = WcharToChar(text, &numChars);
+				// text[len] = '\0';
+				// state[5] = '\0';
+				printf("%c%c%c%c%c:%d:%s:%d\n", state[0], state[1], state[2], state[3], state[4], native, cptr, len);
 			}
 		} while (ret == SQL_SUCCESS);
 	}
@@ -1058,12 +1066,12 @@ public:
 
 	// basket test if barrier is hit
 	bool isHitBasket(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
-		int j, thisIndx;
-		bool isHit  = isAnd;
-		bool above;
-		double w,thisRefLevel;
 		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
 		if (numBrel == 0) return true;
+		int j, thisIndx;
+		bool isHit  = isAnd;
+		bool above  = brel[0].above;
+		double w,thisRefLevel;
 		/*
 		* see if basket return breaches barrier level (in 'N' field)
 		*/
@@ -1566,7 +1574,7 @@ public:
 		int                      randnoIndx       =  0;
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                      i, j, k, m, len, thisIteration,n;
-		double                   anyDouble,anyDouble1,couponValue, stdevRatio(1.0), stdevRatioPctChange(100.0);
+		double                   anyDouble,anyDouble1,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector<double>      stdevRatioPctChanges;
 		std::vector< std::vector<double> > someTimepoints[100];
