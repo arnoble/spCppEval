@@ -1563,7 +1563,7 @@ public:
 		const double              fundingFraction,
 		const bool                productNeedsFullPriceRecord,
 		const bool                ovveridePriipsStartDate,
-		double                    &fairValue,
+		double                    &thisFairValue,
 		const bool                conserveRands,
 		const bool                consumeRands
 		){
@@ -2872,7 +2872,7 @@ public:
 					MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
 					sprintf(charBuffer, "%s\t%.2lf%s%.2lf", "FairValueResults(stdev):", thisMean*issuePrice, ":", thisStderr*issuePrice);
 					std::cout << charBuffer << std::endl;
-					fairValue = thisMean*issuePrice;
+					thisFairValue = thisMean*issuePrice;
 
 					// update db
 					sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisMean*issuePrice);

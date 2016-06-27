@@ -26,7 +26,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		char             endDate[11]              = "";
 		char             useProto[6]              = "";
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           fairValue, bumpedFairValue;
+		double           thisFairValue, bumpedFairValue;
 		string           ukspaCase(""), issuerPartName(""), forceFundingFraction("");
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
@@ -1132,14 +1132,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData,useUserParams,thisMarketData,
-				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, fairValue,false,false);
+				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue,false,false);
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			if (!doPriipsVolOnly){
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
-					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, fairValue, doDeltas,false);
+					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, thisFairValue, doDeltas,false);
 				if (doDeltas && daysExtant>0){
 					double bumpSize = 0.05;
 					vector<double> bumpAmount; bumpAmount.push_back(-bumpSize); bumpAmount.push_back(bumpSize);
@@ -1176,7 +1176,7 @@ int _tmain(int argc, _TCHAR* argv[])
 								numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 								contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
 								cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doDeltas,true);
-							double  delta = (bumpedFairValue / fairValue - 1.0) / bumpAmount[bumpDirection];
+							double  delta = (bumpedFairValue / thisFairValue - 1.0) / bumpAmount[bumpDirection];
 							sprintf(lineBuffer, "%s", "replace into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
 							sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", bumpDirection, ",'", lastDataDateString.c_str(), "',", ulIds[i], ",", productId, ")");
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -1213,7 +1213,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true, useProto, getMarketData, useUserParams, thisMarketData,
-					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, fairValue, false,false);
+					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, thisFairValue, false,false);
 			}
 
 		} // for each product
