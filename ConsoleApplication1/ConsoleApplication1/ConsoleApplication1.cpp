@@ -13,13 +13,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             doDeltas(false),doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -27,10 +27,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		char             useProto[6]              = "";
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
 		double           thisFairValue, bumpedFairValue;
+		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
+		int              deltaBumps(1), vegaBumps(1), thetaBumps(1);
 		string           ukspaCase(""), issuerPartName(""), forceFundingFraction("");
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
+		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
-
 		// build list of productIds
 		if (!commaSepList == 1) {
 			startProductId = argc > 1 ? _ttoi(argv[1]) : 363;
@@ -50,7 +52,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }			
 			if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
 			if (strstr(thisArg, "notStale"          )){ notStale           = true; }
-			if (strstr(thisArg, "doDeltas"          )){ doDeltas           = true; }
+			if (strstr(thisArg, "doDeltas"          )){ 
+					doDeltas  = true; 
+					doBumps   = true;
+					deltaBumpStart  = -0.05;
+					deltaBumpStep   =  0.05;
+					deltaBumps      = 3;
+			}
 			
 			if (sscanf(thisArg, "eqFx:%s", lineBuffer)){
 				forceEqFxCorr = true;
@@ -61,6 +69,36 @@ int _tmain(int argc, _TCHAR* argv[])
 				fxCorrelationUid        = atoi(tokens[0].c_str());
 				fxCorrelationOtherId    = atoi(tokens[1].c_str());
 				forceEqFxCorrelation    = atof(tokens[2].c_str());
+			}
+			if (sscanf(thisArg, "bump:%s", lineBuffer)){
+				if (doDeltas){ cerr << "cannot do deltas and bumps together" << endl; exit(1); }
+				doBumps = true;
+				char *token = std::strtok(lineBuffer, ":");
+				std::vector<std::string> tokens;
+				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
+				if (tokens.size() != 4){ cerr << "bump: incorrect syntax" << endl; exit(1); }
+				double start, step;
+				int     num;
+				start = atof(tokens[1].c_str());
+				step  = atof(tokens[2].c_str());
+				num   = atoi(tokens[3].c_str());
+				switch (bumpIds[tokens[0].c_str()]){
+					case 1: // delta
+						deltaBumpStart  = start;
+						deltaBumpStep   = step;
+						deltaBumps      = num;
+						break;
+					case 2: // vega
+						vegaBumpStart  = start;
+						vegaBumpStep   = step;
+						vegaBumps      = num;
+						break;
+					case 3: // theta
+						thetaBumpStart  = start;
+						thetaBumpStep   = step;
+						thetaBumps      = num;
+						break;
+				}
 			}
 			if (sscanf(thisArg, "eqEq:%s", lineBuffer)){
 				forceEqEqCorr = true;
@@ -1139,51 +1177,66 @@ int _tmain(int argc, _TCHAR* argv[])
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
-					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, thisFairValue, doDeltas,false);
-				if (doDeltas && daysExtant>0){
-					double bumpSize = 0.05;
-					vector<double> bumpAmount; bumpAmount.push_back(-bumpSize); bumpAmount.push_back(bumpSize);
-					// bump each underlying by 1%up then 1%down
-					sprintf(lineBuffer, "%s%d", "delete from deltas where ProductId=",productId);
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					for (int bumpDirection=0; bumpDirection < 2; bumpDirection++){
-						for (i=0; i < numUl; i++){
-							int ulId = ulIds[i];
-							// bump spot
-							double newSpot      = spots[i] * (1.0 + bumpAmount[bumpDirection]);
-							double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
-							ulPrices[i].price[totalNumDays - 1] = newSpot;
-							// moneyness
-							for (j=0; j < numBarriers;j++){
-								SpBarrier& b(spr.barrier.at(j));
-								// clear hits
-								if (b.startDays>0){ b.hit.clear(); }
-								// set/reset brel moneyness
-								int numBrel = b.brel.size();
-								for (k=0; k < numBrel; k++){
-									SpBarrierRelation& thisBrel(b.brel.at(k));
-									if (ulId == thisBrel.underlying){
-										thisBrel.calcMoneyness(newMoneyness);
-									}
-									else {
-										thisBrel.calcMoneyness(thisBrel.originalMoneyness);
+					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, thisFairValue, doBumps,false);
+
+				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), thetaBumpAmount(0.0);
+				if (deltaBumps || vegaBumps || thetaBumps  /* && daysExtant>0 */){
+					// delta - bump each underlying
+					if (doDeltas){
+						sprintf(lineBuffer, "%s%d", "delete from deltas where ProductId=", productId);
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
+					if (doBumps){
+						sprintf(lineBuffer, "%s%d%s%d", "delete from bump where ProductId=", productId," and userId=",userId);
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
+					for (int deltaBump=0; deltaBump < deltaBumps; deltaBump++){
+						deltaBumpAmount = deltaBumpStart + deltaBumpStep*deltaBump;
+						if (deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || thetaBumpAmount != 0.0){
+							for (i=0; i < numUl; i++){
+								int ulId = ulIds[i];
+								// bump spot
+								double newSpot      = spots[i] * (1.0 + deltaBumpAmount);
+								double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
+								ulPrices[i].price[totalNumDays - 1] = newSpot;
+								// re-initialise barriers
+								for (j=0; j < numBarriers; j++){
+									SpBarrier& b(spr.barrier.at(j));
+									// clear hits
+									if (b.startDays>0){ b.hit.clear(); }
+									// set/reset brel moneyness
+									int numBrel = b.brel.size();
+									for (k=0; k < numBrel; k++){
+										SpBarrierRelation& thisBrel(b.brel.at(k));
+										if (ulId == thisBrel.underlying){
+											thisBrel.calcMoneyness(newMoneyness);
+										}
+										else {
+											thisBrel.calcMoneyness(thisBrel.originalMoneyness);
+										}
 									}
 								}
-							}
-							
-							// re-evaluate
-							spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-								numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-								contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
-								cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doDeltas,true);
-							double  delta = (bumpedFairValue / thisFairValue - 1.0) / bumpAmount[bumpDirection];
-							sprintf(lineBuffer, "%s", "replace into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
-							sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", bumpDirection, ",'", lastDataDateString.c_str(), "',", ulIds[i], ",", productId, ")");
-							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 
-							// ... reinstate spots
-							ulPrices[i].price[totalNumDays - 1] = spots[i];
-						}
+								// re-evaluate
+								spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+									numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+									contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
+									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps, true);
+								if (doDeltas){
+									double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
+									sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
+									sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", ulIds[i], ",", productId, ")");
+									mydb.prepare((SQLCHAR *)lineBuffer, 1);
+								}
+								else {
+									sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,ThetaBumpAmount,BumpedFairValue,LastDataDate) values (");
+									sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", userId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", thetaBumpAmount, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
+									mydb.prepare((SQLCHAR *)lineBuffer, 1);
+								}
+								// ... reinstate spots
+								ulPrices[i].price[totalNumDays - 1] = spots[i];
+							}
+						}					
 					}
 				}
 			}
