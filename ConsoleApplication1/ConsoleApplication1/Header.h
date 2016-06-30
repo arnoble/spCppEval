@@ -458,7 +458,6 @@ public:
 	MarketData(
 		std::vector<std::vector<double>>                    &ulVolsTenor,
 		std::vector< std::vector<std::vector<double>> >     &ulVolsStrike,
-		std::vector< std::vector<std::vector<double>> >     &ulVolsImpVol,
 		std::vector< std::vector<std::vector<double>> >     &ulVolsFwdVol,
 		std::vector<std::vector<double>>                    &oisRatesTenor,
 		std::vector<std::vector<double>>                    &oisRatesRate,
@@ -468,13 +467,12 @@ public:
 		std::vector<std::vector<double>>                    &corrsCorrelation,
 		std::vector<std::vector<int>>                       &fxcorrsOtherId,
 		std::vector<std::vector<double>>                    &fxcorrsCorrelation
-		) :ulVolsTenor(ulVolsTenor), ulVolsStrike(ulVolsStrike), ulVolsImpVol(ulVolsImpVol), ulVolsFwdVol(ulVolsFwdVol), oisRatesTenor(oisRatesTenor), oisRatesRate(oisRatesRate),
+		) :ulVolsTenor(ulVolsTenor), ulVolsStrike(ulVolsStrike), ulVolsFwdVol(ulVolsFwdVol), oisRatesTenor(oisRatesTenor), oisRatesRate(oisRatesRate),
 		divYieldsTenor(divYieldsTenor), divYieldsRate(divYieldsRate), corrsOtherId(corrsOtherId), corrsCorrelation(corrsCorrelation), fxcorrsOtherId(fxcorrsOtherId), fxcorrsCorrelation(fxcorrsCorrelation)
 		{
 		}
 	std::vector< std::vector<double> >                  &ulVolsTenor;
 	std::vector< std::vector<std::vector<double>> >     &ulVolsStrike;
-	std::vector< std::vector<std::vector<double>> >     &ulVolsImpVol;
 	std::vector< std::vector<std::vector<double>> >     &ulVolsFwdVol;
 	std::vector<std::vector<double>>                    &oisRatesTenor;
 	std::vector<std::vector<double>>                    &oisRatesRate;
