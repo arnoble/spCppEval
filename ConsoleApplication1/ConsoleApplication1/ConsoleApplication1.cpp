@@ -1179,7 +1179,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, thisFairValue, doBumps,false);
 
 				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), thetaBumpAmount(0.0);
-				if (deltaBumps || vegaBumps || thetaBumps  /* && daysExtant>0 */){
+				if (doBumps && (deltaBumps || vegaBumps || thetaBumps)  /* && daysExtant>0 */){
 					vector< vector<vector<double>> >  holdUlFwdVol(thisMarketData.ulVolsFwdVol);
 					// delta - bump each underlying
 					if (doDeltas){
