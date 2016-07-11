@@ -2459,9 +2459,14 @@ public:
 					double annReturn         = returnToAnnualise>0.0 && numInstances && b.yearsToBarrier>0 && midPrice>0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
 					// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
-					// ** SQL barrierProb
+					// ** SQL 
 					// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
 					// if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
+					if (doPriipsVol){
+						sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "barrierprob set Reason1Prob='", prob);
+						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
 					if (!doPriipsVol && (!getMarketData || analyseCase == 0)){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d", "update ", useProto, "barrierprob set Prob='", prob,
 							"',AnnReturn='", annReturn,

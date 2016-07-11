@@ -20,6 +20,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -29,6 +30,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		double           thisFairValue, bumpedFairValue;
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		int              deltaBumps(1), vegaBumps(1), thetaBumps(1);
+		boost::gregorian::date lastDate;
 		string           ukspaCase(""), issuerPartName(""), forceFundingFraction("");
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3;
@@ -295,6 +297,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			productStartDateString  = szAllPrices[colProductStrikeDate];
 			productCcy              = szAllPrices[colProductCcy];
+			std::transform(std::begin(productCcy), std::end(productCcy), std::begin(productCcy), ::toupper);
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
 			bidPrice                = atof(szAllPrices[colProductBid]);
 			askPrice                = atof(szAllPrices[colProductAsk]);
@@ -392,10 +395,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			map<string, int> ccyToUidMap;
 			vector<double> ulERPs;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
-			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,u.ccy ulCcy,ERP,u.name,PriceReturnUid from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
+			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
 				productId, "' ");
 			if (benchmarkId){
-				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",u.ccy,ERP,u.name,PriceReturnUid from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
+				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
 				strcat(lineBuffer, charBuffer);
 			}
 			mydb.prepare((SQLCHAR *)lineBuffer, 5);
@@ -422,14 +425,67 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			//** currencyStruck deals will have nonZero values for $crossRateUids
 			vector<int> crossRateUids ; for (i=0; i<numUl; i++) { crossRateUids.push_back(0); }
-			if (currencyStruck){
+			//** quanto deals will have nonZero values for $quantoCrossRateUids
+			vector<int>    quantoCrossRateUids; 
+			vector<double> quantoCorrelations,quantoCrossRateVols;
+			for (i=0; i < numUl; i++) { quantoCrossRateUids.push_back(0); quantoCorrelations.push_back(0.0); quantoCrossRateVols.push_back(0.0); }
+			if (currencyStruck || doPriips || doPriipsVolOnly){
+				// get PRIIPs start date to use
+				char priipsStartDatePhrase[100];
+				if (doPriips || doPriipsVolOnly){
+					if (strlen(endDate)){ strcpy(charBuffer, endDate); }
+					else {
+						sprintf(lineBuffer, "%s", "select max(date) from prices");
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						retcode = mydb.fetch(true, lineBuffer);
+						strcpy(charBuffer, szAllPrices[0]);
+					}
+					sprintf(priipsStartDatePhrase, "%s%s%s", " and Date >= date_sub('", charBuffer, "', interval 5 year) ");
+				}
+
 				for (i=0; i < numUl; i++) {
 					if (productCcy != ulCcys[i]){
 						sprintf(lineBuffer, "%s%s%s%s%s", "select UnderlyingId from underlying where name=concat('", ulCcys[i].c_str(), "','", productCcy.c_str(), "')");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
-						retcode = mydb.fetch(true,lineBuffer);
+						retcode = mydb.fetch(false,lineBuffer);
 						if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-							crossRateUids[i] = atoi(szAllPrices[0]);
+							int thisId = atoi(szAllPrices[0]);
+							if (currencyStruck             ){ crossRateUids[i]       = thisId; }
+							if (doPriips || doPriipsVolOnly){ 
+								double previousPrice[2];
+								quantoCrossRateUids[i] = thisId;
+								// get prices for ul and ccy
+								sprintf(lineBuffer, "%s%d%s%d%s", "select Date,p0.price ul,p1.price ccy from prices p0 join prices p1 using (Date) where p0.underlyingid=", ulIds[i], " and p1.underlyingid=", thisId, priipsStartDatePhrase);
+								mydb.prepare((SQLCHAR *)lineBuffer, 3);
+								retcode   = mydb.fetch(false, lineBuffer);
+								firstTime = true;
+								vector<vector<double>> theseReturns(2);
+								while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+									int    numDayDiff;
+									boost::gregorian::date bDate(boost::gregorian::from_simple_string(szAllPrices[0]));
+									if (!firstTime) {
+										boost::gregorian::date_duration dateDiff(bDate - lastDate);
+										numDayDiff = dateDiff.days();
+									}
+									for (j = 0; j < 2; j++) {
+										double thisPrice;
+										thisPrice = atof(szAllPrices[j + 1]);
+										if (!firstTime) { theseReturns[j].push_back(thisPrice / previousPrice[j]); }
+										previousPrice[j] = thisPrice;
+									}
+									// next row
+									if (firstTime){ firstTime = false; }
+									lastDate = bDate;
+									retcode = mydb.fetch(false, "");
+								}
+								// compute correlation (currently daily returns, but might be better with stride=2 say, and dailyVol
+								if (theseReturns[0].size()>25){
+									quantoCorrelations[i] = MyCorrelation(theseReturns[0], theseReturns[1]);
+									double mean, stdev, stdErr;
+									MeanAndStdev(theseReturns[1], mean, stdev, stdErr);
+									quantoCrossRateVols[i] = stdev;
+								}
+							}
 						}
 					}
 				}
@@ -449,21 +505,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			char crossRateBuffer[100];
 			
 
-			// get PRIIPs start date to use
-			/*   commented out because, now, we truncate data only at the RESAMPLING stage, in case product was struck more than 5y ago
-			char priipsStartDatePhrase[100];
-			if (doPriips){
-				if (strlen(endDate)){ strcpy(charBuffer, endDate); }
-				else {
-					sprintf(lineBuffer, "%s", "select max(date) from prices");
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					retcode = mydb.fetch(true, lineBuffer);
-					strcpy(charBuffer, szAllPrices[0]);
-				}
-				sprintf(priipsStartDatePhrase, "%s%s%s", " and Date >= date_sub('", charBuffer, "', interval 5 year) ");
-			}
-			*/
-						// ...form sql joins
+			// ...form sql joins
 			sprintf(ulSql, "%s", "select p0.Date Date");
 			for (i = 0; i<numUl; i++) { 
 				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", "*p",(numUl + i),".price");}
@@ -492,9 +534,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			// cerr << ulSql << endl;
 			// ...call DB
 			mydb.prepare((SQLCHAR *)ulSql, numUl + 1);
-			bool   firstTime(true);
+			firstTime = true;
 			vector<double> previousPrice(numUl);
-			boost::gregorian::date lastDate;
 			// .. parse each record <Date,price0,...,pricen>
 			retcode = mydb.fetch(true,ulSql);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
@@ -1175,7 +1216,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (!doPriipsVolOnly){
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
+					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsVol */, useProto, getMarketData, useUserParams, thisMarketData,
 					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, thisFairValue, doBumps,false);
 
 				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), thetaBumpAmount(0.0);
@@ -1338,7 +1379,10 @@ int _tmain(int argc, _TCHAR* argv[])
 					double sliceMean, sliceStdev, sliceStderr;
 					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(firstPriipsPoint)) / (totalNumDays - firstPriipsPoint);
-					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - 0.5*sliceStdev*sliceStdev);
+					double dailyQuantoAdj             = quantoCrossRateVols[i] * sliceStdev * quantoCorrelations[i];
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - 0.5*sliceStdev*sliceStdev - dailyQuantoAdj);
+					// do the rather dubious quanto correction
+					
 					// change underlyings' drift rate
 					for (j = 0; j < ulReturns[i].size(); j++) {
 						ulReturns[i][j] *= priipsDailyDriftCorrection;
@@ -1346,7 +1390,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true, useProto, getMarketData, useUserParams, thisMarketData,
+					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true /* doPriipsVol */, useProto, getMarketData, useUserParams, thisMarketData,
 					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, thisFairValue, false,false);
 			}
 
