@@ -571,7 +571,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			totalNumDays       = ulOriginalPrices.at(0).price.size();
 			lastDataDateString = ulOriginalPrices.at(0).date[totalNumDays - 1];
 			totalNumReturns    = totalNumDays - 1;
-			midPrice           = (bidAskDateString < lastDataDateString) && stalePrice && (fairValueDateString == lastDataDateString) ? fairValuePrice / issuePrice : (bidPrice + askPrice) / (2.0*issuePrice);
+			// change to ASK; to use MID do: (bidPrice + askPrice) / (2.0*issuePrice)
+			midPrice           = (bidAskDateString < lastDataDateString) && stalePrice && (fairValueDateString == lastDataDateString) ? fairValuePrice / issuePrice : (askPrice) / (issuePrice);
 			ulPrices           = ulOriginalPrices; // copy constructor called
 			// save spots
 			vector<double> spots;
