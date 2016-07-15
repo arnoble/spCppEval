@@ -55,8 +55,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
 			if (strstr(thisArg, "notStale"          )){ notStale           = true; }
 			if (strstr(thisArg, "doDeltas"          )){ 
-					doDeltas  = true; 
-					doBumps   = true;
+					getMarketData   = true;
+					doDeltas        = true; 
+					doBumps         = true;
 					deltaBumpStart  = -0.05;
 					deltaBumpStep   =  0.05;
 					deltaBumps      = 3;
@@ -1289,24 +1290,29 @@ int _tmain(int argc, _TCHAR* argv[])
 										}
 									}
 									// bump vols
-									thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
-									
+									thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];									 
+
+									cerr << "BUMP:" << ulId << " theta:" << thetaBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
+
 									// re-evaluate
 									spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 										numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 										contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
 										cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps, true);
-									if (doDeltas && deltaBumpAmount != 0.0){
-										double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
-										sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
-										sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", ulIds[i], ",", productId, ")");
-										mydb.prepare((SQLCHAR *)lineBuffer, 1);
+									if (doDeltas){
+										if (deltaBumpAmount != 0.0){
+											double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
+											sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
+											sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", ulIds[i], ",", productId, ")");
+											mydb.prepare((SQLCHAR *)lineBuffer, 1);
+										}										
 									}
 									else {
 										sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
 										sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", userId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 										mydb.prepare((SQLCHAR *)lineBuffer, 1);
 									}
+									// cerr << lineBuffer << endl;
 									// ... reinstate spots
 									ulPrices[i].price[totalNumDays - 1] = spots[i];
 									// ... reinstate vols
@@ -1337,15 +1343,20 @@ int _tmain(int argc, _TCHAR* argv[])
 									thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
 								}
 								// re-evaluate
+								cerr << "BUMPALL: theta:" << thetaBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
 								spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 									numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 									contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
 									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps, true);
-								if (doDeltas && deltaBumpAmount != 0.0){
-									double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
-									sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
-									sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", 0, ",", productId, ")");
-									mydb.prepare((SQLCHAR *)lineBuffer, 1);
+								if (doDeltas) {
+									if (deltaBumpAmount != 0.0){
+										double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
+										sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
+										sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", 0, ",", productId, ")");
+										mydb.prepare((SQLCHAR *)lineBuffer, 1);
+										sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", deltaBump == 0 ? "DeltaDown" : "DeltaUp", "=", delta, ",DeltaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
+										mydb.prepare((SQLCHAR *)lineBuffer, 1);
+									}
 								}
 								else {
 									sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
