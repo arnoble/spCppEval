@@ -2400,7 +2400,7 @@ public:
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount    = thisBarrierPayoffs[i];
 							double thisAnnRet    = thisYears <= 0.0 ? 0.0 : min(0.3,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
-							double thisCouponRet = thisYears <= 0.0 ? 0.0 : exp(log((1.0 + thisBarrierCouponValues[i]) / midPrice) / thisYears) - 1.0;
+							double thisCouponRet = thisYears <= 0.0 || (couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : exp(log((1.0 + thisBarrierCouponValues[i]) / midPrice) / thisYears) - 1.0;
 
 							// maybe save finalAssetReturns
 								if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000 && !doPriipsVol){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
@@ -2889,7 +2889,7 @@ public:
 				}
 
 				// text output
-				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", 
+				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", 
 						analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
 						100.0*geomReturn, ":", 
 						100.0*earithReturn, ":",
@@ -2907,7 +2907,8 @@ public:
 						100.0*bmRelCAGR, ":",
 						100.0*bmRelOutperfPV, ":",
 						100.0*bmRelUnderperfPV, ":",
-						100.0*bmRelAverage);
+						100.0*bmRelAverage, ":",
+						100.0*averageCouponReturn);
 				std::cout << charBuffer << std::endl;
 
 			}
