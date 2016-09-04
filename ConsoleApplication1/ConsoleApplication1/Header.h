@@ -1210,6 +1210,7 @@ public:
 				if (p > cap){ p = cap; }
 				optionPayoffs.push_back(p);
 			}
+
 			switch (underlyingFunctionId) {
 			case uFnSmallest:
 			case uFnLargest :
@@ -1460,7 +1461,7 @@ private:
 	const int                       daysExtant;
 	const double                    fixedCoupon, AMC, midPrice,askPrice,fairValue;
 	const std::string               couponFrequency, productShape;
-	const bool                      validFairValue,depositGteed, collateralised,couponPaidOut;
+	const bool                      validFairValue, depositGteed, collateralised, couponPaidOut, checkMaturity;
 	const std::vector<SomeCurve>    baseCurve;
 
 public:
@@ -1471,6 +1472,7 @@ public:
 		const std::string               couponFrequency, 
 		const bool                      couponPaidOut,
 		const double                    AMC, 
+		const bool                      checkMaturity,
 		const std::string				productShape,
 		const bool                      depositGteed, 
 		const bool                      collateralised,
@@ -1488,7 +1490,7 @@ public:
 		const double                    askPrice)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
-		couponPaidOut(couponPaidOut), AMC(AMC), productShape(productShape),depositGteed(depositGteed), collateralised(collateralised), 
+		couponPaidOut(couponPaidOut), AMC(AMC), checkMaturity(checkMaturity),productShape(productShape), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice){};
 
@@ -1566,12 +1568,13 @@ public:
 		const bool                consumeRands
 		){
 		std::vector<bool>		 barrierDisabled;
+		bool                     matured;
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
 		int                      randnoIndx       =  0;
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
-		int                      i, j, k, m, len, thisIteration,n;
+		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
 		double                   anyDouble,anyDouble1,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector<double>      stdevRatioPctChanges;
@@ -1979,8 +1982,8 @@ public:
 				boost::gregorian::date &bStartDate(allBdates.at(thisPoint));
 
 				for (i=0; i < numUls; i++){ useUl[i] = true; }
-				bool                   matured         = false;
-				int                    maturityBarrier = -1;
+				matured                                = false;
+				maturityBarrier                        = -1;
 				couponValue                            = 0.0;
 				double                 thisPayoff;
 				double                 finalAssetReturn  = 1.0e9;
@@ -2255,8 +2258,14 @@ public:
 		// *****************
 		// ** handle results
 		// *****************
-		if (doAccruals){                       // store accrued coupon
-			accruedCoupon = couponValue;
+		if (matured && numMcIterations == 1){
+			const SpBarrier&    b(barrier.at(maturityBarrier));
+			double thisAmount    = b.hit[i].amount;
+			sprintf(lineBuffer, "%s%lf%s%s%s%d%s", "update product join cashflows using (productid) set Matured=1,MaturityPayoff=", thisAmount, ",DateMatured='", b.settlementDate.c_str(), "' where productid=", productId, " and projectedreturn=1");
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+		}
+		if (doAccruals){
+			accruedCoupon = couponValue;  // store accrued coupon
 		}
 		else {
 			// check PRIIPs simulated drifts

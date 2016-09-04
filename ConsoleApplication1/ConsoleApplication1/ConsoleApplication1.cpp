@@ -13,13 +13,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations'  'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations' 'checkMaturity' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             checkMaturity(false),doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -53,6 +53,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
 			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }			
 			if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
+			if (strstr(thisArg, "checkMaturity"     )){ checkMaturity      = true; }			
 			if (strstr(thisArg, "notStale"          )){ notStale           = true; }
 			if (strstr(thisArg, "doDeltas"          )){ 
 					getMarketData   = true;
@@ -917,7 +918,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// create product
-			SProduct spr(productId, ulOriginalPrices.at(0),bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, 
+			SProduct spr(productId, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, checkMaturity,
 				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,doPriips,ulNames,
 			(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice);
 			numBarriers = 0;
