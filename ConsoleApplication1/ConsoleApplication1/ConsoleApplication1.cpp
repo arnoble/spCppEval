@@ -1063,7 +1063,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 				// update vector of monitoring dates
 				double thisEndDays = thisBarrier.getEndDays();
-				if (thisEndDays <0){
+				if (thisEndDays <=0){
 					if (find(accrualMonDateIndx.begin(), accrualMonDateIndx.end(), thisEndDays) == accrualMonDateIndx.end()) {
 						accrualMonDateIndx.push_back(thisEndDays);
 					}
