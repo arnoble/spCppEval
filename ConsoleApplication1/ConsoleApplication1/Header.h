@@ -1070,17 +1070,37 @@ public:
 		bool isHit  = isAnd;
 		bool above  = brel[0].above;
 		double w,thisRefLevel;
+
+		// ** is basket weighted bestOf?
+		std::vector<double> performanceBasedWeights;
+		std::vector<double> performances;
+		if (underlyingFunctionId == uFnLargestN){
+			for (j=0; j<numBrel; j++) {
+				const SpBarrierRelation &thisBrel(brel[j]);
+				thisIndx       = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
+				performanceBasedWeights.push_back(thisBrel.weight);
+				performances.push_back(thesePrices[thisIndx] / thisBrel.refLevel);
+			}
+			sort(performances.begin(), performances.end(), std::greater<double>()); // sort DECENDING
+			sort(performanceBasedWeights.begin(), performanceBasedWeights.end(), std::greater<double>()); // sort DECENDING
+		}
+
 		/*
 		* see if basket return breaches barrier level (in 'N' field)
 		*/
 		double basketReturn = 0.0;
 		for (j = 0; j<numBrel; j++) {
-			const SpBarrierRelation &thisBrel(brel[j]);
-			thisIndx       = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
-			above          = thisBrel.above;
-			w              = thisBrel.weight;
-			// thisRefLevel   = startLevels[thisIndx] / thisBrel.moneyness;
-			basketReturn  += (thesePrices[thisIndx] / thisBrel.refLevel) * w;
+			if (performances.size()>0){
+				basketReturn  += performances[j] * performanceBasedWeights[j];
+			}
+			else{
+				const SpBarrierRelation &thisBrel(brel[j]);
+				thisIndx       = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
+				above          = thisBrel.above;
+				w              = thisBrel.weight;
+				// thisRefLevel   = startLevels[thisIndx] / thisBrel.moneyness;
+				basketReturn  += (thesePrices[thisIndx] / thisBrel.refLevel) * w;
+			}
 		}
 		double diff      = basketReturn - param1;
 		bool   thisTest  = above ? diff > 0 : diff < 0;
@@ -1168,7 +1188,7 @@ public:
 		std::vector<bool>                      &useUl) {
 		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
 		double              cumReturn,w, basketFinal, basketStart, basketRef;
-		std::vector<double> basketPerfs,optionPayoffs; optionPayoffs.reserve(10);
+		std::vector<double> basketPerfs,basketWeights,optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
 
 		switch (payoffTypeId) {
@@ -1262,13 +1282,15 @@ public:
 				n     = ulIdNameMap[thisBrel.underlying];
 				thisRefLevel     = thisBrel.refLevel;  // startLevels[n] / thisBrel.moneyness;
 				basketPerfs.push_back(thesePrices[n] / thisRefLevel);
+				basketWeights.push_back(thisBrel.weight);
 			}
-			if (productShape == "Rainbow"){
+			if (productShape == "Rainbow" || underlyingFunctionId == uFnLargestN){
 				sort(basketPerfs.begin(), basketPerfs.end(), std::greater<double>()); // sort DECENDING
+				sort(basketWeights.begin(), basketWeights.end(), std::greater<double>()); // sort DECENDING
 			}
 			for (j=0, len = brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
-				basketFinal   += basketPerfs[j] * thisBrel.weight;
+				basketFinal   += basketPerfs[j] * basketWeights[j];
 			}
 		   finalAssetReturn = basketFinal;
 		   optionPayoff     = callOrPut *(basketFinal - strike);
