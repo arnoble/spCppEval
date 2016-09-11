@@ -1587,7 +1587,8 @@ public:
 		const bool                ovveridePriipsStartDate,
 		double                    &thisFairValue,
 		const bool                conserveRands,
-		const bool                consumeRands
+		const bool                consumeRands,
+		bool                      &productHasMatured
 		){
 		std::vector<bool>		 barrierDisabled;
 		bool                     matured;
@@ -2143,7 +2144,7 @@ public:
 								// capitalBarrier hit ... so product terminates
 								// ***********
 								if (b.capitalOrIncome){
-									if (thisMonDays >= 0){
+									if (thisMonDays >= 0 || doAccruals){
 										// DOME: just because a KIP barrier is hit does not mean the put option is ITM
 										// ...currently all payoffs for this barrier are measured...so we currently do not report when KIP is hit AND option is ITM
 										// ...could just use this predicate around the next block: 
@@ -2285,6 +2286,7 @@ public:
 			if (matured && numMcIterations == 1){
 				const SpBarrier&    b(barrier.at(maturityBarrier));
 				double thisAmount    = issuePrice * b.hit[0].amount;
+				productHasMatured    = true;
 				sprintf(lineBuffer, "%s%lf%s%s%s%d%s", "update product join cashflows using (productid) set Matured=1,MaturityPayoff=", thisAmount, ",DateMatured='", b.settlementDate.c_str(), "' where productid=", productId, " and projectedreturn=1");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 			}
