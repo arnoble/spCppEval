@@ -2188,7 +2188,7 @@ public:
 											double numFixedCoupons = /*floor*/(daysElapsed / couponPeriod); // allow fractional coupons
 											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / 365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
-											couponValue = fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
+											couponValue += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
 										}
 										// add accumulated couponValue, unless b.forfeitCoupons is set
 										if (!b.isForfeitCoupons){ thisPayoff += couponValue + accruedCoupon; }
@@ -2431,9 +2431,10 @@ public:
 						double avgBarrierCoupon;
 						// MeanAndStdev(thisBarrierCouponValues, avgBarrierCoupon, anyDouble, anyDouble1);
 						for (i = 0; i < b.hit.size(); i++){
-							double thisAmount    = thisBarrierPayoffs[i];
-							double thisAnnRet    = thisYears <= 0.0 ? 0.0 : min(0.3,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
-							double thisCouponRet = thisYears <= 0.0 || (couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : exp(log((1.0 + thisBarrierCouponValues[i]) / midPrice) / thisYears) - 1.0;
+							double thisAmount      = thisBarrierPayoffs[i];
+							double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(0.3,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+							double thisCouponValue = thisBarrierCouponValues[i];
+							double thisCouponRet   = thisYears <= 0.0 || (couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue <= 1.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
 
 							// maybe save finalAssetReturns
 								if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000 && !doPriipsVol){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
@@ -2789,7 +2790,7 @@ public:
 				else { winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0; }
 				if (winLose > 1000.0){ winLose = 1000.0; }
 				double expectedPayoff = (applyCredit ? sumPossiblyCreditAdjPayoffs : sumPayoffs) / numAnnRets;
-				double earithReturn   = pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
+				double earithReturn   = sumPossiblyCreditAdjPayoffs<=0.0 ? -1.0 : pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
 				double bmRelAverage   = bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf;
 				int    secsTaken      = difftime(time(0), startTime);
 

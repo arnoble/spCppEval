@@ -1054,7 +1054,9 @@ int _tmain(int argc, _TCHAR* argv[])
 				// DOME:  need to check all brels have the same endDate
 				bool isExtremumBarrier = false;
 				for (i = 0; i < thisBarrier.brel.size(); i++) {
-					if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate /* not sure why I had this: && !thisBarrier.isStrikeReset */) {
+					if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate 
+						/* reinstated this next condition, otherwise strikeResets (which reset strike to spot on barrierStartDate) are set as continuousBarriers */ 
+						&& !thisBarrier.isStrikeReset) {
 						isExtremumBarrier = true;
 						productNeedsFullPriceRecord = true;
 					}
