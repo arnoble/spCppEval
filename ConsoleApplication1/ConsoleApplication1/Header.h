@@ -2432,7 +2432,7 @@ public:
 						// MeanAndStdev(thisBarrierCouponValues, avgBarrierCoupon, anyDouble, anyDouble1);
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount      = thisBarrierPayoffs[i];
-							double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(0.3,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+							double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(0.4,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 							double thisCouponValue = thisBarrierCouponValues[i];
 							double thisCouponRet   = thisYears <= 0.0 || (couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue < 0.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
 
@@ -2692,13 +2692,18 @@ public:
 
 					// pctiles
 					double bucketSize = productShape == "Supertracker" ? 0.05 : 0.01;
-					double minReturn = allAnnRets[0];
+					double minReturn  = 0.05*floor(allAnnRets[0]/0.05);
 					std::vector<double>    returnBucket;
 					std::vector<double>    bucketProb;
-					for (i = j = 0; i < numAnnRets; i++) {
+					for (i = j = 0; i < numAnnRets; ) {
 						double thisRet = allAnnRets[i];
-						if (thisRet <= minReturn || thisRet > 1.0) { j += 1; }  // final bucket for any return above 100%pa
-						else { returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets); j = 0; minReturn += bucketSize; }
+						if (thisRet <= minReturn || thisRet > 0.4) { j += 1; i += 1; }  // final bucket for any return above 40%pa
+						else { 
+							returnBucket.push_back(minReturn); 
+							bucketProb.push_back(((double)j) / numAnnRets); 
+							j = 0; 
+							minReturn += bucketSize; 
+						}
 					}
 					returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets);
 					sprintf(lineBuffer, "%s%d%s", "delete from pctiles where productid='", productId, "';");
