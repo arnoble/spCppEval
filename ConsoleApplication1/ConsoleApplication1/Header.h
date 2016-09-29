@@ -1518,7 +1518,7 @@ public:
 
 	// public members: DOME consider making private
 	const unsigned int              longNumOfSequences=1000;
-	bool                            doPriips;
+	bool                            doPriips,notUKSPA;
 	int                             maxProductDays, productDays, numUls;
 	double                          forwardStartT, issuePrice, priipsRfr;
 	std::string                     ukspaCase;
@@ -1543,6 +1543,8 @@ public:
 			// drifts and discounting all at the rfr for the RecommendedHoldingPeriod, assumed to be max term
 			priipsRfr = interpCurve(baseCurveTenor, baseCurveSpread, maxYears);
 		}
+		// UKSPA init
+		notUKSPA = ukspaCase == "";
 	}
 
 
@@ -1700,6 +1702,7 @@ public:
 		double accuracyTol(0.1);
 		// market risk variables and initc
 		bool   calledByPricer = true;
+		bool   doQuantoDriftAdj = calledByPricer && notUKSPA;
 		bool useAntithetic = true;
 		double thisT,thatT,thisPrice;
 		std::vector<std::vector<double> > cholMatrix(numUl, std::vector<double>(numUl)), rnCorr(numUl, std::vector<double>(numUl)),
@@ -1878,12 +1881,12 @@ public:
 									randnoIndx,
 									randnosStore);
 								for (i = 0; i < numUl; i++) {
-									// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
+									// uassume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
 									thisSig = InterpolateMatrix(ObsDateVols[i], ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									//... calculate return for thisDt  for this underlying
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
 									currentLevels[i]       = currentLevels[i] * thisReturn;
-									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (calledByPricer ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0);
+									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0);
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 								}
 							}
