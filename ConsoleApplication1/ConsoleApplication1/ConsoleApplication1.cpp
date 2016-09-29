@@ -631,10 +631,11 @@ int _tmain(int argc, _TCHAR* argv[])
 					// calc vols  - 5y window, daily returns
 					int startPoint = totalNumDays <= 1825 ? 0 : totalNumDays - 1825;
 					vector<double> tempPrices;
-					vector<double> tempReturns;
+					vector<double> tempReturns, tempReturns1;
 					for (thisUidx = 0; thisUidx < numUl; thisUidx++) {
 						tempPrices.resize(0);
 						tempReturns.resize(0);
+						tempReturns1.resize(0);
 						for (i=startPoint; i < totalNumDays; i++){
 							if (!ulOriginalPrices[thisUidx].nonTradingDay[i]){
 								tempPrices.push_back(ulOriginalPrices[thisUidx].price[i]);
@@ -644,9 +645,15 @@ int _tmain(int argc, _TCHAR* argv[])
 							double thisReturn = tempPrices[i - 1] > 0.0 ? tempPrices[i] / tempPrices[i - 1] : 1.0;
 							tempReturns.push_back(thisReturn);
 						}
-						double thisMean, thisVol, thisStdErr;
-						MeanAndStdev(tempReturns, thisMean, thisVol, thisStdErr);
-						thisVol *= 16.0;
+						// calc 1y vol
+						int numReturns = tempReturns.size();
+						for (j=0,i=numReturns-1; i >= 0 && j<250; j++,i--){
+							tempReturns1.push_back(tempReturns[i]);
+						}
+						double thisMean, thisVol, thisVol1y, thisVol5y, thisStdErr;
+						MeanAndStdev(tempReturns,  thisMean, thisVol5y, thisStdErr);
+						MeanAndStdev(tempReturns1, thisMean, thisVol1y, thisStdErr);
+						thisVol = (thisVol5y+thisVol1y)*8.0;  // average of 5y and 1y vols
 						if (ukspaCase == "Bear"){
 							thisVol *= 1.1;
 						}
@@ -752,11 +759,16 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 				}
 				//  divYields
-				sprintf(ulSql, "%s%s%s%s%s%d", "select d.underlyingid,Tenor,", doUKSPA ? "d.divyield" : "impdivyield", " Rate,IsTotalReturn from ", doUKSPA ? "divyield" : "impdivyield"," d join underlying u using (underlyingid) where d.UnderlyingId in (", ulIds[0]);
+				sprintf(ulSql, "%s%s%s%s%s%d", "select d.underlyingid,", doUKSPA ? "100 Tenor,(d.divyield+dd.divyield)/2.0" : "Tenor,impdivyield",
+					" Rate,IsTotalReturn from ", 
+					doUKSPA ? "divyield dd join divyield d using (underlyingid,userid)" : "impdivyield d",
+					" join underlying u using (underlyingid) where d.UnderlyingId in (", ulIds[0]);
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 				}
-				sprintf(ulSql, "%s%s%d%s", ulSql, ") and userid=", userId, " order by UnderlyingId,Tenor ");
+				sprintf(ulSql, "%s%s%d%s%s", ulSql, ") and d.userid=", userId, 
+					doUKSPA ? " and dd.tenor=1 and d.tenor=5 " : "",
+					" order by UnderlyingId,Tenor ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 4);
 				retcode = mydb.fetch(false, ulSql);
