@@ -1402,14 +1402,20 @@ int _tmain(int argc, _TCHAR* argv[])
 				// calculate ACTUAL drift rates
 				for (i = 0; i < numUl; i++) {
 					vector<double> thisSlice;
+					// calc vol from daily continuous returns
 					for (j = firstPriipsPoint - 1; j < totalNumDays - 1; j++) {
-						thisSlice.push_back(ulReturns[i][j]);
+						if (!ulOriginalPrices[i].nonTradingDay[j]){
+							thisSlice.push_back(log(ulReturns[i][j]));
+						}
 					}
 					double sliceMean, sliceStdev, sliceStderr;
 					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
+					double thisVariance = sliceStdev*sliceStdev*250;
+					double thisDailyVol = pow(thisVariance / 365.25, .5);
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(firstPriipsPoint)) / (totalNumDays - firstPriipsPoint);
-					double dailyQuantoAdj             = quantoCrossRateVols[i] * sliceStdev * quantoCorrelations[i];
-					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - 0.5*sliceStdev*sliceStdev - dailyQuantoAdj);
+					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - 0.5*thisDailyVol*thisDailyVol - dailyQuantoAdj);
+					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
 					// do the rather dubious quanto correction
 					
 					// change underlyings' drift rate

@@ -2883,7 +2883,7 @@ public:
 					}
 				}
 				// report fair value things
-				if (getMarketData && analyseCase == 0){
+				if ( (getMarketData && analyseCase == 0)){
 					double thisMean, thisStdev, thisStderr;
 					std::string   thisDateString(allDates.at(startPoint));
 					sprintf(charBuffer, "%s", "Spot,Forward,DiscountFactor\nUIDs: ");
