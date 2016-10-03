@@ -1217,28 +1217,32 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// make convexity drift adjustment, from vol from daily continuous returns
-			int firstVolPoint = doPriips ? max(1, totalNumDays - 365 * 5) : 0;
+			// ... this will mimic a lognormal price process for underlyings, which is the PRIIPs approach
+			// ... on the other hand, an empirical distribution of returns simply says each return is equally likely on any given day
+			// so omit for non-PRIIPs analysis
 			vector<double> calendarDailyVariance;
-			for (i = 0; i < numUl; i++) {
-				vector<double> thisSlice;
-				// calc vol from daily continuous returns
-				for (j = firstVolPoint; j < ulReturns[0].size() - 1; j++) {
-					if (!ulOriginalPrices[i].nonTradingDay[j]){
-						thisSlice.push_back(log(ulReturns[i][j]));
+			if (doPriips){
+				int firstVolPoint = doPriips ? max(1, totalNumDays - 365 * 5) : 0;
+				for (i = 0; i < numUl; i++) {
+					vector<double> thisSlice;
+					// calc vol from daily continuous returns
+					for (j = firstVolPoint; j < ulReturns[0].size() - 1; j++) {
+						if (!ulOriginalPrices[i].nonTradingDay[j]){
+							thisSlice.push_back(log(ulReturns[i][j]));
+						}
+					}
+					double sliceMean, sliceStdev, sliceStderr;
+					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
+					calendarDailyVariance.push_back(sliceStdev*sliceStdev * 250 / 365.25);
+					double thisDailyDriftCorrection = exp(-0.5*calendarDailyVariance[i]);
+					double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i] * 365.25);
+					// change underlyings' drift rate
+					for (j = 0; j < ulReturns[i].size(); j++) {
+						ulReturns[i][j] *= thisDailyDriftCorrection;
 					}
 				}
-				double sliceMean, sliceStdev, sliceStderr;
-				MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
-				calendarDailyVariance.push_back(sliceStdev*sliceStdev * 250 / 365.25);
-				double thisDailyDriftCorrection = exp(-0.5*calendarDailyVariance[i]);
-				double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i]*365.25);
-				// change underlyings' drift rate
-				for (j = 0; j < ulReturns[i].size(); j++) {
-					ulReturns[i][j] *= thisDailyDriftCorrection;
-				}
 			}
-
-
+			
 			// initialise product, now we have all the state
 			spr.init(maxYears);
 
