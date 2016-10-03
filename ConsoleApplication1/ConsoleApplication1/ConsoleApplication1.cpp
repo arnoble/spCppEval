@@ -1215,6 +1215,30 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// possibly impose user-defined view of expectedReturn: only need to bump ulReturns
 
+
+			// make convexity drift adjustment, from vol from daily continuous returns
+			int firstVolPoint = doPriips ? max(1, totalNumDays - 365 * 5) : 0;
+			vector<double> calendarDailyVariance;
+			for (i = 0; i < numUl; i++) {
+				vector<double> thisSlice;
+				// calc vol from daily continuous returns
+				for (j = firstVolPoint; j < ulReturns[0].size() - 1; j++) {
+					if (!ulOriginalPrices[i].nonTradingDay[j]){
+						thisSlice.push_back(log(ulReturns[i][j]));
+					}
+				}
+				double sliceMean, sliceStdev, sliceStderr;
+				MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
+				calendarDailyVariance.push_back(sliceStdev*sliceStdev * 250 / 365.25);
+				double thisDailyDriftCorrection = exp(-0.5*calendarDailyVariance[i]);
+				double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i]*365.25);
+				// change underlyings' drift rate
+				for (j = 0; j < ulReturns[i].size(); j++) {
+					ulReturns[i][j] *= thisDailyDriftCorrection;
+				}
+			}
+
+
 			// initialise product, now we have all the state
 			spr.init(maxYears);
 
@@ -1391,7 +1415,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					} // for (int vegaBump=0; vegaBump < vegaBumps; vegaBump++){
 				}
 			}
-			
+
 			// PRIIPs adjust driftrate to riskfree
 			if (doPriips){
 				int firstPriipsPoint = max(1, totalNumDays - 365 * 5);
@@ -1401,27 +1425,25 @@ int _tmain(int argc, _TCHAR* argv[])
 
 				// calculate ACTUAL drift rates
 				for (i = 0; i < numUl; i++) {
-					vector<double> thisSlice;
-					// calc vol from daily continuous returns
-					for (j = firstPriipsPoint - 1; j < totalNumDays - 1; j++) {
-						if (!ulOriginalPrices[i].nonTradingDay[j]){
-							thisSlice.push_back(log(ulReturns[i][j]));
-						}
-					}
-					double sliceMean, sliceStdev, sliceStderr;
-					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
-					double thisVariance = sliceStdev*sliceStdev*250;
-					double thisDailyVol = pow(thisVariance / 365.25, .5);
+					double thisVariance               = calendarDailyVariance[i];
+					double thisDailyVol               = pow(thisVariance, .5);
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(firstPriipsPoint)) / (totalNumDays - firstPriipsPoint);
 					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
-					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - 0.5*thisDailyVol*thisDailyVol - dailyQuantoAdj);
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
 					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
+
 					// do the rather dubious quanto correction
 					
 					// change underlyings' drift rate
 					for (j = 0; j < ulReturns[i].size(); j++) {
 						ulReturns[i][j] *= priipsDailyDriftCorrection;
 					}
+				}
+				// re-initialise barriers
+				for (j=0; j < numBarriers; j++){
+					SpBarrier& b(spr.barrier.at(j));
+					// clear hits
+					if (b.startDays>0){ b.hit.clear(); }
 				}
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,

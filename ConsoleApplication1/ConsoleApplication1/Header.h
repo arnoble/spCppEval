@@ -1602,6 +1602,7 @@ public:
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
 		double                   anyDouble,anyDouble1,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
+		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
 		std::vector<double>      stdevRatioPctChanges;
 		std::vector< std::vector<double> > someTimepoints[100];
 		std::vector<double>           someLevels[100], somePaths[100]; 
@@ -1925,9 +1926,10 @@ public:
 							// wind back one unit
 							npPos = npPos>1 ? npPos - 1 : maxNpPos;
 						}
-						if (doPriipsVol){
+						if (true || doPriipsVol){
 							for (i = 0; i < numUl; i++) {
 								simulatedReturnsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint]);
+								simulatedLevelsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] );
 							}
 						}
 					}
@@ -2296,11 +2298,13 @@ public:
 		}
 		else {
 			// check PRIIPs simulated drifts
-			if (doPriipsVol){
+			if (true || doPriipsVol){
 				double thisMean, thisStd, thisStderr;
 				for (i = 0; i < numUl; i++) {
 					MeanAndStdev(simulatedReturnsToMaxYears[i],thisMean, thisStd, thisStderr);
-					std::cout << "PRIIPs annualised drift rate:" << exp(365.0*log(thisMean) / productDays)  << " for:" << ulNames[i] <<  std::endl;
+					std::cout << "Simulated annualised drift rate to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << std::endl;
+					MeanAndStdev(simulatedLevelsToMaxYears[i], thisMean, thisStd, thisStderr);
+					std::cout << "Simulated final level at:" << ulPrices[i].date[startPoint + productDays] << " :" << thisMean << " for:" << ulNames[i] << std::endl;
 				}
 			}
 
@@ -2466,7 +2470,7 @@ public:
 							if (getMarketData && calledByPricer) {
 								pvInstances.push_back((thisAmount)*thisDiscountFactor);
 							}
-							if (doPriips){
+							if (doPriips  && analyseCase == 0){
 								double thisT      = b.yearsToBarrier;
 								if (doPriipsVol){
 									double thisReturn = thisAmount / midPrice;
@@ -2499,7 +2503,7 @@ public:
 					// ** SQL 
 					// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
 					// if (!doPriipsVol && (!getMarketData || (ukspaCase != "" && analyseCase == 0))){
-					if (doPriipsVol){
+					if (doPriipsVol && analyseCase == 0){
 						sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "barrierprob set Reason1Prob='", prob);
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
