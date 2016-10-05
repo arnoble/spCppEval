@@ -2710,16 +2710,20 @@ public:
 							bucketProb.push_back(((double)j) / numAnnRets); 
 							j = 0; 
 							minReturn += bucketSize; 
+							// make sure minReturn of zero is exactly zero ... machine rounding problem
+							if ( minReturn < tol && minReturn > -tol){
+								minReturn = 0.0;
+							}
 						}
 					}
 					returnBucket.push_back(minReturn); bucketProb.push_back(((double)j) / numAnnRets);
-					sprintf(lineBuffer, "%s%d%s", "delete from pctiles where productid='", productId, "';");
+					sprintf(lineBuffer, "%s%d%s%lf%s", "delete from pctiles where productid='", productId, "' and ProjectedReturn=", projectedReturn, ";");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 
 					sprintf(lineBuffer, "%s", "insert into pctiles values ");
 					for (i=0; i < returnBucket.size(); i++){
 						if (i != 0){ sprintf(lineBuffer, "%s%s", lineBuffer, ","); }
-						sprintf(lineBuffer, "%s%s%d%s%.2lf%s%.4lf%s%d%s%d%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1, ")");
+						sprintf(lineBuffer, "%s%s%d%s%.2lf%s%.4lf%s%d%s%d%s%lf%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1,",",projectedReturn, ")");
 					}
 					sprintf(lineBuffer, "%s%s", lineBuffer, ";");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
