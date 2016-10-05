@@ -2704,7 +2704,8 @@ public:
 					std::vector<double>    bucketProb;
 					for (i = j = 0; i < numAnnRets; ) {
 						double thisRet = allAnnRets[i];
-						if (thisRet <= minReturn || thisRet > 0.4) { j += 1; i += 1; }  // final bucket for any return above 40%pa
+						if (thisRet < minReturn || thisRet > 0.4) { 
+							j += 1; i += 1; }  // final bucket for any return above 40%pa
 						else { 
 							returnBucket.push_back(minReturn); 
 							bucketProb.push_back(((double)j) / numAnnRets); 
