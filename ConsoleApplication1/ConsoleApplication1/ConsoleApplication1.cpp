@@ -26,6 +26,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		char             startDate[11]            = "";
 		char             endDate[11]              = "";
 		char             useProto[6]              = "";
+		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
 		double           thisFairValue, bumpedFairValue;
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
@@ -433,7 +434,6 @@ int _tmain(int argc, _TCHAR* argv[])
 			for (i=0; i < numUl; i++) { quantoCrossRateUids.push_back(0); quantoCorrelations.push_back(0.0); quantoCrossRateVols.push_back(0.0); }
 			if (currencyStruck || doPriips || doPriipsVolOnly){
 				// get PRIIPs start date to use
-				char priipsStartDatePhrase[100];
 				if (doPriips || doPriipsVolOnly){
 					if (strlen(endDate)){ strcpy(charBuffer, endDate); }
 					else {
@@ -528,8 +528,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
 			else {
-				if (forceStartDate != "0000-00-00"){ sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", forceStartDate.c_str(), "'"); }
-				else if (thisNumIterations>1) { strcat(ulSql, /* doPriips ? priipsStartDatePhrase : */ " and Date >='1992-12-31' "); }
+				if (doPriips || doPriipsVolOnly){ sprintf(ulSql, "%s%s", ulSql, priipsStartDatePhrase); }
+				else if (forceStartDate != "0000-00-00"){ sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", forceStartDate.c_str(), "'"); }
+				else if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31' "); }
 			}
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
 			strcat(ulSql, " order by Date");
@@ -647,7 +648,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						}
 						// calc 1y vol
 						int numReturns = tempReturns.size();
-						for (j=0,i=numReturns-1; i >= 0 && j<250; j++,i--){
+						for (j=0,i=numReturns-1; i >= 0 && j<253; j++,i--){
 							tempReturns1.push_back(tempReturns[i]);
 						}
 						double thisMean, thisVol, thisVol1y, thisVol5y, thisStdErr;
@@ -1222,18 +1223,17 @@ int _tmain(int argc, _TCHAR* argv[])
 			// so omit for non-PRIIPs analysis
 			vector<double> calendarDailyVariance;
 			if (doPriips){
-				int firstVolPoint = doPriips ? max(1, totalNumDays - 365 * 5) : 0;
 				for (i = 0; i < numUl; i++) {
 					vector<double> thisSlice;
 					// calc vol from daily continuous returns
-					for (j = firstVolPoint; j < ulReturns[0].size() - 1; j++) {
+					for (j = 0; j < ulReturns[0].size() - 1; j++) {
 						if (!ulOriginalPrices[i].nonTradingDay[j]){
 							thisSlice.push_back(log(ulReturns[i][j]));
 						}
 					}
 					double sliceMean, sliceStdev, sliceStderr;
 					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
-					calendarDailyVariance.push_back(sliceStdev*sliceStdev * 250 / 365.25);
+					calendarDailyVariance.push_back(sliceStdev*sliceStdev * 253 / 365.25);
 					double thisDailyDriftCorrection = exp(-0.5*calendarDailyVariance[i]);
 					double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i] * 365.25);
 					// change underlyings' drift rate
@@ -1422,7 +1422,6 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// PRIIPs adjust driftrate to riskfree
 			if (doPriips){
-				int firstPriipsPoint = max(1, totalNumDays - 365 * 5);
 				// DOME: check 
 				// ... at least 2y of daily data
 				// ... monthly data is penalised by RiskScore +1
@@ -1431,7 +1430,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				for (i = 0; i < numUl; i++) {
 					double thisVariance               = calendarDailyVariance[i];
 					double thisDailyVol               = pow(thisVariance, .5);
-					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(firstPriipsPoint)) / (totalNumDays - firstPriipsPoint);
+					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
 					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
 					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
 					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
@@ -1446,8 +1445,8 @@ int _tmain(int argc, _TCHAR* argv[])
 				// re-initialise barriers
 				for (j=0; j < numBarriers; j++){
 					SpBarrier& b(spr.barrier.at(j));
-					// clear hits
-					if (b.startDays>0){ b.hit.clear(); }
+					// clear hits etc
+					b.init();
 				}
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,

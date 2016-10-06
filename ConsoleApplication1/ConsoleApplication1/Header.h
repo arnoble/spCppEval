@@ -921,8 +921,12 @@ public:
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
-		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), barrierCommands(barrierCommands), daysExtant(daysExtant), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
+		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
 	{
+		init();
+	};
+
+	void init(){
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
 		endDays                = (bEndDate - bProductStartDate).days() - daysExtant;
@@ -948,15 +952,18 @@ public:
 		}
 		proportionalAveraging  = avgDays > 0 && avgType == 1;
 		brel.reserve(10);
-		if (doFinalAssetReturn){fars.reserve(100000); }
+		if (doFinalAssetReturn){ fars.reserve(100000); }
 		hit.reserve(100000);
+		hit.clear();  // in case product already analysed using some other methodology
 	};
+
 	// public members: DOME consider making private, in case we implement their content some other way
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons;
 	const double                    payoff,participation, param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
+	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
 	double                          variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
@@ -1640,7 +1647,7 @@ public:
 		// ... we have an integer "nPpos" indexing this Np vector and every time we want a random sample we choose index=rand()*(nPpos--) which is notionally in the index/p "block"
 		// ... but since all the blocks are the same, we just use element index % p from the single block 0,1,...,p
 		// ... ta-daa!!
-		const unsigned int firstObs = (doPriips && !ovveridePriipsStartDate ) ? max(0, totalNumReturns - 365 * 5) : 0;
+		const unsigned int firstObs = 0;
 		unsigned long int maxNpPos = longNumOfSequences*(totalNumReturns - firstObs);  // if maxNpPos is TOO large then sampling from its deceasing value is tantamount to no balancedResampling as the sample space essentially never shrinks materially
 		unsigned long int npPos    = maxNpPos;
 		// faster to put repeated indices in a vector, compared to modulo arithmetic, and we only need manageable arrays eg 100y of daily data is 36500 points, repeated 1000 - 36,500,000 which is well within the MAX_SIZE
@@ -2360,9 +2367,9 @@ public:
 				
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));
 				// ukspaCase also now have projectedReturns
-				if (ukspaCase == "Bear")              { projectedReturn = 0.1; }
+				if      (ukspaCase == "Bear"   )      { projectedReturn = 0.1; }
 				else if (ukspaCase == "Neutral")      { projectedReturn = 0.2; }
-				else if (ukspaCase == "Bull")         { projectedReturn = 0.3; }
+				else if (ukspaCase == "Bull"   )      { projectedReturn = 0.3; }
 				if (getMarketData && ukspaCase == "") { projectedReturn = 0.4; }
 
 				bool     foundEarliest = false;
@@ -2432,7 +2439,7 @@ public:
 									const SpBarrierRelation&    thisBrel(b.brel.at(j));
 									double thisMoneyness = thisBrel.barrier / thisBrel.moneyness;
 									if (thisMoneyness>maxBarrierProbMoneyness){ maxBarrierProbMoneyness = thisMoneyness; }
-								}
+								}	
 							}
 						}
 						double avgBarrierCoupon;
@@ -2740,15 +2747,16 @@ public:
 				double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){     eShortfall     += allAnnRets[i]; }	if (numShortfall){ eShortfall     /= numShortfall; }
 				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	if (numShortfall){ eShortfallTest /= numShortfall; }
 				double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
-				double priipsImpliedCost,priipsVaR;
+				double priipsImpliedCost, priipsVaR, priipsDuration;
 				if (doPriipsVol){
 					PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
 					priipsVaR          = thisPriip.pvReturn;
+					priipsDuration     = thisPriip.yearsToPayoff;
 					if (3.842 < 2.0*log(thisPriip.pvReturn)){
 						std::cerr << "Too high a percentile return " << thisPriip.pvReturn << "\n";
 						exit(1);
 					}
-					esVol              = thisPriip.pvReturn>0.0 && duration>0 && thisPriip.yearsToPayoff>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(thisPriip.yearsToPayoff) / sqrt(duration) : 0.0;
+					esVol              = thisPriip.pvReturn>0.0 && priipsDuration>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) : 0.0;
 					if (validFairValue){
 						priipsImpliedCost  =  1.0 - fairValue / askPrice;
 					}
@@ -2814,7 +2822,7 @@ public:
 				// if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
 				if (!getMarketData || analyseCase == 0){
 					sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
-					sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "ESvol='", esVol);
+					sprintf(lineBuffer, "%s%s%.5lf%s", lineBuffer, "ESvol='", esVol, doPriipsVol ? "'/sqrt(duration) +'0" : "");   // pesky way to pick up previously saved duration
 					if (doPriipsVol){
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsImpliedCost='", priipsImpliedCost);
