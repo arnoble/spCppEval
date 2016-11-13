@@ -2848,7 +2848,7 @@ public:
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolStds='", srriStds);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VolConf='", srriConf);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',AverageAnnRet='", averageReturn);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CouponReturn='", averageCouponReturn);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CouponReturn='", couponPaidOut ? averageCouponReturn : 0.0);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRvol='", srriVol);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',CESRstrictVol='", cesrStrictVol);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolTest='", esVolTest);
