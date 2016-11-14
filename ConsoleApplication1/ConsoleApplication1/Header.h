@@ -2538,7 +2538,7 @@ public:
 					
 				}
 
-				if (!doPriipsVol && doMostLikelyBarrier && maxBarrierProb>0.0){
+				if (!doPriipsVol && !doPriips && doMostLikelyBarrier && maxBarrierProb>0.0){
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 						"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,
 						"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
