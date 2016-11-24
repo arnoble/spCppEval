@@ -33,7 +33,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		int              deltaBumps(1), vegaBumps(1), thetaBumps(1);
 		boost::gregorian::date lastDate;
-		string           ukspaCase(""), issuerPartName(""), forceFundingFraction("");
+		string           anyString,ukspaCase(""), issuerPartName(""), forceFundingFraction("");
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
@@ -218,8 +218,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			int              numBarriers = 0, thisIteration = 0;
 			int              i, j, k, len, len1, anyInt, anyInt1, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId;
-			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, issuePrice, bidPrice, askPrice, midPrice;
-			string           productShape,couponFrequency, productStartDateString, productCcy,word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate, 
+			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, issuePrice, bidPrice, askPrice, midPrice,baseCcyReturn;
+			string           productShape, couponFrequency, productStartDateString, productCcy, productBaseCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
@@ -261,7 +261,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
-				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductLast
+				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy,colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -303,6 +303,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			productStartDateString  = szAllPrices[colProductStrikeDate];
 			productCcy              = szAllPrices[colProductCcy];
 			std::transform(std::begin(productCcy), std::end(productCcy), std::begin(productCcy), ::toupper);
+			productBaseCcy          = szAllPrices[colProductBaseCcy];
+			std::transform(std::begin(productBaseCcy), std::end(productBaseCcy), std::begin(productBaseCcy), ::toupper);
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
 			bidPrice                = atof(szAllPrices[colProductBid]);
 			askPrice                = atof(szAllPrices[colProductAsk]);
@@ -596,6 +598,19 @@ int _tmain(int argc, _TCHAR* argv[])
 				tradingDaysExtant += 1;
 			}
 
+
+			// calc baseCcyReturn: this caters for products like #1093 where GBP invests in USD and is quoted in GBP, so has to reflect the USDGBP return since StrikeDate
+			baseCcyReturn = 1.0;
+			if (productBaseCcy != ""){
+				anyString = productCcy + productBaseCcy;
+				sprintf(lineBuffer, "%s%s%s%s%s%s%s", "select p1.Price/p0.Price from prices p0 join prices p1 using (underlyingid) join underlying u using (underlyingid) where u.name='", 
+					anyString.c_str(), "' and p0.date='", productStartDateString.c_str(), "' and p1.date='", lastDataDateString.c_str(),"'");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(false, "");
+				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					baseCcyReturn = atof(szAllPrices[0]);
+				}
+			}
 
 
 			// benchmark moneyness ... measure performance only from va;luation date
@@ -934,8 +949,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, checkMaturity,
-				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,doPriips,ulNames,
-			(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice);
+				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
+				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn);
 			numBarriers = 0;
 
 			// get barriers from DB

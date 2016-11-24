@@ -1488,7 +1488,7 @@ private:
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate;
 	const int                       daysExtant;
-	const double                    fixedCoupon, AMC, midPrice,askPrice,fairValue;
+	const double                    fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               couponFrequency, productShape;
 	const bool                      validFairValue, depositGteed, collateralised, couponPaidOut, checkMaturity;
 	const std::vector<SomeCurve>    baseCurve;
@@ -1516,12 +1516,13 @@ public:
 		const std::vector<std::string>  &ulNames,
 		const bool                      validFairValue, 
 		const double                    fairValue, 
-		const double                    askPrice)
+		const double                    askPrice,
+		const double                    baseCcyReturn)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), checkMaturity(checkMaturity),productShape(productShape), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
-		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice){};
+		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn){};
 
 	// public members: DOME consider making private
 	const unsigned int              longNumOfSequences=1000;
@@ -2233,7 +2234,7 @@ public:
 													}
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
-														bOther.storePayoff(thisDateString, payoffOther, payoffOther, 1.0, finalAssetReturn,finalAssetIndx,thisBarrier,doFinalAssetReturn,0,false);
+													bOther.storePayoff(thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false);
 													//}
 												}
 											}
@@ -2242,7 +2243,7 @@ public:
 								} // END income barrier processing
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
-									b.storePayoff(thisDateString, b.proportionHits*thisPayoff, couponValue,barrierWasHit[thisBarrier] ? b.proportionHits:0.0, 
+								b.storePayoff(thisDateString, b.proportionHits*thisPayoff*baseCcyReturn, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
 										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}
