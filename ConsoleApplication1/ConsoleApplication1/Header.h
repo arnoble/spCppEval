@@ -433,7 +433,7 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 }
 
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, 
-	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff
+	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff,levelsCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
 
@@ -1200,6 +1200,7 @@ public:
 
 		switch (payoffTypeId) {
 		case callPayoff:
+		case levelsCallPayoff:
 		case lookbackCallPayoff:
 		case twinWinPayoff:
 			callOrPut = 1;
@@ -1211,8 +1212,14 @@ public:
 				// following line changed as we now correctly do SpBarrierRelation initialisation from strike(strike) to strike(unadjStrike)
 				// ...previously strike /= moneyness was only affecting the parameter value! and not the member variable
 				// thisStrike = thisBrel.strike * startLevels[n] / thisBrel.moneyness;
-				thisRefLevel = thisBrel.refLevel;  // startLevels[n] / thisBrel.moneyness;
-				thisStrike   = thisBrel.strike * (isStrikeReset ? thisRefLevel : startLevels[n]);
+				if (payoffTypeId == levelsCallPayoff){
+					thisRefLevel = 1.0;
+					thisStrike   = thisBrel.originalStrike;
+				}
+				else {
+					thisRefLevel = thisBrel.refLevel;  // startLevels[n] / thisBrel.moneyness;
+					thisStrike   = thisBrel.strike * (isStrikeReset ? thisRefLevel : startLevels[n]);
+				}
 				if (payoffTypeId == lookbackCallPayoff || payoffTypeId == lookbackPutPayoff) {
 					thisAssetReturn = lookbackLevel[n] / thisRefLevel;
 				}
@@ -1517,12 +1524,15 @@ public:
 		const bool                      validFairValue, 
 		const double                    fairValue, 
 		const double                    askPrice,
-		const double                    baseCcyReturn)
+		const double                    baseCcyReturn,
+		const std::vector<double>       &shiftPrices,
+		const std::vector<bool>         &doShiftPrices)
 		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), checkMaturity(checkMaturity),productShape(productShape), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
-		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn){};
+		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
+		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices){};
 
 	// public members: DOME consider making private
 	const unsigned int              longNumOfSequences=1000;
@@ -1531,8 +1541,8 @@ public:
 	double                          forwardStartT, issuePrice, priipsRfr;
 	std::string                     ukspaCase;
 	std::vector <SpBarrier>         barrier;
-	std::vector <bool>              useUl;
-	std::vector <double>            baseCurveTenor, baseCurveSpread,randnosStore;
+	std::vector <bool>              useUl,doShiftPrices;
+	std::vector <double>            baseCurveTenor, baseCurveSpread,randnosStore,shiftPrices;
 	std::vector<boost::gregorian::date> allBdates;
 
 	// init
@@ -1875,7 +1885,7 @@ public:
 						double dt      = productNeedsFullPriceRecord ? (1.0 / 365.25) : (thatT - thisT);
 						double rootDt  = sqrt(dt);
 						for (int thisDay = productNeedsFullPriceRecord ? thisNumDays : thatNumDays; thisDay <= thatNumDays; thisDay++){
-							if (thisDay>0){  // some barriers will end on exactly the as-at date
+							if (thisDay > 0){  // some barriers will end on exactly the as-at date
 								/*
 								* calculate new prices for thisDt
 								*/
@@ -1884,7 +1894,7 @@ public:
 								// ... simulate a set of standardNormal shocks
 								GenerateCorrelatedNormal(numUl, correlatedRandom, cholMatrix, normalRandom,
 									useAntithetic,     // if you want to check things using fixed shocks, just set this to 'true' and set the shocks in 'antitheticRandom'
-									thisDay, 
+									thisDay,
 									antitheticRandom,
 									conserveRands,
 									consumeRands,
@@ -1938,7 +1948,7 @@ public:
 						if (true || doPriipsVol){
 							for (i = 0; i < numUl; i++) {
 								simulatedReturnsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint]);
-								simulatedLevelsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] );
+								simulatedLevelsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays]);
 							}
 						}
 					}
@@ -1963,6 +1973,15 @@ public:
 									ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
 								}
 							}
+						}
+					}
+				}
+				// possible shift prices
+				for (i = 0; i < numUl; i++) {
+					if (doShiftPrices[i]){
+						double thisShift = shiftPrices[i];
+						for (j = startPoint + 1; j <= startPoint + productDays; j++){
+							ulPrices[i].price[j] -= thisShift;
 						}
 					}
 				}

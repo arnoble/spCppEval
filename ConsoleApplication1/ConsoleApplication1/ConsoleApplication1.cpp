@@ -167,7 +167,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
 		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut", 
-			"basketCallQuanto", "basketPutQuanto","cappuccino" };
+			"basketCallQuanto", "basketPutQuanto","cappuccino","levelsCall" };
 		vector<int>::iterator intIterator, intIterator1;
 		for (int i = 0; i < maxUls; i++){
 			szAllPrices[i] = new char[bufSize];
@@ -543,6 +543,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			mydb.prepare((SQLCHAR *)ulSql, numUl + 1);
 			firstTime = true;
 			vector<double> previousPrice(numUl);
+			vector<double> minPrices, maxPrices, shiftPrices;
+			vector<bool>   doShiftPrices;
+			for (i = 0; i < numUl; i++) {
+				minPrices.push_back(INFINITY);
+				maxPrices.push_back(-INFINITY);
+				shiftPrices.push_back(0.0);
+				doShiftPrices.push_back(false);
+			}
 			// .. parse each record <Date,price0,...,pricen>
 			retcode = mydb.fetch(true,ulSql);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
@@ -555,6 +563,8 @@ int _tmain(int argc, _TCHAR* argv[])
 				for (i = 0; i < numUl; i++) {
 					double thisPrice;
 					thisPrice = atof(szAllPrices[i + 1]);
+					if (thisPrice < minPrices[i]){ minPrices[i] = thisPrice; }
+					if (thisPrice > maxPrices[i]){ maxPrices[i] = thisPrice; }
 					if (!firstTime) {
 						ulReturns[i].push_back(thisPrice / previousPrice[i]);
 						for (j = 1; j < numDayDiff; j++){    // pad non-trading days
@@ -573,6 +583,30 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (firstTime){ firstTime = false; }
 				lastDate = bDate;
 				retcode = mydb.fetch(false,"");
+			}
+
+			// shift prices if necessary
+			for (i=0; i<numUl; i++) {
+				if (minPrices[i] <= 0.0){
+					double thisShift = -minPrices[i] + 0.1*(maxPrices[i] - minPrices[i]);
+					for (j=0; j<ulOriginalPrices[0].price.size(); j++){
+						ulOriginalPrices[i].price[j] += thisShift;
+					}
+					firstTime = true;
+
+					for (k=j=0; j<ulOriginalPrices[0].price.size(); j++){
+						double previousPrice;
+						if (!ulOriginalPrices.at(i).nonTradingDay[j]){
+							if (firstTime){ firstTime = false; }
+							else { 
+								ulReturns[i][k++] = ulOriginalPrices[i].price[j] / previousPrice; 
+							}
+							previousPrice = ulOriginalPrices[i].price[j];
+						}
+					}
+					shiftPrices[i]   = thisShift;
+					doShiftPrices[i] = true;
+				}
 			}
 
 			totalNumDays       = ulOriginalPrices.at(0).price.size();
@@ -950,7 +984,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			// create product
 			SProduct spr(productId, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, checkMaturity,
 				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
-				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn);
+				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
+				shiftPrices,doShiftPrices);
 			numBarriers = 0;
 
 			// get barriers from DB
