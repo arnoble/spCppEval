@@ -878,8 +878,8 @@ public:
 	// set levels which are linked to prevailing spot level 'ulPrice'
 	void setLevels(const double ulPrice) {
 		refLevel      = ulPrice / moneyness;
-		barrierLevel  = barrier  * ulPrice / moneyness;
- 		if (uBarrier != NULL) {	uBarrierLevel = uBarrier * ulPrice / moneyness;	}
+		barrierLevel  = barrier * refLevel;
+		if (uBarrier != NULL) { uBarrierLevel = uBarrier * refLevel; }
 	}
 
 };
