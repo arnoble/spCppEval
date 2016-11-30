@@ -1496,7 +1496,7 @@ private:
 	const boost::gregorian::date    bProductStartDate;
 	const int                       daysExtant;
 	const double                    fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
-	const std::string               couponFrequency, productShape;
+	const std::string               productShape;
 	const bool                      validFairValue, depositGteed, collateralised, couponPaidOut, checkMaturity;
 	const std::vector<SomeCurve>    baseCurve;
 
@@ -1539,7 +1539,7 @@ public:
 	bool                            doPriips,notUKSPA;
 	int                             maxProductDays, productDays, numUls;
 	double                          forwardStartT, issuePrice, priipsRfr;
-	std::string                     ukspaCase;
+	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl,doShiftPrices;
 	std::vector <double>            baseCurveTenor, baseCurveSpread,randnosStore,shiftPrices;
@@ -2209,9 +2209,11 @@ public:
 											}
 											*/
 											boost::gregorian::date &bThisDate(allBdates.at(thisMonPoint));
-
-											char   freqChar     = toupper(couponFrequency[1]);
-											double couponEvery  = couponFrequency[0] - '0';
+											int    freqLen      = couponFrequency.length();
+											char   freqChar     = toupper(couponFrequency[freqLen - 1]);
+											std::string freqNumber = couponFrequency.substr(0, freqLen - 1);
+											sprintf(charBuffer, "%s", freqNumber.c_str());
+											double couponEvery  = atof(charBuffer);
 											double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 365.25;
 											double daysElapsed  = (bThisDate - bStartDate).days() + daysExtant;
 											double couponPeriod = daysPerEvery*couponEvery;
