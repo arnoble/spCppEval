@@ -584,6 +584,11 @@ int _tmain(int argc, _TCHAR* argv[])
 				lastDate = bDate;
 				retcode = mydb.fetch(false,"");
 			}
+			// see if there is enough data
+			if (ulOriginalPrices.at(0).date[0] > productStartDateString){
+				cerr << "Not enough data: prices start on:" << ulOriginalPrices.at(0).date[0] << " but product strike is:" << productStartDateString << endl;
+				continue;
+			}
 
 			// shift prices if necessary
 			for (i=0; i<numUl; i++) {
