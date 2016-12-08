@@ -1481,6 +1481,12 @@ int _tmain(int argc, _TCHAR* argv[])
 									sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
 									sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", userId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 									mydb.prepare((SQLCHAR *)lineBuffer, 1);
+									// save vegas to product table
+									if (vegaBumpAmount != 0.0 && deltaBumpAmount == 0.0 && thetaBumpAmount == 0.0){
+										double  vega = (bumpedFairValue - thisFairValue) / (100.0*vegaBumpAmount);
+										sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", vegaBump == 0 ? "Vega" : "VegaUp", "=", vega, ",VegaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
+										mydb.prepare((SQLCHAR *)lineBuffer, 1);
+									}
 								}
 								for (i=0; i < numUl; i++){
 									// ... reinstate spots
