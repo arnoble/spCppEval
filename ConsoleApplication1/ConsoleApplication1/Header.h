@@ -2940,10 +2940,10 @@ public:
 					for (int thisMonIndx = 0; thisMonIndx < monDateIndx.size(); thisMonIndx++){
 						int thisMonPoint = startPoint + monDateIndx[thisMonIndx];
 						thisDateString = allDates.at(thisMonPoint);
-						sprintf(charBuffer, "%s%s", "Fwds(stdev) on: ", thisDateString.c_str());
+						sprintf(charBuffer, "%s%s", "Fwds(stdev)[%ofSpot] and discountFactor on: ", thisDateString.c_str());
 						for (i = 0; i < numUl; i++){
 							MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev, thisStderr);
-							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s", charBuffer, thisMean, "(",thisStderr,")");
+							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(",thisStderr,")[",thisMean/spotLevels[i],"]");
 						}
 						double yearsToBarrier   = monDateIndx[thisMonIndx]/365.25;
 						double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
