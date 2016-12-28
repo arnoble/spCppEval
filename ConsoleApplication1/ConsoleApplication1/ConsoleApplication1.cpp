@@ -1131,7 +1131,9 @@ int _tmain(int argc, _TCHAR* argv[])
 						productNeedsFullPriceRecord = true;
 					}
 				}
-				thisBarrier.isExtremum = !thisBarrier.isStopLoss && isExtremumBarrier;  // force stopLoss barriers to be monitored daily, rather than be treated as an extremum, so stopLoss barriers do not need special processing in the simulator
+				// ... force stopLoss barriers to be monitored daily, rather than be treated as an extremum, so stopLoss barriers do not need special processing in the simulator
+				// ... we currently force american basket barriers to be evaluated on EACH date: otherwise need to recode much of the basket code
+				thisBarrier.isExtremum = isExtremumBarrier && !thisBarrier.isStopLoss && (thisBarrier.payoffType.find("basket") == std::string::npos);
 
 				// update vector of monitoring dates
 				double thisEndDays = thisBarrier.getEndDays();
