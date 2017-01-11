@@ -2511,6 +2511,7 @@ public:
 								}
 							}
 							double bmRet = thisYears <= 0.0 ? 0.0 : (benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn);
+							if (bmRet < (unwindPayoff - 1.0)){ bmRet = (unwindPayoff - 1.0); }
 							bmAnnRets.push_back(bmRet);
 							sumYearsToBarrier += thisYears;
 							bmRelLogRets.push_back(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) - log(1 + bmRet)*thisYears);
