@@ -1,6 +1,7 @@
 #include <boost/lambda/lambda.hpp>
 //#include <boost/regex.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -1559,6 +1560,7 @@ public:
 	std::vector <bool>              useUl,doShiftPrices;
 	std::vector <double>            baseCurveTenor, baseCurveSpread,randnosStore,shiftPrices;
 	std::vector<boost::gregorian::date> allBdates;
+	std::vector<SpPayoffAndDate>    storeFixedCoupons;
 
 	// init
 	void init(const double maxYears){
@@ -1652,7 +1654,7 @@ public:
 		}
 		int                      numIncomeBarriers(0);
 		RETCODE                  retcode;
-
+		
 		// init
 		if (!doAccruals){
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
@@ -2239,6 +2241,17 @@ public:
 											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / 365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
 											couponValue += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
+
+											// create array of each coupon forlater saving to productcoupons
+											int intCouponPeriod    = (int)floor(couponPeriod);
+											boost::posix_time::ptime pTime(bProductStartDate),p1Time(bThisDate);
+											boost::gregorian::days  pDays(intCouponPeriod);
+											
+											for (; pTime < p1Time; pTime += pDays){
+												std::string aDate = to_iso_extended_string(pTime).substr(0,10);
+												storeFixedCoupons.push_back(SpPayoffAndDate(aDate.c_str(), fixedCoupon));
+											}
+
 										}
 										// add accumulated couponValue, unless b.forfeitCoupons is set
 										if (!b.isForfeitCoupons){ thisPayoff += couponValue + accruedCoupon; }
@@ -2334,6 +2347,7 @@ public:
 		if (doAccruals){
 			accruedCoupon = couponValue;  // store accrued coupon
 			if (matured && numMcIterations == 1){
+				int i;
 				const SpBarrier&    b(barrier.at(maturityBarrier));
 				double thisAmount    = issuePrice * (b.hitWithDate[0].amount - b.couponValues[0]);
 				productHasMatured    = true;
@@ -2343,12 +2357,17 @@ public:
 				// save coupons
 				strcpy(lineBuffer,"insert into productcoupons values ");
 				bool found(false);
-				for (int i=0; i < maturityBarrier;i++){
+				for (i=0; i < maturityBarrier;i++){
 					const SpBarrier&    ib(barrier.at(i));
 					if (ib.capitalOrIncome == 0 && ib.hitWithDate.size()>0){
 						sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", ib.hitWithDate[0].date.c_str(), "',", ib.hitWithDate[0].amount, ",'", productCcy.c_str(),"')");
 						found = true;
 					}
+				}
+				// add any fixed coupons
+				for (i=0; i < storeFixedCoupons.size(); i++){
+					sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", storeFixedCoupons[i].date.c_str(), "',", storeFixedCoupons[i].amount, ",'", productCcy.c_str(), "')");
+					found = true;
 				}
 				if (found){
 					sprintf(charBuffer, "%s%d", "delete from productcoupons where productid=", productId);
