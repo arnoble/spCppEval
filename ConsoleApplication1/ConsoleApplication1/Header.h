@@ -673,8 +673,19 @@ public:
 	SpPayoff(std::string date, double amount) :
 		// use this for debug only...in production it uses too much memory eg 1000 iterations of a 6000point timeseries with 72(monthly) barriers
 		// date(date), 
-		amount(amount){};
+		amount(amount){
+		};
 	// std::string date;
+	double amount;
+};
+
+class SpPayoffAndDate {
+public:
+	SpPayoffAndDate(std::string date, double amount) :
+		date(date), 
+		amount(amount){
+	};
+	std::string date;
 	double amount;
 };
 
@@ -973,6 +984,7 @@ public:
 	std::vector <double>            bmrs; // benchmark returns
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
+	std::vector <SpPayoffAndDate>   hitWithDate;
 	std::vector <double>            couponValues;
 
 	// number of days until barrier end date
@@ -1356,13 +1368,14 @@ public:
 		return(thisPayoff);
 	}
 	void storePayoff(const std::string thisDateString, const double amount, const double couponValue, const double proportion, 
-		const double finalAssetReturn, const int finalAssetIndx, const int barrierIndx, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn){
+		const double finalAssetReturn, const int finalAssetIndx, const int barrierIndx, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn, const bool doAccruals){
 		sumPayoffs     += amount;
 		if (amount >  midPrice){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
 		if (amount >= midPrice){ sumPosPayoffs    += amount; numPosPayoffs++; }
 		else{                    sumNegPayoffs    += amount; numNegPayoffs++; }
 		sumProportion  += proportion;
-		hit.push_back(SpPayoff(thisDateString, amount));
+		if (doAccruals) { hitWithDate.push_back(SpPayoffAndDate(thisDateString, amount)); }
+		else {            hit.push_back(        SpPayoff(thisDateString, amount)); }
 		couponValues.push_back(couponValue);
 		if (doFinalAssetReturn){ fars.push_back(finalAssetInfo(finalAssetReturn,finalAssetIndx,barrierIndx)); }
 		if (storeBenchmarkReturn){ bmrs.push_back(benchmarkReturn); }
@@ -1489,6 +1502,7 @@ double PayoffStdev(const std::vector<SpBarrier> &barrier, const double mean){
 class SProduct {
 private:
 	int productId;
+	const std::string               productCcy;
 	const std::vector <bool>        &allNonTradingDays;
 	const std::vector <int>         &ulIds;
 	const std::vector<std::string>  &ulNames;
@@ -1502,6 +1516,7 @@ private:
 
 public:
 	SProduct(const int                  productId,
+		const std::string               productCcy,
 		const UlTimeseries              &baseTimeseies,
 		const boost::gregorian::date    bProductStartDate,
 		const double                    fixedCoupon,
@@ -1527,7 +1542,7 @@ public:
 		const double                    baseCcyReturn,
 		const std::vector<double>       &shiftPrices,
 		const std::vector<bool>         &doShiftPrices)
-		: productId(productId), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
+		: productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), checkMaturity(checkMaturity),productShape(productShape), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
@@ -2255,7 +2270,7 @@ public:
 													}
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
-													bOther.storePayoff(thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false);
+													bOther.storePayoff(thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false, doAccruals);
 													//}
 												}
 											}
@@ -2265,7 +2280,7 @@ public:
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
 								b.storePayoff(thisDateString, b.proportionHits*thisPayoff*baseCcyReturn, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
-										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured);
+									finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}
 							} // END is barrier hit
@@ -2320,10 +2335,26 @@ public:
 			accruedCoupon = couponValue;  // store accrued coupon
 			if (matured && numMcIterations == 1){
 				const SpBarrier&    b(barrier.at(maturityBarrier));
-				double thisAmount    = issuePrice * b.hit[0].amount;
+				double thisAmount    = issuePrice * (b.hitWithDate[0].amount - b.couponValues[0]);
 				productHasMatured    = true;
+				// save capital payoff
 				sprintf(lineBuffer, "%s%lf%s%s%s%d%s", "update product join cashflows using (productid) set Matured=1,MaturityPayoff=", thisAmount, ",DateMatured='", b.settlementDate.c_str(), "' where productid=", productId, " and projectedreturn=1");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				// save coupons
+				strcpy(lineBuffer,"insert into productcoupons values ");
+				bool found(false);
+				for (int i=0; i < maturityBarrier;i++){
+					const SpBarrier&    ib(barrier.at(i));
+					if (ib.capitalOrIncome == 0 && ib.hitWithDate.size()>0){
+						sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", ib.hitWithDate[0].date.c_str(), "',", ib.hitWithDate[0].amount, ",'", productCcy.c_str(),"')");
+						found = true;
+					}
+				}
+				if (found){
+					sprintf(charBuffer, "%s%d", "delete from productcoupons where productid=", productId);
+					mydb.prepare((SQLCHAR *)charBuffer, 1);
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
 			}
 		}
 		else {
@@ -2470,6 +2501,7 @@ public:
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount      = thisBarrierPayoffs[i];
 							double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(0.4,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+							if (thisAnnRet < -0.9999){ thisAnnRet = -0.9999; } // svoid later problems with log(1.0+annRets)
 							double thisCouponValue = thisBarrierCouponValues[i];
 							double thisCouponRet   = thisYears <= 0.0 || (couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue < 0.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
 
