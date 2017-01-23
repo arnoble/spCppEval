@@ -1508,15 +1508,17 @@ private:
 	const std::vector <int>         &ulIds;
 	const std::vector<std::string>  &ulNames;
 	const std::vector <std::string> &allDates;
-	const boost::gregorian::date    bProductStartDate;
+	const boost::gregorian::date    bProductStartDate,&bLastDataDate;
 	const int                       daysExtant;
 	const double                    fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      validFairValue, depositGteed, collateralised, couponPaidOut, checkMaturity;
+	const bool                      validFairValue, depositGteed, collateralised, couponPaidOut, showMatured;
 	const std::vector<SomeCurve>    baseCurve;
 
 public:
-	SProduct(const int                  productId,
+	SProduct(
+		const boost::gregorian::date    &bLastDataDate,
+		const int                       productId,
 		const std::string               productCcy,
 		const UlTimeseries              &baseTimeseies,
 		const boost::gregorian::date    bProductStartDate,
@@ -1524,7 +1526,7 @@ public:
 		const std::string               couponFrequency, 
 		const bool                      couponPaidOut,
 		const double                    AMC, 
-		const bool                      checkMaturity,
+		const bool                      showMatured,
 		const std::string				productShape,
 		const bool                      depositGteed, 
 		const bool                      collateralised,
@@ -1543,9 +1545,9 @@ public:
 		const double                    baseCcyReturn,
 		const std::vector<double>       &shiftPrices,
 		const std::vector<bool>         &doShiftPrices)
-		: productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
+		: bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
-		couponPaidOut(couponPaidOut), AMC(AMC), checkMaturity(checkMaturity),productShape(productShape), depositGteed(depositGteed), collateralised(collateralised),
+		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured),productShape(productShape), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices){};
@@ -1636,6 +1638,7 @@ public:
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
 		double                   anyDouble,anyDouble1,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
+		boost::gregorian::date   bFixedCouponsDate(bLastDataDate);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
 		std::vector<double>      stdevRatioPctChanges;
@@ -2219,20 +2222,14 @@ public:
 											}
 										}
 										if (couponFrequency.size()) {  // add fixed coupon
-											/*
-											boost::gregorian::date bThisDate(boost::gregorian::from_simple_string(allDates.at(thisMonPoint)));
-											if ((bThisDate - allBdates.at(thisMonPoint)).days() != 0.0){
-											int jj=1;
-											}
-											*/
-											boost::gregorian::date &bThisDate(allBdates.at(thisMonPoint));
+											bFixedCouponsDate   = allBdates.at(thisMonPoint);
 											int    freqLen      = couponFrequency.length();
 											char   freqChar     = toupper(couponFrequency[freqLen - 1]);
 											std::string freqNumber = couponFrequency.substr(0, freqLen - 1);
 											sprintf(charBuffer, "%s", freqNumber.c_str());
 											double couponEvery  = atof(charBuffer);
 											double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 365.25;
-											double daysElapsed  = (bThisDate - bStartDate).days() + daysExtant;
+											double daysElapsed  = (bFixedCouponsDate - bStartDate).days() + daysExtant;
 											double couponPeriod = daysPerEvery*couponEvery;
 											if (couponPaidOut){
 												daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod; // floor() so as to include accrued stub
@@ -2241,17 +2238,6 @@ public:
 											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / 365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
 											couponValue += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
-
-											// create array of each coupon forlater saving to productcoupons
-											int intCouponPeriod    = (int)floor(couponPeriod);
-											boost::posix_time::ptime pTime(bProductStartDate),p1Time(bThisDate);
-											boost::gregorian::days  pDays(intCouponPeriod);
-											
-											for (pTime += pDays; pTime < p1Time; pTime += pDays){
-												std::string aDate = to_iso_extended_string(pTime).substr(0,10);
-												storeFixedCoupons.push_back(SpPayoffAndDate(aDate.c_str(), fixedCoupon));
-											}
-
 										}
 										// add accumulated couponValue, unless b.forfeitCoupons is set
 										if (!b.isForfeitCoupons){ thisPayoff += couponValue + accruedCoupon; }
@@ -2346,34 +2332,57 @@ public:
 		// *****************
 		if (doAccruals){
 			accruedCoupon = couponValue;  // store accrued coupon
-			if (matured && numMcIterations == 1){
-				int i;
+			/*
+			* save productcoupons
+			*/
+			strcpy(lineBuffer, "insert into productcoupons values ");
+			int  i;
+			bool found(false);
+			// get coupon barriers
+			for (i=0; i < maturityBarrier; i++){
+				const SpBarrier&    ib(barrier.at(i));
+				if (ib.capitalOrIncome == 0 && ib.hitWithDate.size()>0){
+					sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", ib.hitWithDate[0].date.c_str(), "',", ib.hitWithDate[0].amount, ",'", productCcy.c_str(), "')");
+					found = true;
+				}
+			}
+			// add any fixed coupons
+			if (couponFrequency.size()) {  // add fixed coupon
+				int    freqLen      = couponFrequency.length();
+				char   freqChar     = toupper(couponFrequency[freqLen - 1]);
+				std::string freqNumber = couponFrequency.substr(0, freqLen - 1);
+				sprintf(charBuffer, "%s", freqNumber.c_str());
+				double couponEvery  = atof(charBuffer);
+				double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 365.25;
+				double couponPeriod = daysPerEvery*couponEvery;
+
+				// create array of each coupon 
+				int intCouponPeriod    = (int)floor(couponPeriod);
+				boost::posix_time::ptime pTime(bProductStartDate), p1Time(bFixedCouponsDate);
+				boost::gregorian::days  pDays(intCouponPeriod);
+
+				for (pTime += pDays; pTime < p1Time; pTime += pDays){
+					std::string aDate = to_iso_extended_string(pTime).substr(0, 10);
+					storeFixedCoupons.push_back(SpPayoffAndDate(aDate.c_str(), fixedCoupon));
+				}
+				for (i=0; i < storeFixedCoupons.size(); i++){
+					sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", storeFixedCoupons[i].date.c_str(), "',", storeFixedCoupons[i].amount, ",'", productCcy.c_str(), "')");
+					found = true;
+				}
+			}
+			if (found){
+				sprintf(charBuffer, "%s%d", "delete from productcoupons where productid=", productId);
+				mydb.prepare((SQLCHAR *)charBuffer, 1);
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			}
+
+			if (matured){
 				const SpBarrier&    b(barrier.at(maturityBarrier));
 				double thisAmount    = issuePrice * (b.hitWithDate[0].amount - b.couponValues[0]);
 				productHasMatured    = true;
 				// save capital payoff
 				sprintf(lineBuffer, "%s%lf%s%s%s%d%s", "update product join cashflows using (productid) set Matured=1,MaturityPayoff=", thisAmount, ",DateMatured='", b.settlementDate.c_str(), "' where productid=", productId, " and projectedreturn=1");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				// save coupons
-				strcpy(lineBuffer,"insert into productcoupons values ");
-				bool found(false);
-				for (i=0; i < maturityBarrier;i++){
-					const SpBarrier&    ib(barrier.at(i));
-					if (ib.capitalOrIncome == 0 && ib.hitWithDate.size()>0){
-						sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", ib.hitWithDate[0].date.c_str(), "',", ib.hitWithDate[0].amount, ",'", productCcy.c_str(),"')");
-						found = true;
-					}
-				}
-				// add any fixed coupons
-				for (i=0; i < storeFixedCoupons.size(); i++){
-					sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", storeFixedCoupons[i].date.c_str(), "',", storeFixedCoupons[i].amount, ",'", productCcy.c_str(), "')");
-					found = true;
-				}
-				if (found){
-					sprintf(charBuffer, "%s%d", "delete from productcoupons where productid=", productId);
-					mydb.prepare((SQLCHAR *)charBuffer, 1);
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				}
 			}
 		}
 		else {
