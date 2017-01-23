@@ -2247,7 +2247,7 @@ public:
 											boost::posix_time::ptime pTime(bProductStartDate),p1Time(bThisDate);
 											boost::gregorian::days  pDays(intCouponPeriod);
 											
-											for (; pTime < p1Time; pTime += pDays){
+											for (pTime += pDays; pTime < p1Time; pTime += pDays){
 												std::string aDate = to_iso_extended_string(pTime).substr(0,10);
 												storeFixedCoupons.push_back(SpPayoffAndDate(aDate.c_str(), fixedCoupon));
 											}
