@@ -2922,6 +2922,8 @@ public:
 							sort(priipsStressVols.begin(), priipsStressVols.end());
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMin='", priipsStressVols[0]);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMax='", priipsStressVols[priipsStressVols.size() - 1]);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressYears='", priipsStressYears);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressVar='", priipsStressVar);
 						}
 
 					}
