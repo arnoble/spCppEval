@@ -2563,13 +2563,9 @@ public:
 							}
 							if (doPriips  && analyseCase == 0){
 								double thisT      = b.yearsToBarrier;
-								if (doPriipsVol){
-									double thisReturn = thisAmount / midPrice;
-									priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0 + priipsRfr, -thisT), thisT));
-								}
-								else {
-									priipsAnnRetInstances.push_back(PriipsAnnRet(thisAnnRet, thisT));
-								}
+								double thisReturn = thisAmount / midPrice;
+								priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0 + priipsRfr, -thisT), thisT));
+								priipsAnnRetInstances.push_back(PriipsAnnRet(thisAnnRet, thisT));
 							}
 							double bmRet = thisYears <= 0.0 ? 0.0 : (benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn);
 							if (bmRet < (unwindPayoff - 1.0)){ bmRet = (unwindPayoff - 1.0); }
@@ -2740,8 +2736,8 @@ public:
 				sort(allPayoffs.begin(), allPayoffs.end());
 				sort(allAnnRets.begin(), allAnnRets.end());
 				if (doPriips){
-					if (doPriipsVol){ sort(priipsInstances.begin(), priipsInstances.end()); }
-					else            { sort(priipsAnnRetInstances.begin(), priipsAnnRetInstances.end()); }
+					sort(priipsInstances.begin(), priipsInstances.end());
+					sort(priipsAnnRetInstances.begin(), priipsAnnRetInstances.end());
 				}
 				double averageReturn        = sumAnnRets    / numAnnRets;
 				double averageCouponReturn  = sumCouponRets / numAnnRets;
@@ -2749,7 +2745,7 @@ public:
 				double vaR50                = 100.0*allAnnRets[floor(numAnnRets*(0.5))];
 				double vaR10                = 100.0*allAnnRets[floor(numAnnRets*(0.9))];
 				double priipsStressVar, priipsStressYears, varYears, var1Years, var2Years;
-				if (doPriips && !doPriipsVol){
+				if (doPriips){
 					double thisStressT = maxProductDays > 365 * 3 ? 0.05 : 0.01;
 					priipsStressVar   = 100.0*priipsAnnRetInstances[floor(numAnnRets*thisStressT)].annRet;
 					priipsStressYears = priipsAnnRetInstances[floor(numAnnRets*thisStressT)].yearsToPayoff;
@@ -2915,20 +2911,24 @@ public:
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsImpliedCost='", priipsImpliedCost);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVaR='", priipsVaR);
+						// PRIIPS now calculates scenarios using riskfree drift rates
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR90);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1='", vaR50);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2='", vaR10);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaRyears='", varYears);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1years='", var1Years);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2years='", var2Years);
+						if (doPriipsStress){
+							sort(priipsStressVols.begin(), priipsStressVols.end());
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMin='", priipsStressVols[0]);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMax='", priipsStressVols[priipsStressVols.size() - 1]);
+						}
+
 					}
 					else {  // PRIIPs only saves vol and PriipsImpliedCost
 						if (doPriips){
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsRealWorldVol='", esVol);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsRealWorldDuration='", duration);
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaRyears='",  varYears);
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1years='", var1Years);
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2years='", var2Years);
-							if (doPriipsStress){
-								sort(priipsStressVols.begin(), priipsStressVols.end());
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMin='", priipsStressVols[0]);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMax='", priipsStressVols[priipsStressVols.size()-1]);
-							}
-							
 						}
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedPayoff='", expectedPayoff);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='", ePosPayoff);
