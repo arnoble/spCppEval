@@ -13,13 +13,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' 'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsStress' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' 'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             showMatured(false),doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             doFinalAssetReturn(false), forceIterations(true), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
+		bool             showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsStress(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false);
 		bool             firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
@@ -47,6 +47,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations"   )){ forceIterations    = true; }
 			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
+			if (strstr(thisArg, "priipsStress"      )){ doPriipsStress     = true; doPriips           = true; }
 			if (strstr(thisArg, "priipsVolOnly"     )){ doPriipsVolOnly    = true; }
 			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
@@ -1282,6 +1283,44 @@ int _tmain(int argc, _TCHAR* argv[])
 			// so omit for non-PRIIPs analysis
 			vector<double> calendarDailyVariance;
 			if (doPriips){
+				// PRIIPS stresstest
+				// ... build rolling 21-day windows of historical log returns
+				// ... priipsStressVol is the 90th percentile of this distribution
+				if (doPriipsStress){
+					const int rollingWindowSize(21);
+					double sliceMean, sliceStdev, sliceStderr;
+					vector<double> stressVols;
+					for (i = 0; i < numUl; i++) {
+						vector<double> thisSlice, bigSlice;
+						// calc vol from 21-day window of daily continuous returns
+						for (j = 0; j < ulReturns[0].size() - 1; j++) {
+							if (!ulOriginalPrices[i].nonTradingDay[j]){
+								double thisReturn = log(ulReturns[i][j]);
+								bigSlice.push_back(thisReturn);
+								if (thisSlice.size() == rollingWindowSize){
+									MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
+									stressVols.push_back(sliceStdev);
+									thisSlice.clear();
+								}
+								else{
+									thisSlice.push_back(thisReturn);
+								}
+							}
+						}
+						sort(stressVols.begin(), stressVols.end());
+						double thisStressedVol     = stressVols[floor(stressVols.size()*(0.9))] * 253 / 365.25;
+						MeanAndStdev(bigSlice, sliceMean, sliceStdev, sliceStderr);
+						double originalVol         = sliceStdev * 253 / 365.25;
+						double thisInflationFactor = thisStressedVol / originalVol;
+						spr.priipsStressVols.push_back(thisInflationFactor);
+						// change underlyings' drift rate
+						for (j = 0; j < ulReturns[i].size(); j++) {
+							ulReturns[i][j] = exp(log(ulReturns[i][j])*thisInflationFactor);
+						}
+					}
+				}
+
+				// do convexity adjustment
 				for (i = 0; i < numUl; i++) {
 					vector<double> thisSlice;
 					// calc vol from daily continuous returns
@@ -1310,7 +1349,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			bool   productHasMatured(false);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData,useUserParams,thisMarketData,
+				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, false, useProto, getMarketData,useUserParams,thisMarketData,
 				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured);
 
 			// ...check product not matured
@@ -1319,10 +1358,16 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
+			/* our PRIIPS analysis does:
+			 * a) realworld drifts, IPR-vol methodology
+			 * b) riskfree drifts, PRIIPS-vol methodlogy
+			 * ... "doPriips"        will do a) and b)
+			 * ... "doPriipsVolOnly" will do b) ONLY
+			 */
 			if (!doPriipsVolOnly){
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsVol */, useProto, getMarketData, useUserParams, thisMarketData,
+					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsVol */,doPriipsStress, useProto, getMarketData, useUserParams, thisMarketData,
 					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, thisFairValue, doBumps, false, productHasMatured);
 
 				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), thetaBumpAmount(0.0);
@@ -1410,7 +1455,7 @@ int _tmain(int argc, _TCHAR* argv[])
 									// re-evaluate
 									spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 										numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-										contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
+										contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false,false,useProto, getMarketData, useUserParams, thisMarketData,
 										cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps, true, productHasMatured);
 									if (doDeltas){
 										if (deltaBumpAmount != 0.0){
@@ -1467,7 +1512,7 @@ int _tmain(int argc, _TCHAR* argv[])
 								cerr << "BUMPALL: theta:" << thetaBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
 								spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 									numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-									contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
+									contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, false,useProto, getMarketData, useUserParams, thisMarketData,
 									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps, true, productHasMatured);
 								if (doDeltas) {
 									if (deltaBumpAmount != 0.0){
@@ -1533,7 +1578,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true /* doPriipsVol */, useProto, getMarketData, useUserParams, thisMarketData,
+					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true /* doPriipsVol */, doPriipsStress,useProto, getMarketData, useUserParams, thisMarketData,
 					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured);
 			}
 
