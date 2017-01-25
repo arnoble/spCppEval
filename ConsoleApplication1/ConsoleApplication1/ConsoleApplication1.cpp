@@ -1364,7 +1364,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			 * ... "doPriips"        will do a) and b)
 			 * ... "doPriipsVolOnly" will do b) ONLY
 			 */
-			if (!doPriipsVolOnly){
+			if (!doPriipsVolOnly && !doPriipsStress){
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsVol */,doPriipsStress, useProto, getMarketData, useUserParams, thisMarketData,
