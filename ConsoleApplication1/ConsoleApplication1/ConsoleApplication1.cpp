@@ -1288,6 +1288,8 @@ int _tmain(int argc, _TCHAR* argv[])
 				// ... priipsStressVol is the 90th percentile of this distribution
 				if (doPriipsStress){
 					const int rollingWindowSize(21);
+					const double volScalingFactor(sqrt(253.0 / 365.25));
+					const double roughVolAnnualiser(16.0);
 					double sliceMean, sliceStdev, sliceStderr;
 					vector<double> stressVols;
 					for (i = 0; i < numUl; i++) {
@@ -1299,7 +1301,7 @@ int _tmain(int argc, _TCHAR* argv[])
 								bigSlice.push_back(thisReturn);
 								if (thisSlice.size() == rollingWindowSize){
 									MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
-									stressVols.push_back(sliceStdev);
+									stressVols.push_back(sliceStdev*roughVolAnnualiser);
 									thisSlice.clear();
 								}
 								else{
@@ -1310,10 +1312,12 @@ int _tmain(int argc, _TCHAR* argv[])
 						sort(stressVols.begin(), stressVols.end());
 						double thisStressedVol     = stressVols[floor(stressVols.size()*(0.9))] * 253 / 365.25;
 						MeanAndStdev(bigSlice, sliceMean, sliceStdev, sliceStderr);
-						double originalVol         = sliceStdev * 253 / 365.25;
-						double thisInflationFactor = thisStressedVol / originalVol;
+						double originalVol         = sliceStdev * roughVolAnnualiser;
+						double thisInflationFactor = thisStressedVol / originalVol * volScalingFactor;
+						// easy to get a very high inflation factor with a timeseries like our GBPdeposit index which rarely changes by much
+						if (thisInflationFactor > 10.0){ thisInflationFactor = 10.0; }
 						spr.priipsStressVols.push_back(thisInflationFactor);
-						// change underlyings' drift rate
+						// inflate underlyings' returns
 						for (j = 0; j < ulReturns[i].size(); j++) {
 							ulReturns[i][j] = exp(log(ulReturns[i][j])*thisInflationFactor);
 						}
