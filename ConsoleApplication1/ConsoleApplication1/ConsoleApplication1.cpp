@@ -1292,8 +1292,9 @@ int _tmain(int argc, _TCHAR* argv[])
 						}
 					}
 					double sliceMean, sliceStdev, sliceStderr;
+					const double volScalingFactor(sqrt(253.0 / 365.25));	
 					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
-					calendarDailyVariance.push_back(sliceStdev*sliceStdev * 253 / 365.25);
+					calendarDailyVariance.push_back(sliceStdev*sliceStdev * volScalingFactor);
 					double thisDailyDriftCorrection = exp(-0.5*calendarDailyVariance[i]);
 					double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i] * 365.25);
 					// change underlyings' drift rate
@@ -1549,32 +1550,43 @@ int _tmain(int argc, _TCHAR* argv[])
 				// ... build rolling 21-day windows of historical log returns
 				// ... priipsStressVol is the 90th percentile of this distribution
 				const int rollingWindowSize(21);
-				const double volScalingFactor(sqrt(253.0 / 365.25));
 				const double roughVolAnnualiser(16.0);
 				double sliceMean, sliceStdev, sliceStderr;
 				vector<double> stressVols;
 				for (i = 0; i < numUl; i++) {
-					vector<double> thisSlice, bigSlice;
+					double thisReturn;
+					const double thisNumReturns(ulReturns[0].size());
+					vector<double>  bigSlice;
+					deque<double> thisSlice;
 					// calc vol from 21-day window of daily continuous returns
-					for (j = 0; j < ulReturns[0].size() - 1; j++) {
+					if (ulReturns[0].size() < rollingWindowSize){
+						cerr << "Not enough data for PRIIPS stress test" << endl;
+						exit(1);
+					}
+					// load the window
+					for (j = 0; thisSlice.size() < rollingWindowSize; j++) {
 						if (!ulOriginalPrices[i].nonTradingDay[j]){
-							double thisReturn = log(ulReturns[i][j]);
+							thisReturn = log(ulReturns[i][j]);
 							bigSlice.push_back(thisReturn);
-							if (thisSlice.size() == rollingWindowSize){
-								MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
-								stressVols.push_back(sliceStdev*roughVolAnnualiser);
-								thisSlice.clear();
-							}
-							else{
-								thisSlice.push_back(thisReturn);
-							}
+							thisSlice.push_back(thisReturn);
+						}
+					}
+					// roll the window
+					for (; j < thisNumReturns; j++) {
+						if (!ulOriginalPrices[i].nonTradingDay[j]){
+							thisReturn = log(ulReturns[i][j]);
+							bigSlice.push_back(thisReturn);
+							MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
+							stressVols.push_back(sliceStdev*roughVolAnnualiser);
+							thisSlice.pop_front();
+							thisSlice.push_back(thisReturn);
 						}
 					}
 					sort(stressVols.begin(), stressVols.end());
-					double thisStressedVol     = stressVols[floor(stressVols.size()*(0.9))] * 253 / 365.25;
+					double thisStressedVol     = stressVols[floor(stressVols.size()*(0.9))];
 					MeanAndStdev(bigSlice, sliceMean, sliceStdev, sliceStderr);
 					double originalVol         = sliceStdev * roughVolAnnualiser;
-					double thisInflationFactor = thisStressedVol / originalVol * volScalingFactor;
+					double thisInflationFactor = thisStressedVol / originalVol;
 					// easy to get a very high inflation factor with a timeseries like our GBPdeposit index which rarely changes by much
 					if (thisInflationFactor > 10.0){ thisInflationFactor = 10.0; }
 					spr.priipsStressVols.push_back(thisInflationFactor);

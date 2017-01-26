@@ -68,16 +68,17 @@ double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues) {
 
 
 // mean and stdev
-void MeanAndStdev(std::vector<double> v, double &mean, double &stdev, double &stdErr){
+template<typename T>
+void MeanAndStdev(T&v, double &mean, double &stdev, double &stdErr){
 	int N = v.size();
 	// mean
 	double sum = std::accumulate(v.begin(), v.end(), 0.0);
 	mean = sum / N;
 	// stdev
 	std::vector<double> diff(N);
-	std::transform(v.begin(), v.end(), diff.begin(),std::bind2nd(std::minus<double>(), mean));
+	std::transform(v.begin(), v.end(), diff.begin(), std::bind2nd(std::minus<double>(), mean));
 	double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
-	stdev  = std::sqrt(sq_sum  / N);
+	stdev  = std::sqrt(sq_sum / N);
 	stdErr = std::sqrt(sq_sum) / N;
 }
 
@@ -2744,11 +2745,13 @@ public:
 				double vaR90                = 100.0*allAnnRets[floor(numAnnRets*(0.1))];
 				double vaR50                = 100.0*allAnnRets[floor(numAnnRets*(0.5))];
 				double vaR10                = 100.0*allAnnRets[floor(numAnnRets*(0.9))];
-				double priipsStressVar, priipsStressYears, varYears, var1Years, var2Years;
+				double priipsStressVar(-1.0), priipsStressYears(-1.0), varYears, var1Years, var2Years;
 				if (doPriips){
 					double thisStressT = maxProductDays > 365 * 3 ? 0.05 : 0.01;
-					priipsStressVar   = 100.0*priipsAnnRetInstances[floor(numAnnRets*thisStressT)].annRet;
-					priipsStressYears = priipsAnnRetInstances[floor(numAnnRets*thisStressT)].yearsToPayoff;
+					if (doPriipsStress){
+						priipsStressVar   = 100.0*priipsAnnRetInstances[floor(numAnnRets*thisStressT)].annRet;
+						priipsStressYears = priipsAnnRetInstances[floor(numAnnRets*thisStressT)].yearsToPayoff;
+					}
 					varYears  = priipsAnnRetInstances[floor(numAnnRets*(0.1))].yearsToPayoff;
 					var1Years = priipsAnnRetInstances[floor(numAnnRets*(0.5))].yearsToPayoff;
 					var2Years = priipsAnnRetInstances[floor(numAnnRets*(0.9))].yearsToPayoff;
@@ -2908,16 +2911,6 @@ public:
 					sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
 					sprintf(lineBuffer, "%s%s%.5lf%s", lineBuffer, "ESvol='", esVol, doPriipsVol ? "'/sqrt(duration) +'0" : "");   // pesky way to pick up previously saved duration
 					if (doPriipsVol){
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsImpliedCost='", priipsImpliedCost);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVaR='", priipsVaR);
-						// PRIIPS now calculates scenarios using riskfree drift rates
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR90);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1='", vaR50);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2='", vaR10);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaRyears='", varYears);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1years='", var1Years);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2years='", var2Years);
 						if (doPriipsStress){
 							sort(priipsStressVols.begin(), priipsStressVols.end());
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMin='", priipsStressVols[0]);
@@ -2925,7 +2918,18 @@ public:
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressYears='", priipsStressYears);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressVar='", priipsStressVar);
 						}
-
+						else{
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsImpliedCost='", priipsImpliedCost);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVaR='", priipsVaR);
+							// PRIIPS now calculates scenarios using riskfree drift rates
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR90);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1='", vaR50);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2='", vaR10);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaRyears='", varYears);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1years='", var1Years);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2years='", var2Years);
+						}
 					}
 					else {  // PRIIPs only saves vol and PriipsImpliedCost
 						if (doPriips){
