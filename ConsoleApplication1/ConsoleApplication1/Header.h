@@ -2340,14 +2340,17 @@ public:
 			strcpy(lineBuffer, "insert into productcoupons values ");
 			int  i;
 			bool found(false);
-			// get coupon barriers
-			for (i=0; i < maturityBarrier; i++){
-				const SpBarrier&    ib(barrier.at(i));
-				if (ib.capitalOrIncome == 0 && ib.hitWithDate.size()>0){
-					sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", ib.hitWithDate[0].date.c_str(), "',", ib.hitWithDate[0].amount, ",'", productCcy.c_str(), "')");
-					found = true;
+			// get coupon barriers, provided couponPaidOut
+			if (couponPaidOut){
+				for (i=0; i < maturityBarrier; i++){
+					const SpBarrier&    ib(barrier.at(i));
+					if (ib.capitalOrIncome == 0 && ib.hitWithDate.size()>0){
+						sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", ib.hitWithDate[0].date.c_str(), "',", ib.hitWithDate[0].amount, ",'", productCcy.c_str(), "')");
+						found = true;
+					}
 				}
 			}
+			
 			// add any fixed coupons
 			if (couponFrequency.size()) {  // add fixed coupon
 				int    freqLen      = couponFrequency.length();
@@ -2380,7 +2383,7 @@ public:
 
 			if (matured){
 				const SpBarrier&    b(barrier.at(maturityBarrier));
-				double thisAmount    = issuePrice * (b.hitWithDate[0].amount - b.couponValues[0]);
+				double thisAmount    = issuePrice * (b.hitWithDate[0].amount - (couponPaidOut ? b.couponValues[0] : 0.0) );
 				productHasMatured    = true;
 				// save capital payoff
 				sprintf(lineBuffer, "%s%lf%s%s%s%d%s", "update product join cashflows using (productid) set Matured=1,MaturityPayoff=", thisAmount, ",DateMatured='", b.settlementDate.c_str(), "' where productid=", productId, " and projectedreturn=1");
