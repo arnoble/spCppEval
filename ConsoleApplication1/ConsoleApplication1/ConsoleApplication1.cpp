@@ -500,7 +500,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// read underlying prices
-			vector<double>   ulReturns[maxUls];
+			vector<double>   ulReturns[maxUls], originalUlReturns[maxUls];
 			for (i = 0; i < numUl; i++) {
 				ulReturns[i].reserve(10000); 
 				ulOriginalPrices[i].date.reserve(10000);
@@ -1284,6 +1284,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (doPriips){
 				// do convexity adjustment
 				for (i = 0; i < numUl; i++) {
+					originalUlReturns[i] = ulReturns[i];
 					vector<double> thisSlice;
 					// calc vol from daily continuous returns
 					for (j = 0; j < ulReturns[0].size() - 1; j++) {
@@ -1552,31 +1553,37 @@ int _tmain(int argc, _TCHAR* argv[])
 				const int rollingWindowSize(21);
 				const double roughVolAnnualiser(16.0);
 				double sliceMean, sliceStdev, sliceStderr;
-				vector<double> stressVols;
 				for (i = 0; i < numUl; i++) {
+					vector<double> stressVols;
 					double thisReturn;
-					const double thisNumReturns(ulReturns[0].size());
+					const double thisNumReturns(originalUlReturns[0].size());
 					vector<double>  bigSlice;
 					deque<double> thisSlice;
 					// calc vol from 21-day window of daily continuous returns
-					if (ulReturns[0].size() < rollingWindowSize){
+					if (originalUlReturns[0].size() < rollingWindowSize){
 						cerr << "Not enough data for PRIIPS stress test" << endl;
 						exit(1);
 					}
 					// load the window
 					for (j = 0; thisSlice.size() < rollingWindowSize; j++) {
 						if (!ulOriginalPrices[i].nonTradingDay[j]){
-							thisReturn = log(ulReturns[i][j]);
+							thisReturn = log(originalUlReturns[i][j]);
 							bigSlice.push_back(thisReturn);
 							thisSlice.push_back(thisReturn);
 						}
 					}
+					double highestVol(-1.0);
+					int    obsAtHighestVol(0);
 					// roll the window
 					for (; j < thisNumReturns; j++) {
 						if (!ulOriginalPrices[i].nonTradingDay[j]){
-							thisReturn = log(ulReturns[i][j]);
+							thisReturn = log(originalUlReturns[i][j]);
 							bigSlice.push_back(thisReturn);
 							MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
+							if (sliceStdev > highestVol){
+								highestVol = sliceStdev;
+								obsAtHighestVol = j-1;
+							}
 							stressVols.push_back(sliceStdev*roughVolAnnualiser);
 							thisSlice.pop_front();
 							thisSlice.push_back(thisReturn);
@@ -1588,7 +1595,23 @@ int _tmain(int argc, _TCHAR* argv[])
 					double originalVol         = sliceStdev * roughVolAnnualiser;
 					double thisInflationFactor = thisStressedVol / originalVol;
 					// easy to get a very high inflation factor with a timeseries like our GBPdeposit index which rarely changes by much
-					if (thisInflationFactor > 10.0){ thisInflationFactor = 10.0; }
+					if (thisInflationFactor > 10.0){ 
+						thisInflationFactor = 10.0;
+						// debug only
+						thisSlice.clear();
+						deque<string> highestVolDates;
+						deque<double> highestVolLevels;
+						for (j = obsAtHighestVol; thisSlice.size() < rollingWindowSize; j--) {
+							if (!ulOriginalPrices[i].nonTradingDay[j]){
+								thisReturn = log(originalUlReturns[i][j]);
+								thisSlice.push_front(thisReturn);
+								highestVolDates.push_front(ulOriginalPrices[i].date[j]);
+								highestVolLevels.push_front(ulOriginalPrices[i].price[j]);
+							}
+						}
+						MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
+						// END debug
+					}
 					spr.priipsStressVols.push_back(thisInflationFactor);
 					// inflate underlyings' returns
 					for (j = 0; j < ulReturns[i].size(); j++) {
