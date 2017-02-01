@@ -134,13 +134,13 @@ void getBbergPrices(char *ticker, const char *field, char *startDate, char *endD
 
 	//request.set("periodicityAdjustment", "ACTUAL");
 	if (histDataRequest){
-		request.set("periodicitySelection", "DAILY");
+	//	request.set("periodicitySelection", "DAILY");
 		request.set("startDate", startDate);
 		request.set("endDate", endDate);
 		//request.set("maxDataPoints", 1);
 	}
 	session.sendRequest(request);
-	//request.print(std::cout);
+	// request.print(std::cout);
 
 	// process response
 	bool done(false);

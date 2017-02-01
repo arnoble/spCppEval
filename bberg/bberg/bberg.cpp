@@ -26,25 +26,26 @@ int _tmain(int argc, _TCHAR* argv[])
 		// initialise
 		const int        maxBufs(100);
 		const int        bufSize(1000);
-		char             lineBuffer[bufSize], charBuffer[bufSize], resultBuffer[bufSize];
-		if (argc < 4){ std::cout << "Usage: startId stopId dateAsYYYYMMDD  <optionalArguments: 'dbServer:'spCloud|newSp  'prices:'y/n  'curves:'y/n 'cds:'y/n 'static:'y/n> 'tickerfeed:'n/y 'currentPrices:'n/y>" << endl;  exit(0); }
-		int              startProductId = argc > 1 ? _ttoi(argv[1]) : 34;
-		int              stopProductId = argc > 2 ? _ttoi(argv[2]) : 1000;
+		char             lineBuffer[bufSize], charBuffer[bufSize], resultBuffer[bufSize], idBuffer[bufSize];
 		size_t numChars;
-		char *thisDate = WcharToChar(argv[3], &numChars);
+		int commaSepList = strstr(WcharToChar(argv[1], &numChars), ",") ? 1 : 0;
+		if (argc < 4 - commaSepList){ std::cout << "Usage: startId stopId (or comma-sep list of ids) dateAsYYYYMMDD  <optionalArguments: 'dbServer:'spCloud|newSp  'pricesOnly' 'prices:'y/n  'curves:'y/n 'cds:'y/n 'static:'y/n> 'tickerfeed:'n/y 'currentPrices:'n/y>" << endl;  exit(0); }
+		int              startProductId,stopProductId;
+		char *thisDate = WcharToChar(argv[3-commaSepList], &numChars);
 		char isoDate[11]; sprintf(isoDate,"%c%c%c%c%c%c%c%c%c%c%c%c", thisDate[0], thisDate[1], thisDate[2], thisDate[3], '-', thisDate[4], thisDate[5], '-', thisDate[6], thisDate[7],'\0' );
 		string anyString(thisDate); if (anyString.find("-") != string::npos){ std::cout << "Usage: enter date as YYYYMMDD " << endl;  exit(0); }
 		char dbServer[100]; strcpy(dbServer, "spCloud");  // newSp for local PC
 		bool doPrices(true), doCDS(true), doCurves(true), doStatic(true), doTickerfeed(false), doCurrentPrices(false);
-		for (int i = 4; i<argc; i++){
+		for (int i = 4-commaSepList; i<argc; i++){
 			char *thisArg = WcharToChar(argv[i], &numChars);
-			if (sscanf(thisArg, "prices:%s", lineBuffer)){ doPrices = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "cds:%s", lineBuffer)){ doCDS = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "static:%s", lineBuffer)){ doStatic = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "curves:%s", lineBuffer)){ doCurves = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "tickerfeed:%s", lineBuffer)){ doTickerfeed = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "prices:%s",        lineBuffer)){ doPrices = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "cds:%s",           lineBuffer)){ doCDS = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "static:%s",        lineBuffer)){ doStatic = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "curves:%s",        lineBuffer)){ doCurves = strcmp(lineBuffer, "y") == 0; }
+			if (sscanf(thisArg, "tickerfeed:%s",    lineBuffer)){ doTickerfeed = strcmp(lineBuffer, "y") == 0; }
 			if (sscanf(thisArg, "currentPrices:%s", lineBuffer)){ doCurrentPrices = strcmp(lineBuffer, "y") == 0; }
-			if (sscanf(thisArg, "dbServer:%s", lineBuffer)){ strcpy(dbServer, lineBuffer); }
+			if (sscanf(thisArg, "dbServer:%s",      lineBuffer)){ strcpy(dbServer, lineBuffer); }
+			if (strstr(thisArg, "pricesOnly")                  ){ doStatic = false; doCDS = false; doCurves = false; }
 		}
 		char *pricePrefix = doCurrentPrices ? "current" : "";
 
@@ -86,12 +87,26 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 		// get list of productIds
-		sprintf(lineBuffer, "%s%d%s%d%s", "select ProductId from product where ProductId>='", startProductId, "' and ProductId<='", stopProductId, "' and Matured='0'"); 	mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true);
+		sprintf(lineBuffer, "%s", "select ProductId from product where ProductId ");
+		if (commaSepList == 1){
+			sprintf(idBuffer,"%s%s%s"," in (",WcharToChar(argv[1],&numChars),") ");
+		}
+		else{
+			startProductId = argc > 1 ? _ttoi(argv[1]) : 34;
+			stopProductId  = argc > 2 ? _ttoi(argv[2]) : 1000;
+			sprintf(idBuffer, "%s%d%s%d%s", " >= '", startProductId, "' and ProductId <= '", stopProductId,"'");
+		}
+		sprintf(lineBuffer,"%s%s%s", lineBuffer, idBuffer, " and Matured='0'");
+		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	
+		retcode = mydb.fetch(true);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			int x(atoi(szAllBufs[0])); allProductIds.push_back(x);
 			retcode = mydb.fetch(false);
 		}
-
+		if (commaSepList == 1 && allProductIds.size() > 0){
+			startProductId = allProductIds[0];
+			stopProductId  = allProductIds[allProductIds.size()-1];
+		}
 
 		//
 		// get BID,ASK prices for productIds
@@ -99,8 +114,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		if (!doDebug && (doPrices || doCurrentPrices)){
 			char *bidAskFields[] = { "PX_BID", "PX_ASK" };
 			char *lastFields[] = { "PX_LAST", "PX_LAST" };
-			sprintf(lineBuffer, "%s%d%s%d%s%s%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where (Isin != '' or p.BbergTicker != '') and productid>='", startProductId, "' and ProductId<='", stopProductId,
-				"' and Matured='0' ", startProductId == stopProductId ? "" : " and strikedate<now() ", " order by ProductId; ");
+			sprintf(lineBuffer, "%s%s%s%s%s", "select ProductId, p.name, p.StrikeDate, cp.name, if (p.BbergTicker != '', p.BbergTicker, Isin) Isin, BbergPriceFeed from product p join institution cp on(p.CounterpartyId=cp.institutionid) where (Isin != '' or p.BbergTicker != '') and productid ",
+			idBuffer, " and Matured='0' ", startProductId == stopProductId ? "" : " and strikedate<now() ", " order by ProductId; ");
 			// std::cout << "\ngetting prices with SQL " << lineBuffer << std::endl; 
 			mydb.prepare((SQLCHAR *)lineBuffer, 6);
 			retcode = mydb.fetch(false);  // set to false, since there may not be any deals with ISINs
@@ -202,6 +217,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			"RTG_FITCH_SEN_UNSECURED", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT", "" };
 		char   *sovereignFields[] ={ "RTG_SP_LT_LC_ISSUER_CREDIT", "CUR_MKT_CAP", "EQY_FUND_CRNCY", "BS_TIER1_CAP_RATIO", "RTG_MOODY_LONG_TERM",
 			"RTG_FITCH_LT_LC_ISSUER_DEFAULT", "RSK_BB_ISSUER_LIKELIHOOD_OF_DFLT", "" };
+		char   *drskFields[] ={ "RSK_BB_IMPLIED_CDS_SPREAD" };
 
 		char   *fieldFormat[]   = { "%s", "%.2lf", "%s", "%.2lf", "%s", "%s", "%s" };
 		double  fieldScaling[]  = { 0, 1000000000.0, 0, 1, 0, 0, 0 };
@@ -210,13 +226,14 @@ int _tmain(int argc, _TCHAR* argv[])
 		if (!doDebug  && doCDS) {
 			if (!doDebug) {				
 				// now get info for each institution
-				sprintf(lineBuffer, "%s%s%d%s%d%s",
+				sprintf(lineBuffer, "%s%s%s%s",
 					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg,cp.BbergIssuerPrice from  ",
-					" product p join institution i on (p.CounterpartyId=i.InstitutionId),institution cp left join cdsspread cds using (institutionid)  where p.ProductId >='",
-					startProductId, "' and p.ProductId <= '", stopProductId, "' and i.entityname like concat('%',cp.entityname,'%') order by institutionId,maturity;");
+					" product p join institution i on (p.CounterpartyId=i.InstitutionId),institution cp left join cdsspread cds using (institutionid)  where p.ProductId ",
+					idBuffer, " and i.entityname like concat('%',cp.entityname,'%') order by institutionId,maturity;");
 				mydb.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb.fetch(true);
-				int     institutionId = -1;
+				int     institutionId = -1, previousInstitutionId = -1;
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+					institutionId             = atoi(szAllBufs[0]);
 					char *cpName              = szAllBufs[1];
 					char *mat                 = szAllBufs[2];
 					char *cdsBberg            = szAllBufs[3];
@@ -225,13 +242,13 @@ int _tmain(int argc, _TCHAR* argv[])
 					double  thePrice          = -1.0;
 					bool    isaSovereign      = false;
 					// first record - get static data for institution
-					if (doStatic && (institutionId != atoi(szAllBufs[0]))){
+					if (doStatic && (institutionId != previousInstitutionId)){
 						// detect if institution is a sovereign
 						getBbergPrices(cpBberg, "COMPANY_IS_PRIVATE", thisDate, thisDate, ref, session, "ReferenceDataRequest", resultBuffer);
 						if (!strcmp(resultBuffer, "")){
 							isaSovereign = true;
 						}
-						institutionId = atoi(szAllBufs[0]);
+						previousInstitutionId = institutionId;
 
 						for (int i = 0; strcmp(fields[i], ""); i++){
 							char *fieldPtr = isaSovereign ? sovereignFields[i] : fields[i];
@@ -260,16 +277,25 @@ int _tmain(int argc, _TCHAR* argv[])
 						}
 					}
 					// get CDS rates
-					if (strcmp(cdsBberg, "")){
+					if (strcmp(cdsBberg, "") || strcmp(cpBberg, "")){
 						strcpy(resultBuffer, "");
+						strcpy(charBuffer, strcmp(cdsBberg, "") ? cdsBberg:cpBberg);
 						// if no CDS use DRSK-implied CDS
-						anyString = strstr(cdsBberg, "Corp") != NULL ? "PX_LAST" : "RSK_BB_IMPLIED_CDS_SPREAD";
-						getBbergPrices(cdsBberg, anyString.c_str(), thisDate, thisDate, ref, session, "HistoricalDataRequest", resultBuffer);
+						anyString = strcmp(cdsBberg, "")  && strstr(cdsBberg, "Corp") != NULL ? "PX_LAST" : "RSK_BB_IMPLIED_CDS_SPREAD";
+						int counter = 3;
+						char newDateStr[9];
+						strcpy(newDateStr, thisDate);
+						do {
+							getBbergPrices(charBuffer, anyString.c_str(), newDateStr, newDateStr, ref, session, "HistoricalDataRequest", resultBuffer);
+							DatePlusDays(newDateStr, -1, newDateStr);
+						} while (counter-- > 0 && !strcmp(resultBuffer, ""));
+
 						if (strcmp(resultBuffer, "")){
 							sprintf(charBuffer, "%s%s%s%s%s%d%s%s%s", "update cdsspread set Spread='", resultBuffer, "',LastDataDate='",isoDate,"' where institutionid='", institutionId, "' and Maturity='", mat, "';");
 							mydb1.prepare((SQLCHAR *)charBuffer, 1);
 						}
 						strcpy(cdsBberg, ""); // some institutions have no CDS...so MySQL will return a NULL, leaving cdsBberg at its old value, typically for the previous institution 
+						strcpy(cpBberg, "");
 					}
 					retcode = mydb.fetch(false);
 				}
