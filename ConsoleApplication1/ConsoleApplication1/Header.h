@@ -2940,7 +2940,7 @@ public:
 				int numShortfall(    floor(confLevel    *numAnnRets));
 				int numShortfallTest(floor(confLevelTest*numAnnRets));
 				double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){     eShortfall     += allAnnRets[i]; }	if (numShortfall    ){ eShortfall     /= numShortfall; }
-				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	if (numShortfallTest){ eShortfallTest /= numShortfallTest; }
+				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allPayoffs[i]; }	if (numShortfallTest){ eShortfallTest /= numShortfallTest; }
 				double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 				double priipsImpliedCost, priipsVaR, priipsDuration;
 				if (doPriipsVol){
