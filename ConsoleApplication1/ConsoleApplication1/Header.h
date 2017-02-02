@@ -17,7 +17,7 @@
 
 #define MAX_SP_BUF                         500000
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
-
+#define YEARS_TO_INT_MULTIPLIER           1000.0
 
 // structs
 struct PriipsStruct	{
@@ -2549,7 +2549,7 @@ public:
 			for (int analyseCase = 0; analyseCase < (doPriips || getMarketData ? 1 : 2); analyseCase++) {
 				if (doDebug){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 				bool     applyCredit = analyseCase == 1;
-				
+				std::map<int, double> cashflowMap;
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));
 				// ukspaCase also now have projectedReturns
 				if      (ukspaCase == "Bear"   )      { projectedReturn = 0.1; }
@@ -2584,6 +2584,7 @@ public:
 					double              thisYears       = b.yearsToBarrier;
 					double              prob            = b.hasBeenHit ? 1.0 :  sumProportion / numAllEpisodes; // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
 					double              thisProbDefault = probDefault(hazardCurve, thisYears);
+					int                 yearsAsMapKey   = floor(b.yearsToBarrier * YEARS_TO_INT_MULTIPLIER);
 
 					for (i = 0; i < b.hit.size(); i++){
 						thisAmount = b.hit[i].amount;
@@ -2637,7 +2638,7 @@ public:
 							double thisCouponRet   = thisYears <= 0.0 || (couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue < 0.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
 
 							// maybe save finalAssetReturns
-								if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000 && !doPriipsVol){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
+							if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000 && !doPriipsVol){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
 								if (farCounter){ strcat(farBuffer, ","); strcat(farBuffer1, ","); }
 								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i].ret,")");
 								sprintf(farBuffer1, "%s%s%d%s%.3lf%s%.3lf%s%d%s%d%s", farBuffer1, "(", productId, ",", thisAmount, ",", b.fars[i].ret,
@@ -2658,6 +2659,12 @@ public:
 							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
 							allAnnRets.push_back(thisAnnRet);
 							allCouponRets.push_back(thisCouponRet);
+
+							/*
+							* update cashflow map
+							*/
+							cashflowMap[yearsAsMapKey] += thisAmount;
+
 
 							// pv payoffs
 							if (getMarketData && calledByPricer) {
@@ -2976,8 +2983,13 @@ public:
 				/*
 				* irr
 				*/
-				std::vector<double> c; c.push_back(-1.0); c.push_back(1.5);
-				std::vector<double> t; t.push_back(0.0); t.push_back(2.0);
+
+				std::vector<double> c; c.push_back(-midPrice*numCapitalInstances);
+				std::vector<double> t; t.push_back(0.0);
+				for (std::map<int, double>::iterator it=cashflowMap.begin(); it != cashflowMap.end(); ++it){
+					t.push_back(it->first/YEARS_TO_INT_MULTIPLIER);
+					c.push_back(it->second);
+				}
 				double thisIrr = irr(c,t);
 
 				// WinLose
@@ -3099,6 +3111,7 @@ public:
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelAverage='", bmRelAverage);
 						sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumEpisodes='", numAllEpisodes);
 						sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',SecsTaken='", secsTaken);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',IRR='", thisIrr);
 					}
 					sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 					std::cout << lineBuffer << std::endl;
