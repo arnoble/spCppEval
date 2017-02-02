@@ -47,6 +47,104 @@ struct finalAssetInfo	{
 	finalAssetInfo(double ret, int assetIndx, int barrierIndx) : ret(ret), assetIndx(assetIndx), barrierIndx(barrierIndx) {}
 };
 
+struct fAndDf	{
+	double f,df;
+	fAndDf(double f, double df) : f(f), df(df) {}
+};
+
+
+/*
+* functions
+*/
+
+/*
+* irr
+*/
+
+// calculate fn(x) and fn'(x)
+// (SpBarrier::*isHit)(const double) 
+fAndDf functionEval(double(*fn)(const double, const std::vector<double> &c, const std::vector<double> &t), 
+	const double x, 
+	const std::vector<double> &c, 
+	const std::vector<double> &t){
+	double f  = fn(x,c,t);
+	double f1 = fn(x + 0.0001,c,t);
+	double f2 = fn(x - 0.0001,c,t);
+	double df = (f1 - f2) / 0.0002;
+	return(fAndDf(f, df));
+}
+// calculate PV of a bunch of cashflows c occurring at time t, at a continuous rate r
+double pv(const double r, const std::vector<double> &c, const std::vector<double> &t){
+	double sumPv = 0.0;
+	for (int i=0; i<c.size(); i++){
+		sumPv += c[i] * exp(-r*t[i]);
+	}
+	return(sumPv);
+}
+
+// ** Newton-Raphson root finding for IRR of cashflows c occurring at time t  - Press pp370
+double irr(const std::vector<double> &c, const std::vector<double> &t) {
+	int maxit = 100;
+	double xacc  = 0.0001;     // 1bp accuracy
+	double x1    = -0.1;       // lower bound guess
+	double x2    =  0.5;       // upper bound guess ... some products nearing KO may have funny midPrices
+	int  i, j;
+	double  dx, dxold, f, df, fh, fl, temp, xh, xl, rts;
+	fAndDf funcResults(0,0) ;
+
+
+	// initial values at upper/lower bound
+	funcResults = functionEval(pv, x1,c,t); fl = funcResults.f; df = funcResults.df;
+	funcResults = functionEval(pv, x2,c,t); fh = funcResults.f; df = funcResults.df;
+	// handle when not bracketed
+	if ((fl>0.0 && fh>0.0) || (fl<0.0 && fh<0.0)){
+		double sumCashflows(0.0);
+		for (i=0; i < c.size(); i++){ sumCashflows += c[i]; }
+		if (sumCashflows <= 0.0){   // products about to mature for x may have a slightly high midPrice making sumCashflows negative
+		}
+		else {                   // products about to mature for x may have a slightly low  midPrice requiring a very high IRR to zero them
+			return(x2);
+		}
+	}
+	if (fl == 0.0) { return(x1); }
+	if (fh == 0.0) { return(x2); }
+	// orient the search so that f(x1)<0
+	if (fl<0.0){ xl=x1; xh=x2; }
+	else      { xh=x1; xl=x2; }
+	rts   = 0.5*(x1 + x2);      // initial guess for root
+	dxold = abs(x2 - x1);  // stepsize before last
+	dx    = dxold;            // last stepsize
+	funcResults = functionEval(pv, rts,c,t); f = funcResults.f; df = funcResults.df;
+	// iterate
+	for (j=0; j<maxit; j++){
+		if ((((rts - xh)*df - f)*((rts - xl)*df - f) > 0.0) ||  	// bisect if Newton out of range 
+			(abs(f*2.0) > abs(dxold*df))){           // or not decreasing fast enough
+			dxold = dx; dx = 0.5*(xh - xl); rts = xl + dx;
+			if (xl == rts){
+				return(rts);
+			}                       // finish if change in root negligible
+		}
+		else {                                                // Newton step acceptable. Take it
+			dxold=dx; dx=f / df; temp=rts; rts -= dx;
+			if (temp == rts){
+				return(rts);
+			}                     // finish if change in root negligible
+		}
+		if (abs(dx) < xacc){
+			return(rts);
+		}                 // convergence criterion
+		funcResults = functionEval(pv, rts,c,t); f = funcResults.f; df = funcResults.df;
+		if (f<0.0){ xl=rts; }
+		else { xh=rts; } // maintain the bracket on the root
+	}
+	{ //alert("IRR root-finding: iterations exhausted"); 
+		return(0.0); 
+	}
+}
+
+
+
+
 
 
 
@@ -2873,6 +2971,14 @@ public:
 				double riskCategory    = calcRiskCategory(cesrBuckets,   scaledVol, 1.0);  
 				double riskScorePriips = calcRiskCategory(priipsBuckets, scaledVol, 1.0);
 				double riskScore1to10  = calcRiskCategory(cubeBuckets,   scaledVol, 0.0);
+
+
+				/*
+				* irr
+				*/
+				std::vector<double> c; c.push_back(-1.0); c.push_back(1.5);
+				std::vector<double> t; t.push_back(0.0); t.push_back(2.0);
+				double thisIrr = irr(c,t);
 
 				// WinLose
 				double sumNegRet(0.0), sumPosRet(0.0),sumBelowDepo(0.0);
