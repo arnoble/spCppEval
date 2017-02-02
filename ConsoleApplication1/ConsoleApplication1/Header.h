@@ -2939,8 +2939,8 @@ public:
 				const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
 				int numShortfall(    floor(confLevel    *numAnnRets));
 				int numShortfallTest(floor(confLevelTest*numAnnRets));
-				double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){     eShortfall     += allAnnRets[i]; }	if (numShortfall){ eShortfall     /= numShortfall; }
-				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	if (numShortfall){ eShortfallTest /= numShortfall; }
+				double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){     eShortfall     += allAnnRets[i]; }	if (numShortfall    ){ eShortfall     /= numShortfall; }
+				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allAnnRets[i]; }	if (numShortfallTest){ eShortfallTest /= numShortfallTest; }
 				double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 				double priipsImpliedCost, priipsVaR, priipsDuration;
 				if (doPriipsVol){
@@ -3099,6 +3099,7 @@ public:
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecPar='", numParInstances ? sumParAnnRets / (double)numParInstances : 0.0);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probPar='", (double)numParInstances / (double)numAnnRets);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='", eShortfall*100.0);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EShortfallTest='", eShortfallTest*100.0);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='", eShortfallDepo*100.0);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbShortfall='", benchmarkProbUnderperf);
