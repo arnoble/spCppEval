@@ -17,7 +17,7 @@
 
 #define MAX_SP_BUF                         500000
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
-#define YEARS_TO_INT_MULTIPLIER           1000.0
+#define YEARS_TO_INT_MULTIPLIER           1000000.0
 
 // structs
 struct PriipsStruct	{
@@ -2990,14 +2990,14 @@ public:
 					t.push_back(it->first/YEARS_TO_INT_MULTIPLIER);
 					c.push_back(it->second);
 				}
-				double thisIrr = irr(c,t);
+				double thisIrr = exp(irr(c,t)) - 1.0;
 
 				// WinLose
 				double sumNegRet(0.0), sumPosRet(0.0),sumBelowDepo(0.0);
 				int    numNegRet(0), numPosRet(0), numBelowDepo(0);
 				for (j = 0; j<numAnnRets; j++) {
 					double ret = allAnnRets[j];
-					if (ret<0){           sumNegRet    += ret;  numNegRet++;    }
+					if (ret<0){           sumNegRet    += ret;  numNegRet++;    }	
 					else {                sumPosRet    += ret;  numPosRet++;    }
 					if (ret < depoRate) { sumBelowDepo += ret;  numBelowDepo++; }
 				}
