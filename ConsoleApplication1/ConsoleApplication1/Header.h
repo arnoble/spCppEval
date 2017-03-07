@@ -1948,6 +1948,7 @@ public:
 		// ***********************
 		// START LOOP McIterations
 		// ***********************
+		std::vector<double> debugCorrelatedRandNos;
 		int numDisables(0);
 		int randnosStoreSize = randnosStore.size();
 		for (thisIteration = 0; thisIteration < numMcIterations && (!consumeRands || randnoIndx<=randnosStoreSize) && fabs(stdevRatioPctChange)>accuracyTol; thisIteration++) {
@@ -2020,14 +2021,16 @@ public:
 									consumeRands,
 									randnoIndx,
 									randnosStore);
+								
 								for (i = 0; i < numUl; i++) {
-									// uassume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
+									// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
 									thisSig = InterpolateMatrix(ObsDateVols[i], ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									//... calculate return for thisDt  for this underlying
-									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
+									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);									
 									currentLevels[i]       = currentLevels[i] * thisReturn;
 									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0);
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
+									// debugCorrelatedRandNos.push_back(currentQuantoLevels[i]/spotLevels[i]);
 								}
 							}
 						}
@@ -2489,6 +2492,13 @@ public:
 			}
 		}
 		else {
+			if (0 && debugCorrelatedRandNos.size()>2) {
+				double thisMean, thisStd, thisStderr;
+				MeanAndStdev(debugCorrelatedRandNos, thisMean, thisStd, thisStderr);
+				sprintf(lineBuffer, "%s%.4lf", "Simulated average randnos:", thisMean);
+				std::cout << lineBuffer << std::endl;
+			}
+
 			// check PRIIPs simulated drifts
 			if (true || doPriipsVol){
 				double thisMean, thisStd, thisStderr;
@@ -2661,7 +2671,7 @@ public:
 							allCouponRets.push_back(thisCouponRet);
 
 							/*
-							* update cashflow map
+							* update cashflow map - 
 							*/
 							cashflowMap[yearsAsMapKey] += thisAmount;
 
