@@ -2865,10 +2865,11 @@ public:
 				double vaR10                = 100.0*allAnnRets[floor(numAnnRets*(0.9))];
 				double priipsStressVar(-1.0), priipsStressYears(-1.0), varYears, var1Years, var2Years;
 				if (doPriips){
-					double thisStressT = maxProductDays > 365 * 3 ? 0.05 : 0.01;
+					double thisStressT = maxProductDays > 365 ? 0.05 : 0.01;
 					if (doPriipsStress){
-						priipsStressVar   = 100.0*priipsAnnRetInstances[floor(numAnnRets*thisStressT)].annRet;
-						priipsStressYears = priipsAnnRetInstances[floor(numAnnRets*thisStressT)].yearsToPayoff;
+						PriipsAnnRet &thisPriipAnnRet(priipsAnnRetInstances[floor(numAnnRets*thisStressT)]);
+						priipsStressVar   = thisPriipAnnRet.annRet  * 100.0;
+						priipsStressYears = thisPriipAnnRet.yearsToPayoff;
 					}
 					varYears  = priipsAnnRetInstances[floor(numAnnRets*(0.1))].yearsToPayoff;
 					var1Years = priipsAnnRetInstances[floor(numAnnRets*(0.5))].yearsToPayoff;
@@ -3054,6 +3055,8 @@ public:
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsImpliedCost='", priipsImpliedCost);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVaR='", priipsVaR);
 							// PRIIPS now calculates scenarios using riskfree drift rates
+							// ... although the 2017-03-08 regs seem to have a typo at para 12a): where "6" shouldbe presumably "18"...
+							// the expected return for each asset or assets shall be the return observed over the period as determined under point 6 of Annex II
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR90);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1='", vaR50);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2='", vaR10);

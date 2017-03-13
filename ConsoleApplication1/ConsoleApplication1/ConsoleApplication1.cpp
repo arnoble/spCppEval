@@ -1553,7 +1553,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				// PRIIPS stresstest
 				// ... build rolling 21-day windows of historical log returns
 				// ... priipsStressVol is the 90th percentile of this distribution
-				const int rollingWindowSize(21);
+				const int rollingWindowSize(maxBarrierDays > 365 ? 63:21);
 				const double roughVolAnnualiser(16.0);
 				double sliceMean, sliceStdev, sliceStderr;
 				for (i = 0; i < numUl; i++) {
@@ -1593,7 +1593,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						}
 					}
 					sort(stressVols.begin(), stressVols.end());
-					double thisStressedVol     = stressVols[floor(stressVols.size()*(0.9))];
+					double thisStressedVol     = stressVols[floor(stressVols.size()*(maxBarrierDays > 365 ? 0.90 : 0.99))];
 					MeanAndStdev(bigSlice, sliceMean, sliceStdev, sliceStderr);
 					double originalVol         = sliceStdev * roughVolAnnualiser;
 					double thisInflationFactor = thisStressedVol / originalVol;
