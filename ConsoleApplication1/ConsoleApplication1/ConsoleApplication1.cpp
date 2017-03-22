@@ -13,13 +13,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x   'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' 'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x  'useThisPrice':x.x 'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' 'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(true), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false);
 		bool             firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
@@ -29,7 +29,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           thisFairValue, bumpedFairValue;
+		double           useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		int              deltaBumps(1), vegaBumps(1), thetaBumps(1);
 		boost::gregorian::date lastDate;
@@ -140,11 +140,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (sscanf(thisArg, "fundingFractionFactor:%s", lineBuffer))  { fundingFractionFactor	= atof(lineBuffer);	}
 			if (sscanf(thisArg, "forceFundingFraction:%s", lineBuffer))   { forceFundingFraction	= lineBuffer; }
 		
-			else if (sscanf(thisArg, "endDate:%s", lineBuffer))     { strcpy(endDate, lineBuffer); }
+			else if (sscanf(thisArg, "endDate:%s",      lineBuffer)){ strcpy(endDate, lineBuffer); }
 			else if (sscanf(thisArg, "dbServer:%s",     lineBuffer)){ strcpy(dbServer,  lineBuffer); }
 			else if (sscanf(thisArg, "minSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s", lineBuffer)){ maxSecsTaken  = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "historyStep:%s",  lineBuffer)){ historyStep   = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "useThisPrice:%s", lineBuffer)){ useThisPrice  = atof(lineBuffer); doUseThisPrice = true; }
 		}
 		if (doPriips){
 			if (strlen(startDate)){
@@ -213,6 +214,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 		// loop through each product
 		int numProducts = allProductIds.size();
+		if (numProducts>1){ doUseThisPrice = false; }
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
 			int              oldProductBarrierId = 0, productBarrierId = 0;
 			int              numBarriers = 0, thisIteration = 0;
@@ -619,6 +621,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			totalNumReturns    = totalNumDays - 1;
 			// change to ASK; to use MID do: (bidPrice + askPrice) / (2.0*issuePrice)
 			midPrice           = (bidAskDateString < lastDataDateString) && stalePrice && (fairValueDateString == lastDataDateString) ? fairValuePrice / issuePrice : (askPrice) / (issuePrice);
+			if (doUseThisPrice){ midPrice = useThisPrice / issuePrice; }
 			ulPrices           = ulOriginalPrices; // copy constructor called
 			// save spots
 			vector<double> spots;
