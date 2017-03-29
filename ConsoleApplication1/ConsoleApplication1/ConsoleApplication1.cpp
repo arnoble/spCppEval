@@ -13,14 +13,14 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x  'useThisPrice':x.x 'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' 'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
+		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations' ' useProductFundingFractionFactor' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x  'useThisPrice':x.x 'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' 'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
 		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(true), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doStickySmile(false);
+		bool             doStickySmile(false),  useProductFundingFractionFactor(false);
 		bool             firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -48,6 +48,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "forceIterations"   )){ forceIterations    = true; }
 			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
 			if (strstr(thisArg, "priipsVolOnly"     )){ doPriipsVolOnly    = true; }
+			if (strstr(thisArg, "useProductFundingFractionFactor")){  useProductFundingFractionFactor  = true; }
 			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
@@ -263,7 +264,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
-				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy,colProductLast
+				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, colProductFundingFractionFactor, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -296,6 +297,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
 			useUserParams                 = atoi(szAllPrices[colProductUseUserParams]);
 			string forceStartDate         = szAllPrices[colProductForceStartDate];
+			if ( useProductFundingFractionFactor){
+				fundingFraction = defaultFundingFraction*atof(szAllPrices[colProductFundingFractionFactor]);;
+			}
 			if (fundingFractionFactor > MIN_FUNDING_FRACTION_FACTOR){
 				fundingFraction = defaultFundingFraction*fundingFractionFactor;
 				}
