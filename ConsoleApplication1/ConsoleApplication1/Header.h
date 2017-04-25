@@ -896,7 +896,7 @@ public:
 	const double      originalStrike,originalBarrier, originalUbarrier,weight;
 	const std::string startDate, endDate, avgInAlgebra;
 	int               count, j, k, startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0, endDaysDiff=0;
-	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness, originalMoneyness;
+	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness, originalMoneyness, saveBarrierLevel, saveUbarrierLevel;
 	bool              readyForAvgObs;
 	std::vector<double> runningAverage;
 	std::vector<bool>   avgWasHit;
@@ -988,9 +988,13 @@ public:
 
 	// set levels which are linked to prevailing spot level 'ulPrice'
 	void setLevels(const double ulPrice) {
-		refLevel      = ulPrice / moneyness;
-		barrierLevel  = barrier * refLevel;
-		if (uBarrier != NULL) { uBarrierLevel = uBarrier * refLevel; }
+		refLevel         = ulPrice / moneyness;
+		barrierLevel     = barrier * refLevel;
+		saveBarrierLevel = barrierLevel;
+		if (uBarrier != NULL) { 
+				uBarrierLevel     = uBarrier * refLevel; 
+				saveUbarrierLevel = uBarrierLevel;
+		}
 	}
 
 };
@@ -1302,13 +1306,17 @@ public:
 		const std::string                       productShape,
 		const bool                             doFinalAssetReturn,
 		double                                 &finalAssetReturn,
+		double                                 &optionPayoff,
 		int                                    &finalAssetIndx,
 		const std::vector<int>                 &ulIds,
 		std::vector<bool>                      &useUl) {
-		double              thisPayoff(payoff), optionPayoff(0.0), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
+		double              thisPayoff(payoff), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
 		double              cumReturn,w, basketFinal, basketStart, basketRef;
 		std::vector<double> basketPerfs,basketWeights,optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
+
+		// init
+		optionPayoff = 0.0;
 
 		switch (payoffTypeId) {
 		case callPayoff:
@@ -1737,7 +1745,7 @@ public:
 		int                      randnoIndx       =  0;
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
-		double                   anyDouble,anyDouble1,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
+		double                   anyDouble,anyDouble1,budget,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		boost::gregorian::date   bFixedCouponsDate(bLastDataDate);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
@@ -2186,6 +2194,8 @@ public:
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
 						int thisName = ulIdNameMap.at(thisBrel.underlying);
 						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint, ulPrices.at(thisName));
+						
+						
 						if (b.isStrikeReset){
 							int brelStartPoint = thisPoint + thisBrel.startDays;
 							if (brelStartPoint < 0){ brelStartPoint  = 0; }
@@ -2268,11 +2278,17 @@ public:
 								}
 							}
 
-							// averaging/lookback - will replace thesePrices with their averages
+							// averaging/lookback - will replace thesePrices with their averages							
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls);
 							// START is barrier hit
 							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || (!b.isExtremum && (b .* (b.isHit))(thisMonPoint,ulPrices, thesePrices, true, startLevels))){
 								barrierWasHit[thisBarrier] = true;
+
+								// for post-strike deals, record if barriers have already been hit
+								if (doAccruals){ b.hasBeenHit = true; }  
+								double thisOptionPayoff;
+								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl);
+
 								// process barrier commands
 								if (b.barrierCommands != ""){
 									std::vector<std::string> barrierCommands = split(b.barrierCommands, ';');
@@ -2280,23 +2296,44 @@ public:
 										std::string bCommand  = barrierCommands[i];
 										std::vector<std::string> bCommandBits;
 										splitBarrierCommand(bCommandBits, bCommand);
-										std::vector<std::string> bCommandArgs = split(bCommandBits[1], ',');
+										std::vector<std::string> bCommandArgs;
 										std::string thisBcommand = bCommandBits[0];
+										if (bCommandBits.size() > 1){ bCommandArgs = split(bCommandBits[1], ','); }
 
 										if (thisBcommand == "disableBarrier"){
 											int targetBarrierId = atoi(bCommandArgs[0].c_str()) - 1;
 											barrierDisabled[targetBarrierId] = true;
 											numDisables++;
-										} 
-										
+										}
+										else if (thisBcommand == "decreaseBudget"){
+											// initialise budget if there is an argument
+											if (bCommandBits.size() > 1){ 
+												budget = atof(bCommandArgs[0].c_str());  
+											}
+											budget -= thisOptionPayoff;
+											if (budget < 0.0){
+												// zero barrier levels of next CapitalBarrier
+												bool done = false;
+												for (int nextBarrier = thisBarrier + 1; !done && nextBarrier < numBarriers; nextBarrier++){
+													SpBarrier &b(barrier[nextBarrier]);
+													if (b.capitalOrIncome) {
+														done        = true;
+														int numBrel = b.brel.size();
+														for (unsigned int uI = 0; uI < numBrel; uI++){
+															SpBarrierRelation& thisBrel(b.brel.at(uI));
+															thisBrel.barrierLevel  = 0.0;
+														}
+													}
+												}
+											}
+										}
 									}
 								}
 
 
-								// for post-strike deals, record if barriers have already been hit
-								if (doAccruals){ b.hasBeenHit = true; }  
-								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn, finalAssetIndx,ulIds, useUl);
-								// ***********barrierprob
+
+
+								// ***********
 								// capitalBarrier hit ... so product terminates
 								// ***********
 								if (b.capitalOrIncome){
