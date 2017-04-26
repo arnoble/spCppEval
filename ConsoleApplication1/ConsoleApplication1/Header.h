@@ -896,7 +896,7 @@ public:
 	const double      originalStrike,originalBarrier, originalUbarrier,weight;
 	const std::string startDate, endDate, avgInAlgebra;
 	int               count, j, k, startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0, endDaysDiff=0;
-	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness, originalMoneyness, saveBarrierLevel, saveUbarrierLevel;
+	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness, originalMoneyness;
 	bool              readyForAvgObs;
 	std::vector<double> runningAverage;
 	std::vector<bool>   avgWasHit;
@@ -990,10 +990,8 @@ public:
 	void setLevels(const double ulPrice) {
 		refLevel         = ulPrice / moneyness;
 		barrierLevel     = barrier * refLevel;
-		saveBarrierLevel = barrierLevel;
 		if (uBarrier != NULL) { 
 				uBarrierLevel     = uBarrier * refLevel; 
-				saveUbarrierLevel = uBarrierLevel;
 		}
 	}
 
@@ -1384,6 +1382,9 @@ public:
 						for (optionPayoff = INFINITY, j = 0, len = optionPayoffs.size(); j<len; j++) {
 							if (optionPayoffs[j] < optionPayoff) { optionPayoff = optionPayoffs[j]; }
 						}
+						if (optionPayoff < 0.0){
+							optionPayoff = 0.0;
+						} 
 					}
 					else {
 						for (optionPayoff = 0.0, j = 0, len = optionPayoffs.size(); j<len; j++) {
