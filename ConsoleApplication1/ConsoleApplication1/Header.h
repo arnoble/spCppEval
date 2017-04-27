@@ -47,6 +47,19 @@ struct finalAssetInfo	{
 	finalAssetInfo(double ret, int assetIndx, int barrierIndx) : ret(ret), assetIndx(assetIndx), barrierIndx(barrierIndx) {}
 };
 
+struct postStrikeState	{
+	double initialBudget,budgetUsed;
+
+	void init(){
+		initialBudget = 0.0;
+		budgetUsed    = 0.0;
+	}
+
+	postStrikeState() {
+		init();
+	}
+};
+
 struct fAndDf	{
 	double f,df;
 	fAndDf(double f, double df) : f(f), df(df) {}
@@ -1622,6 +1635,8 @@ private:
 	const std::string               productShape;
 	const bool                      validFairValue, depositGteed, collateralised, couponPaidOut, showMatured;
 	const std::vector<SomeCurve>    baseCurve;
+	postStrikeState                 thisPostStrikeState;
+
 
 public:
 	SProduct(
@@ -1746,7 +1761,7 @@ public:
 		int                      randnoIndx       =  0;
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
-		double                   anyDouble,anyDouble1,budget,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
+		double                   anyDouble, anyDouble1, couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		boost::gregorian::date   bFixedCouponsDate(bLastDataDate);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
@@ -1961,7 +1976,7 @@ public:
 		int numDisables(0);
 		int randnosStoreSize = randnosStore.size();
 		for (thisIteration = 0; thisIteration < numMcIterations && (!consumeRands || randnoIndx<=randnosStoreSize) && fabs(stdevRatioPctChange)>accuracyTol; thisIteration++) {
-			
+
 			// create new random sample for next iteration
 			if (numMcIterations > 1){
 
@@ -2030,12 +2045,12 @@ public:
 									consumeRands,
 									randnoIndx,
 									randnosStore);
-								
+
 								for (i = 0; i < numUl; i++) {
 									// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
 									thisSig = InterpolateMatrix(ObsDateVols[i], ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									//... calculate return for thisDt  for this underlying
-									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);									
+									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
 									currentLevels[i]       = currentLevels[i] * thisReturn;
 									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0);
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
@@ -2168,6 +2183,9 @@ public:
 				}
 				*/
 				boost::gregorian::date &bStartDate(allBdates.at(thisPoint));
+				// init budget things: postStrike deals will initialise .budgetUsed and .initialBudget
+				double budget     = thisPostStrikeState.initialBudget - thisPostStrikeState.budgetUsed;
+
 
 				for (i=0; i < numUls; i++){ useUl[i] = true; }
 				matured                                = false;
@@ -2309,7 +2327,11 @@ public:
 										else if (thisBcommand == "decreaseBudget"){
 											// initialise budget if there is an argument
 											if (bCommandBits.size() > 1){ 
-												budget = atof(bCommandArgs[0].c_str());  
+												budget = atof(bCommandArgs[0].c_str()); 
+												thisPostStrikeState.initialBudget = budget;
+											}
+											if (doAccruals){
+												thisPostStrikeState.budgetUsed += thisOptionPayoff;
 											}
 											budget -= thisOptionPayoff;
 											if (budget < 0.0){
