@@ -1633,7 +1633,7 @@ private:
 	const int                       daysExtant;
 	const double                    fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      validFairValue, depositGteed, collateralised, couponPaidOut, showMatured;
+	const bool                      fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 
@@ -1651,6 +1651,7 @@ public:
 		const double                    AMC, 
 		const bool                      showMatured,
 		const std::string				productShape,
+		const bool                      fullyProtected,
 		const bool                      depositGteed, 
 		const bool                      collateralised,
 		const int                       daysExtant,
@@ -1670,7 +1671,7 @@ public:
 		const std::vector<bool>         &doShiftPrices)
 		: bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
-		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured),productShape(productShape), depositGteed(depositGteed), collateralised(collateralised),
+		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices){};
@@ -2403,7 +2404,9 @@ public:
 											couponValue += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
 										}
 										// add accumulated couponValue, unless b.forfeitCoupons is set
-										if (!b.isForfeitCoupons){ thisPayoff += couponValue + accruedCoupon; }
+										if (!b.isForfeitCoupons){ 
+											thisPayoff += (fullyProtected && (couponValue + accruedCoupon) < 0.0) ? 0.0 : couponValue + accruedCoupon;
+										}
 									}
 								} // END of capital barrier processing
 								else { // income barrier processing

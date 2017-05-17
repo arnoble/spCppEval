@@ -21,7 +21,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		bool             doFinalAssetReturn(false), forceIterations(true), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false),  useProductFundingFractionFactor(false);
-		bool             firstTime;
+		bool             fullyProtected,firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -221,8 +221,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			int              numBarriers = 0, thisIteration = 0;
 			int              i, j, k, len, len1, anyInt, anyInt1, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId;
-			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, issuePrice, bidPrice, askPrice, midPrice,baseCcyReturn;
-			string           productShape, couponFrequency, productStartDateString, productCcy, productBaseCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
+			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, protectionLevelId, issuePrice, bidPrice, askPrice, midPrice,baseCcyReturn;
+			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, productBaseCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
 			vector<int>      monDateIndx, accrualMonDateIndx;
@@ -248,6 +248,13 @@ int _tmain(int argc, _TCHAR* argv[])
 				productShapeMap[atoi(szAllPrices[0])] = szAllPrices[1];
 				retcode = mydb.fetch(false,"");
 			}
+			// ...protectionLevel
+			map<int, string> protectionLevelMap;
+			sprintf(lineBuffer, "%s", "select * from protectionLevel"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+				protectionLevelMap[atoi(szAllPrices[0])] = szAllPrices[1];
+				retcode = mydb.fetch(false, "");
+			}
 
 
 			// ...barrierType
@@ -260,7 +267,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// get product table data
 			enum {
-				colProductCounterpartyId = 2, colProductStrikeDate = 6, colProductCcy = 14, colProductUserId = 26, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
+				colProductCounterpartyId = 2, colProtectionLevelId, colProductStrikeDate = 6, colProductCcy = 14, colProductUserId = 26, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
@@ -317,6 +324,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			AMC                     = atof(szAllPrices[colProductAMC]);
 			productShapeId          = atoi(szAllPrices[colProductShapeId]);
 			productShape			= productShapeMap[productShapeId];
+			protectionLevelId       = atoi(szAllPrices[colProtectionLevelId]);
+			protectionLevel			= protectionLevelMap[protectionLevelId];
+			fullyProtected          = protectionLevel.find("Full") != std::string::npos;
 			// assemble timepoints request
 			productTimepoints		= szAllPrices[colProductTimepoints];
 			vector<string> timepoints;
@@ -998,7 +1008,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
 			SProduct spr(bLastDataDate,productId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
-				productShape, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
+				productShape, fullyProtected, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices,doShiftPrices);
 			numBarriers = 0;
