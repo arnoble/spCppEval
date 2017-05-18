@@ -221,7 +221,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int              numBarriers = 0, thisIteration = 0;
 			int              i, j, k, len, len1, anyInt, anyInt1, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId;
-			double           anyDouble, maxBarrierDays,barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, protectionLevelId, issuePrice, bidPrice, askPrice, midPrice,baseCcyReturn;
+			double           anyDouble, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, protectionLevelId, issuePrice, bidPrice, askPrice, midPrice, baseCcyReturn, benchmarkStrike;
 			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, productBaseCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
@@ -271,7 +271,8 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
-				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, colProductFundingFractionFactor, colProductLast
+				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, 
+				colProductFundingFractionFactor, colProductBenchmarkStrike,colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -297,6 +298,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			fairValueDateString           = szAllPrices[colProductFairValueDate];
 			bidAskDateString              = szAllPrices[colProductBidAskDate];
 			int  benchmarkId              = atoi(szAllPrices[colProductBenchmarkId]);
+			benchmarkStrike               = benchmarkId > 0 ? atof(szAllPrices[colProductBenchmarkStrike]) : 0.0;
 			if (benchmarkId != 0 && !doUKSPA && getMarketData){ benchmarkId = 0; } // do not need (possibly-not-market-data-tracked) benchmark for a fairvalue calc
 			double hurdleReturn           = atof(szAllPrices[colProductHurdleReturn])/100.0;
 			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductBenchmarkTER]) / 100.0);
@@ -669,7 +671,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 
 
-			// benchmark moneyness ... measure performance only from va;luation date
+			// benchmark moneyness ... measure performance only from valuation date
 			double benchmarkMoneyness = 1.0;
 			/*
 			if (benchmarkId != 0){
@@ -1008,7 +1010,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
 			SProduct spr(bLastDataDate,productId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
-				productShape, fullyProtected, depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
+				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices,doShiftPrices);
 			numBarriers = 0;

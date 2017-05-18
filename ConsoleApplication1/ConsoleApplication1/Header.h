@@ -1631,7 +1631,7 @@ private:
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate,&bLastDataDate;
 	const int                       daysExtant;
-	const double                    fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
+	const double                    benchmarkStrike,fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
 	const bool                      fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured;
 	const std::vector<SomeCurve>    baseCurve;
@@ -1652,6 +1652,7 @@ public:
 		const bool                      showMatured,
 		const std::string				productShape,
 		const bool                      fullyProtected,
+		const double                    benchmarkStrike,
 		const bool                      depositGteed, 
 		const bool                      collateralised,
 		const int                       daysExtant,
@@ -1671,7 +1672,8 @@ public:
 		const std::vector<bool>         &doShiftPrices)
 		: bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
-		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), depositGteed(depositGteed), collateralised(collateralised),
+		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
+		benchmarkStrike(benchmarkStrike), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices){};
@@ -2365,14 +2367,7 @@ public:
 										// DOME: just because a KIP barrier is hit does not mean the put option is ITM
 										// ...currently all payoffs for this barrier are measured...so we currently do not report when KIP is hit AND option is ITM
 										// ...could just use this predicate around the next block: 
-										// if(!(thisBarrier.payoffType === 'put' && thisBarrier.Participation<0 && optionPayoff === 0) ){
-										// ** maybe record benchmark performance
-										if (benchmarkId){
-											n      = ulIdNameMap[benchmarkId];
-											double thisRefLevel = startLevels[n] / benchmarkMoneyness;
-											benchmarkReturn = thesePrices[n] / thisRefLevel;
-										}
-										// END 
+										// if(!(thisBarrier.payoffType === 'put' && thisBarrier.Participation<0 && optionPayoff === 0) ){									
 										matured         = true;
 										maturityBarrier = thisBarrier;
 										// add forwardValue of paidOutCoupons
@@ -2406,6 +2401,16 @@ public:
 										// add accumulated couponValue, unless b.forfeitCoupons is set
 										if (!b.isForfeitCoupons){ 
 											thisPayoff += (fullyProtected && (couponValue + accruedCoupon) < 0.0) ? 0.0 : couponValue + accruedCoupon;
+										}
+										// ** maybe record benchmark performance
+										if (benchmarkId){
+											n      = ulIdNameMap[benchmarkId];
+											double thisRefLevel = startLevels[n] / benchmarkMoneyness;
+											benchmarkReturn = thesePrices[n] / thisRefLevel;
+											if (benchmarkStrike > 0.0){   // assume investor short a PUT
+												double bmPutReturn = thesePrices[n] / benchmarkStrike;
+												thisPayoff *= bmPutReturn < 1.0 ? bmPutReturn : 1.0;
+											}
 										}
 									}
 								} // END of capital barrier processing
