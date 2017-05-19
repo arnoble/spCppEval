@@ -757,8 +757,8 @@ int _tmain(int argc, _TCHAR* argv[])
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
 					sprintf(ulSql, "%s%s%d%s", ulSql, ") and userid=", userId, " order by UnderlyingId, Tenor, Strike");
-					// .. parse each record <Date,price0,...,pricen>
-					thisUidx    = 0;
+					// .. parse each record <UnderlyingId,Tenor,Strike,Impvol>
+					thisUidx    = 0;          // underlying index
 					thisTenor   = -1.0;
 					mydb.prepare((SQLCHAR *)ulSql, 4);
 					retcode = mydb.fetch(true, ulSql);
@@ -768,7 +768,10 @@ int _tmain(int argc, _TCHAR* argv[])
 						double nextTenor  = atof(szAllPrices[1]);
 						double thisStrike = atof(szAllPrices[2]);
 						double thisVol    = atof(szAllPrices[3]);
-						if (nextTenor != thisTenor){
+						// data order: underlyingId, tenor, strike
+						// ... if either underlyingId or tenor changes
+						if (nextTenor != thisTenor || nextUidx != thisUidx){
+							// save a row in volSurface for the current underlying 
 							if (someVols.size() > 0){
 								ulVolsImpVol[thisUidx].push_back(someVols);
 								someVols.resize(0);
@@ -783,9 +786,10 @@ int _tmain(int argc, _TCHAR* argv[])
 							thisTenor   = nextTenor;
 							ulVolsTenor[thisUidx].push_back(thisTenor);
 						}
+						// accumulate this strike/vol/fwdVol
 						someVols.push_back(thisVol);
 						someStrikes.push_back(thisStrike);
-						// forward vols
+						// push this forward vols
 						int numTenors  = ulVolsImpVol[thisUidx].size();
 						int numStrikes = someStrikes.size();
 						if (numTenors > 0){ // calc forward vols
