@@ -1633,7 +1633,7 @@ private:
 	const int                       daysExtant;
 	const double                    benchmarkStrike,fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured;
+	const bool                      fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 
@@ -1669,14 +1669,15 @@ public:
 		const double                    askPrice,
 		const double                    baseCcyReturn,
 		const std::vector<double>       &shiftPrices,
-		const std::vector<bool>         &doShiftPrices)
+		const std::vector<bool>         &doShiftPrices,
+		const bool                      forceIterations)
 		: bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
 		benchmarkStrike(benchmarkStrike), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
-		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices){};
+		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations){};
 
 	// public members: DOME consider making private
 	const unsigned int              longNumOfSequences=1000;
@@ -1978,7 +1979,9 @@ public:
 		std::vector<double> debugCorrelatedRandNos;
 		int numDisables(0);
 		int randnosStoreSize = randnosStore.size();
-		for (thisIteration = 0; thisIteration < numMcIterations && (!consumeRands || randnoIndx<=randnosStoreSize) && fabs(stdevRatioPctChange)>accuracyTol; thisIteration++) {
+		for (thisIteration = 0; thisIteration < numMcIterations &&
+			(!consumeRands || randnoIndx<=randnosStoreSize)     && 
+			(forceIterations || fabs(stdevRatioPctChange)>accuracyTol); thisIteration++) {
 
 			// create new random sample for next iteration
 			if (numMcIterations > 1){

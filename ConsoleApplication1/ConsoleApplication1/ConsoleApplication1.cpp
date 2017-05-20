@@ -17,8 +17,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
-		int              numMcIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             doFinalAssetReturn(false), forceIterations(true), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
+		int              thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
+		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false),  useProductFundingFractionFactor(false);
 		bool             fullyProtected,firstTime;
@@ -277,9 +277,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 			retcode = mydb.fetch(true,lineBuffer);
-			int  thisNumIterations  = forceIterations ? numMcIterations : atoi(szAllPrices[colProductMaxIterations]);
-			if (numMcIterations < thisNumIterations){ thisNumIterations = numMcIterations; }
-			if (thisNumIterations<1)                { thisNumIterations = 1; }
+			if (thisNumIterations<1) { thisNumIterations = 1; }
 			int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
 			int  userId             = getMarketData ? 3 : atoi(szAllPrices[colProductUserId]);
 			bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]) == 1;
@@ -370,7 +368,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty..." << endl; continue; }
-			cout << "Iterations:" << numMcIterations << " ProductId:" << productId << endl;
+			cout << "Iterations:" << thisNumIterations << " ProductId:" << productId << endl;
 			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
 
@@ -1016,7 +1014,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			SProduct spr(bLastDataDate,productId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
-				shiftPrices,doShiftPrices);
+				shiftPrices,doShiftPrices,forceIterations);
 			numBarriers = 0;
 
 			// get barriers from DB
