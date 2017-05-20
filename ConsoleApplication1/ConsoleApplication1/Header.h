@@ -2042,6 +2042,12 @@ public:
 								*/
 								thisT          += dt;
 								int thatPricePoint  = startPoint + thisDay;
+
+								/*
+								* EITHER: simulate new correlated shocks and calculate levels from local vols,drifts
+								*
+								* OR: reuse saved levels
+								*/
 								// ... simulate a set of standardNormal shocks
 								GenerateCorrelatedNormal(numUl, correlatedRandom, cholMatrix, normalRandom,
 									useAntithetic,     // if you want to check things using fixed shocks, just set this to 'true' and set the shocks in 'antitheticRandom'

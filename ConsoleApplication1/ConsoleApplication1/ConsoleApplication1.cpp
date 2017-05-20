@@ -13,14 +13,20 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' 'hasISIN' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   'forceIterations' ' useProductFundingFractionFactor' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd 'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'ulName,ulName  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   'forceFundingFraction:'x.x  'useThisPrice':x.x 'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' 'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >" << endl;  exit(0); }
+		if (argc < 3){ std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' "
+			<< "'hasISIN' 'hasInventory' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   "
+			<< "'forceIterations' ' useProductFundingFractionFactor' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd "
+			<< "'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'<comma-sep list of underlyings names>  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   "
+			<< "'forceFundingFraction:'x.x  'useThisPrice':x.x 'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' "
+			<< "'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >  'duration:'<number-number, or just number(min)>  'forOptimisation' " 
+			<< endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
 		int              thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
+		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doStickySmile(false),  useProductFundingFractionFactor(false);
+		bool             doStickySmile(false), useProductFundingFractionFactor(false), hasDuration(false), forOptimisation(false);
 		bool             fullyProtected,firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -33,7 +39,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		int              deltaBumps(1), vegaBumps(1), thetaBumps(1);
 		boost::gregorian::date lastDate;
-		string           anyString,ukspaCase(""), issuerPartName(""), forceFundingFraction("");
+		string           durationString(""),anyString,ukspaCase(""), issuerPartName(""), forceFundingFraction("");
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
@@ -56,9 +62,29 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
 			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }			
 			if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
+			if (strstr(thisArg, "hasInventory"      )){ hasInventory       = true; }
 			if (strstr(thisArg, "showMatured"       )){ showMatured        = true; }			
 			if (strstr(thisArg, "notStale"          )){ notStale           = true; }
 			if (strstr(thisArg, "stickySmile"       )){ doStickySmile      = true; }
+			if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
+			
+			if (sscanf(thisArg, "duration:%s", lineBuffer)){
+				// number-number, or just number(min)
+				hasDuration = true;
+				char *token = std::strtok(lineBuffer, "-");
+				std::vector<std::string> tokens;
+				while (token != NULL) { 
+					tokens.push_back(token); token = std::strtok(NULL, ":"); 
+				}
+				int numTokens = tokens.size();
+				if (numTokens > 0){
+					sprintf(lineBuffer, " and Duration > %s", tokens[0].c_str());
+					if (numTokens > 1){
+						sprintf(lineBuffer, "%s and Duration < %s", lineBuffer, tokens[1].c_str());
+					}
+					durationString = lineBuffer;
+				}
+			}
 			if (strstr(thisArg, "doDeltas")){
 					getMarketData   = true;
 					doDeltas        = true; 
@@ -179,7 +205,13 @@ int _tmain(int argc, _TCHAR* argv[])
 		// open database
 		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
 
+
 		// get list of productIds
+		// ... but first deal with any optimisation demands
+		if (forOptimisation){
+			allProductIds.push_back(1);  // special product id=1 with UK100,SX5E,SPX
+			// find max date for these products
+		}
 		if (commaSepList == 1) {
 			sprintf(charBuffer, "%s%s%s", " where p.ProductId in (", WcharToChar(argv[1], &numChars),") ");
 		}
@@ -188,13 +220,16 @@ int _tmain(int argc, _TCHAR* argv[])
 		} else{
 			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
 		}
-		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto, "cashflows c using (ProductId) join institution i on (p.counterpartyid=i.institutionid) ", 
+		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto, 
+			"cashflows c using (ProductId) join institution i on (p.counterpartyid=i.institutionid) ", 
 			(onlyTheseUls ? onlyTheseUlsBuffer : ""),
 			charBuffer,
-			showMatured ? "" : " and Matured=0 ", 
-			(notIllustrative ? " and Illustrative=0 " : ""), 
-			(hasISIN         ? " and ISIN != '' "     : ""),
-			(notStale        ? " and StalePrice=0 "   : ""),
+			showMatured      ? ""                      : " and Matured=0 ", 
+			(notIllustrative ? " and Illustrative=0 "  : ""), 
+			(hasISIN         ? " and ISIN != '' "      : ""),
+			(hasInventory    ? " and p.Inventory > 0 " : ""),			
+			(notStale        ? " and StalePrice=0 "    : ""),
+			(hasDuration     ? durationString.c_str()  : ""),
 			" and ProjectedReturn=1 ");
 		if (minSecsTaken){
 			sprintf(lineBuffer, "%s%s%d",lineBuffer, " and SecsTaken>=", minSecsTaken);
@@ -214,6 +249,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
 		// loop through each product
+		std::vector<std::vector<std::vector<double>>> mcForwards(maxUls, std::vector<std::vector<double>>(numMonDates));
 		int numProducts = allProductIds.size();
 		if (numProducts>1){ doUseThisPrice = false; }
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
@@ -1353,12 +1389,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			 * ... "doPriipsVolOnly" will do b) ONLY
 			 */
 			if (!doPriipsVolOnly){
+				// first-time we set conserveRande=true and consumeRande=false
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsVol */,false /* doPriipsStress */, 
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
-					ovveridePriipsStartDate, thisFairValue, doBumps, false, productHasMatured);
-
+					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured);
+				
 				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), thetaBumpAmount(0.0);
 				if (doBumps && (deltaBumps || vegaBumps || thetaBumps)  /* && daysExtant>0 */){
 					vector< vector<vector<double>> >  holdUlFwdVol(thisMarketData.ulVolsFwdVol);
@@ -1445,7 +1482,7 @@ int _tmain(int argc, _TCHAR* argv[])
 									spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 										numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 										contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false,false,useProto, getMarketData, useUserParams, thisMarketData,
-										cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps, true, productHasMatured);
+										cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured);
 									if (doDeltas){
 										if (deltaBumpAmount != 0.0){
 											double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
@@ -1502,7 +1539,7 @@ int _tmain(int argc, _TCHAR* argv[])
 								spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 									numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 									contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, false,useProto, getMarketData, useUserParams, thisMarketData,
-									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps, true, productHasMatured);
+									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true, productHasMatured);
 								if (doDeltas) {
 									if (deltaBumpAmount != 0.0){
 										double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
