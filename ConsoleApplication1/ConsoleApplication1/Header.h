@@ -1630,10 +1630,10 @@ private:
 	const std::vector<std::string>  &ulNames;
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate,&bLastDataDate;
-	const int                       daysExtant;
+	const int                       daysExtant, productIndx;
 	const double                    benchmarkStrike,fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      forOptimisation,fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 
@@ -1670,14 +1670,18 @@ public:
 		const double                    baseCcyReturn,
 		const std::vector<double>       &shiftPrices,
 		const std::vector<bool>         &doShiftPrices,
-		const bool                      forceIterations)
+		const bool                      forceIterations,
+		std::vector<std::vector<std::vector<double>>> &optimiseMcLevels,
+		const bool                      forOptimisation, 
+		const int                       productIndx)
 		: bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
 		benchmarkStrike(benchmarkStrike), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
-		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations){};
+		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
+		forOptimisation(forOptimisation), productIndx(productIndx){};
 
 	// public members: DOME consider making private
 	const unsigned int              longNumOfSequences=1000;
@@ -1690,6 +1694,7 @@ public:
 	std::vector <double>            priipsStressVols,baseCurveTenor, baseCurveSpread,randnosStore,shiftPrices;
 	std::vector<boost::gregorian::date> allBdates;
 	std::vector<SpPayoffAndDate>    storeFixedCoupons;
+	std::vector<std::vector<std::vector<double>>> &optimiseMcLevels;
 
 	// init
 	void init(const double maxYears){
@@ -2045,7 +2050,13 @@ public:
 
 								/*
 								* EITHER: simulate new correlated shocks and calculate levels from local vols,drifts
-								*
+								*/
+								if (forOptimisation && productIndx != 0){
+									for (i = 0; i < numUl; i++) {
+										ulPrices[i].price[thatPricePoint] = optimiseMcLevels[i][thisDay-1][thisIteration];
+									}
+								}
+								/*
 								* OR: reuse saved levels
 								*/
 								// ... simulate a set of standardNormal shocks
@@ -2067,6 +2078,9 @@ public:
 									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0);
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 									// debugCorrelatedRandNos.push_back(currentQuantoLevels[i]/spotLevels[i]);
+									if (forOptimisation && productIndx == 0){
+										optimiseMcLevels[i][thisDay-1].push_back(currentQuantoLevels[i]);
+									}
 								}
 							}
 						}
@@ -2813,7 +2827,28 @@ public:
 					}
 					
 				}
-
+				// possibly save all annRets into productreturns table
+				if (forOptimisation && productIndx != 0){
+					const int maxNumToSend = 1000;
+					bool firstTime;
+					for (int i=0; i<allAnnRets.size(); i++){
+						if (i % maxNumToSend == 0 ){
+							// send batch
+							if (i != 0){
+								mydb.prepare((SQLCHAR *)lineBuffer, 1);
+							}
+							// init for next batch							
+							strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet) values ");
+							firstTime = true;
+						}						
+						sprintf(lineBuffer,"%s%s%d%s%d%s%.4lf%s",lineBuffer,firstTime ? "(" : ",(",productId,",",i,",",allAnnRets[i],")");
+						firstTime = false;
+					}
+					// send final stub
+					if (strlen(lineBuffer)){
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
+				}
 				if (!doPriipsVol && !doPriips && doMostLikelyBarrier && maxBarrierProb>0.0){
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 						"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,

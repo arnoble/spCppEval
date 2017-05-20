@@ -27,7 +27,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), hasDuration(false), forOptimisation(false);
-		bool             fullyProtected,firstTime;
+		bool             forceFullPriceRecord(false),fullyProtected, firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -37,7 +37,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
 		double           useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
-		int              deltaBumps(1), vegaBumps(1), thetaBumps(1);
+		int              optimiseNumUls(0),deltaBumps(1), vegaBumps(1), thetaBumps(1);
 		boost::gregorian::date lastDate;
 		string           durationString(""), anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
@@ -251,6 +251,12 @@ int _tmain(int argc, _TCHAR* argv[])
 
 		// deal with any optimisation demands
 		if (forOptimisation){
+			// find #underlyings
+			sprintf(lineBuffer, "%s%d%s", "select count(*) from (select distinct underlyingid from barrierrelation join productbarrier using (productbarrierid) where productid in (",
+				allProductIds[0], "))x");
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			retcode = mydb.fetch(true, lineBuffer);
+			optimiseNumUls     = atoi(szAllPrices[0]);
 			// find max date for these products
 			strcpy(charBuffer, "");
 			for (int i=1; i < numProducts; i++){
@@ -273,14 +279,36 @@ int _tmain(int argc, _TCHAR* argv[])
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
 			retcode = mydb.fetch(true, lineBuffer);
 			string thisLastDate = szAllPrices[0];
+
+			
+			// calc #days of underlyings simulated levels we will need to store
 			boost::gregorian::date bLastDataDate(boost::gregorian::from_simple_string(thisLastDate));
 			boost::gregorian::date_duration dateDiff(bLastOptimiseDate - bLastDataDate);
 			optimiseNumDays = dateDiff.days();
+
+			// force generation of daily paths
+			forceFullPriceRecord = true;
+
+			// reset SettlementDate,StartDate,EndDate on SpecialProduct (id=1)
+			sprintf(charBuffer, "%s", lastOptimiseDate.c_str());
+			sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%d", "update barrierrelation join productbarrier using (productbarrierid) join product using (productid) set ",
+				"FinalValuationDate='", charBuffer,
+				"',MaturityDate='", charBuffer,
+				"',SettlementDate='", charBuffer,
+				"',StartDate='", charBuffer,
+				"',EndDate='", charBuffer,
+				"' where productid=",
+				allProductIds[0]);
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+
+			// clear productreturns table
+			sprintf(lineBuffer, "%s", "delete from productreturns");
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
 		}
 
 
 		// loop through each product
-		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(maxUls, std::vector<std::vector<double>>(optimiseNumDays));
+		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(optimiseNumUls, std::vector<std::vector<double>>(optimiseNumDays));
 		if (numProducts>1){ doUseThisPrice = false; }
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
 			int              oldProductBarrierId = 0, productBarrierId = 0;
@@ -1080,7 +1108,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			SProduct spr(bLastDataDate,productId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
-				shiftPrices,doShiftPrices,forceIterations);
+				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, forOptimisation,productIndx);
 			numBarriers = 0;
 
 			// get barriers from DB
@@ -1397,6 +1425,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			
 			// initialise product, now we have all the state
 			spr.init(maxYears);
+			productNeedsFullPriceRecord = forceFullPriceRecord || productNeedsFullPriceRecord;
 
 			// get accrued coupons
 			double accruedCoupon(0.0);
