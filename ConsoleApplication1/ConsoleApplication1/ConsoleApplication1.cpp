@@ -22,7 +22,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			<< endl;  exit(0); }
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
-		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0),eqCorrelationUid(0), eqCorrelationOtherId(0);
+		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
@@ -39,7 +39,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		int              deltaBumps(1), vegaBumps(1), thetaBumps(1);
 		boost::gregorian::date lastDate;
-		string           durationString(""),anyString,ukspaCase(""), issuerPartName(""), forceFundingFraction("");
+		string           durationString(""), anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
@@ -210,8 +210,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		// ... but first deal with any optimisation demands
 		if (forOptimisation){
 			allProductIds.push_back(1);  // special product id=1 with UK100,SX5E,SPX
-			// find max date for these products
 		}
+
 		if (commaSepList == 1) {
 			sprintf(charBuffer, "%s%s%s", " where p.ProductId in (", WcharToChar(argv[1], &numChars),") ");
 		}
@@ -246,11 +246,41 @@ int _tmain(int argc, _TCHAR* argv[])
 			int x(atoi(szAllPrices[0])); allProductIds.push_back(x);
 			retcode = mydb.fetch(false,"");
 		}
+		int numProducts = allProductIds.size();
 		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
+		// deal with any optimisation demands
+		if (forOptimisation){
+			// find max date for these products
+			strcpy(charBuffer, "");
+			for (int i=1; i < numProducts; i++){
+				sprintf(charBuffer, "%s%s%d", charBuffer, i > 1 ? "," : "", allProductIds[i]);
+			}
+			sprintf(lineBuffer, "%s%s%s", "select max(greatest(settlementDate,EndDate)) from barrierrelation join productbarrier using (productbarrierid) where productid in (",
+				charBuffer, ")");
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			retcode = mydb.fetch(true, lineBuffer);
+			lastOptimiseDate = szAllPrices[0]; 
+			boost::gregorian::date bLastOptimiseDate(boost::gregorian::from_simple_string(lastOptimiseDate));
+
+			// find last data date
+			sprintf(lineBuffer, "%s%s%s", "select group_concat(underlyingid) from (select distinct underlyingid from barrierrelation join productbarrier using (productbarrierid) where productid in (",
+				charBuffer, "))x");
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			retcode = mydb.fetch(true, lineBuffer);
+			string concatUlIds = szAllPrices[0];
+			sprintf(lineBuffer, "%s%s%s", "select max(Date) from prices where underlyingid in (", concatUlIds.c_str(), ")");
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			retcode = mydb.fetch(true, lineBuffer);
+			string thisLastDate = szAllPrices[0];
+			boost::gregorian::date bLastDataDate(boost::gregorian::from_simple_string(thisLastDate));
+			boost::gregorian::date_duration dateDiff(bLastOptimiseDate - bLastDataDate);
+			optimiseNumDays = dateDiff.days();
+		}
+
+
 		// loop through each product
-		std::vector<std::vector<std::vector<double>>> mcForwards(maxUls, std::vector<std::vector<double>>(numMonDates));
-		int numProducts = allProductIds.size();
+		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(maxUls, std::vector<std::vector<double>>(optimiseNumDays));
 		if (numProducts>1){ doUseThisPrice = false; }
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
 			int              oldProductBarrierId = 0, productBarrierId = 0;
