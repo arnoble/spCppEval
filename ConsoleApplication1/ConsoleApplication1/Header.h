@@ -1497,7 +1497,10 @@ public:
 		else{                    sumNegPayoffs    += amount; numNegPayoffs++; }
 		sumProportion  += proportion;
 		if (doAccruals) { hitWithDate.push_back(SpPayoffAndDate(thisDateString, amount)); }
-		else {            hit.push_back(        SpPayoff(thisDateString, amount)); }
+		else {            
+			hit.push_back( SpPayoff(thisDateString, amount) );
+
+		}
 		couponValues.push_back(couponValue);
 		if (doFinalAssetReturn){ fars.push_back(finalAssetInfo(finalAssetReturn,finalAssetIndx,barrierIndx)); }
 		if (storeBenchmarkReturn){ bmrs.push_back(benchmarkReturn); }
@@ -1623,7 +1626,7 @@ double PayoffStdev(const std::vector<SpBarrier> &barrier, const double mean){
 // structured product
 class SProduct {
 private:
-	int productId;
+	int                             productId;
 	const std::string               productCcy;
 	const std::vector <bool>        &allNonTradingDays;
 	const std::vector <int>         &ulIds;
@@ -1636,7 +1639,6 @@ private:
 	const bool                      forOptimisation,fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
-
 
 public:
 	SProduct(
@@ -1672,6 +1674,7 @@ public:
 		const std::vector<bool>         &doShiftPrices,
 		const bool                      forceIterations,
 		std::vector<std::vector<std::vector<double>>> &optimiseMcLevels,
+		std::vector<int>                &optimiseUlIdNameMap,
 		const bool                      forOptimisation, 
 		const int                       productIndx)
 		: bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
@@ -1681,7 +1684,7 @@ public:
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
-		forOptimisation(forOptimisation), productIndx(productIndx){};
+		optimiseUlIdNameMap(optimiseUlIdNameMap),forOptimisation(forOptimisation), productIndx(productIndx){};
 
 	// public members: DOME consider making private
 	const unsigned int              longNumOfSequences=1000;
@@ -1693,9 +1696,9 @@ public:
 	std::vector <bool>              useUl,doShiftPrices;
 	std::vector <double>            priipsStressVols,baseCurveTenor, baseCurveSpread,randnosStore,shiftPrices;
 	std::vector<boost::gregorian::date> allBdates;
-	std::vector<SpPayoffAndDate>    storeFixedCoupons;
+	std::vector<SpPayoffAndDate>        storeFixedCoupons;
 	std::vector<std::vector<std::vector<double>>> &optimiseMcLevels;
-
+	std::vector<int>                    &optimiseUlIdNameMap;
 	// init
 	void init(const double maxYears){
 		// ...prebuild all dates outside loop
@@ -1763,18 +1766,22 @@ public:
 		bool                      &productHasMatured
 		){
 		std::vector<bool>		 barrierDisabled;
+		const int                optMaxNumToSend = 1000;
+		const double             unwindPayoff    = 0.1;
+		bool                     optFirstTime;
 		bool                     matured;
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = timepointDays.size();
 		int                      randnoIndx       =  0;
+		int                      optCount         = 0;
 		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
-		double                   anyDouble, anyDouble1, couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
+		double                   thisAmount,anyDouble, anyDouble1, couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		boost::gregorian::date   bFixedCouponsDate(bLastDataDate);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
-		std::vector<double>      stdevRatioPctChanges;
+		std::vector<double>      stdevRatioPctChanges, optimiseAnnRets; optimiseAnnRets.reserve(numMcIterations);
 		std::vector< std::vector<double> > someTimepoints[100];
 		std::vector<double>           someLevels[100], somePaths[100]; 
 		std::vector< std::vector<  std::vector<double> > > timepointLevels;
@@ -1797,6 +1804,7 @@ public:
 				if (!barrier.at(thisBarrier).capitalOrIncome) { numIncomeBarriers  += 1; }
 			}
 		}
+		
 		std::vector<int>   numCouponHits(numIncomeBarriers+1);
 		for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 			barrierDisabled.push_back(false);
@@ -2053,7 +2061,9 @@ public:
 								*/
 								if (forOptimisation && productIndx != 0){
 									for (i = 0; i < numUl; i++) {
-										ulPrices[i].price[thatPricePoint] = optimiseMcLevels[i][thisDay-1][thisIteration];
+										int id = ulIds[i];
+										int ix = optimiseUlIdNameMap[id];
+										ulPrices[i].price[thatPricePoint] = optimiseMcLevels[ix][thisDay-1][thisIteration];
 									}
 								}
 								/*
@@ -2436,6 +2446,14 @@ public:
 											}
 										}
 									}
+									// possibly save all annRets into productreturns table
+									// BEWARE
+									if (forOptimisation && productIndx != 0){
+										thisAmount        = b.proportionHits*thisPayoff*baseCcyReturn;
+										double thisYears  = b.yearsToBarrier;
+										double thisAnnRet = thisYears <= 0.0 ? 0.0 : min(0.4, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+										optimiseAnnRets.push_back(thisAnnRet);
+									}
 								} // END of capital barrier processing
 								else { // income barrier processing
 									if (thisPayoff == 0.0 && b.barrierCommands ==""){ // Rainbow option coupons for example, where a 'hit' is only known after the option payoff is calculated 
@@ -2472,8 +2490,9 @@ public:
 								} // END income barrier processing
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
-								b.storePayoff(thisDateString, b.proportionHits*thisPayoff*baseCcyReturn, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
-									finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);
+								thisAmount = b.proportionHits*thisPayoff*baseCcyReturn;
+								b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
+									finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);																
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}
 							} // END is barrier hit
@@ -2581,8 +2600,28 @@ public:
 				sprintf(lineBuffer, "%s%lf%s%s%s%d%s", "update product join cashflows using (productid) set Matured=1,MaturityPayoff=", thisAmount, ",DateMatured='", b.settlementDate.c_str(), "' where productid=", productId, " and projectedreturn=1");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 			}
-		}
+		} // doAccruals
 		else {
+			// send final optimisation stub
+			if (forOptimisation && productIndx != 0){
+				for (optCount=0; optCount < optimiseAnnRets.size(); optCount++){
+					if (optCount % optMaxNumToSend == 0){
+						// send batch
+						if (optCount != 0){
+							mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						}
+						// init for next batch							
+						strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet) values ");
+						optFirstTime = true;
+					}
+					sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", productId, ",", optCount, ",", optimiseAnnRets[optCount], ")");
+					optFirstTime  = false;
+				}
+				if (strlen(lineBuffer)){
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
+			}
+
 			if (0 && debugCorrelatedRandNos.size()>2) {
 				double thisMean, thisStd, thisStderr;
 				MeanAndStdev(debugCorrelatedRandNos, thisMean, thisStd, thisStderr);
@@ -2643,7 +2682,6 @@ public:
 
 			// process results
 			const double tol = 1.0e-6;
-			const double unwindPayoff = 0.1;
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
@@ -2734,7 +2772,7 @@ public:
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount      = thisBarrierPayoffs[i];
 							double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(0.4,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
-							if (thisAnnRet < -0.9999){ thisAnnRet = -0.9999; } // svoid later problems with log(1.0+annRets)
+							if (thisAnnRet < -0.9999){ thisAnnRet = -0.9999; } // avoid later problems with log(1.0+annRets)
 							double thisCouponValue = thisBarrierCouponValues[i];
 							double thisCouponRet   = thisYears <= 0.0 || (couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue < 0.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
 
@@ -2826,28 +2864,6 @@ public:
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 					
-				}
-				// possibly save all annRets into productreturns table
-				if (forOptimisation && productIndx != 0){
-					const int maxNumToSend = 1000;
-					bool firstTime;
-					for (int i=0; i<allAnnRets.size(); i++){
-						if (i % maxNumToSend == 0 ){
-							// send batch
-							if (i != 0){
-								mydb.prepare((SQLCHAR *)lineBuffer, 1);
-							}
-							// init for next batch							
-							strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet) values ");
-							firstTime = true;
-						}						
-						sprintf(lineBuffer,"%s%s%d%s%d%s%.4lf%s",lineBuffer,firstTime ? "(" : ",(",productId,",",i,",",allAnnRets[i],")");
-						firstTime = false;
-					}
-					// send final stub
-					if (strlen(lineBuffer)){
-						mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					}
 				}
 				if (!doPriipsVol && !doPriips && doMostLikelyBarrier && maxBarrierProb>0.0){
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,

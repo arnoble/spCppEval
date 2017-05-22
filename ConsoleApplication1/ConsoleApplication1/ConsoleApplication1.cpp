@@ -308,6 +308,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 		// loop through each product
+		std::vector<int> optimiseUlIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
 		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(optimiseNumUls, std::vector<std::vector<double>>(optimiseNumDays));
 		if (numProducts>1){ doUseThisPrice = false; }
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
@@ -539,6 +540,9 @@ int _tmain(int argc, _TCHAR* argv[])
 				retcode = mydb.fetch(false,"");
 			}
 			numUl = ulIds.size();
+			if (forOptimisation){
+				optimiseUlIdNameMap = ulIdNameMap;
+			}
 
 			//** currencyStruck deals will have nonZero values for $crossRateUids
 			vector<int> crossRateUids ; for (i=0; i<numUl; i++) { crossRateUids.push_back(0); }
@@ -1108,7 +1112,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			SProduct spr(bLastDataDate,productId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
-				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, forOptimisation,productIndx);
+				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx);
 			numBarriers = 0;
 
 			// get barriers from DB
