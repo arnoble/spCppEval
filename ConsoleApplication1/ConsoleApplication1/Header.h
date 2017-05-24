@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <vector>
 #include <regex>
+#include <iomanip>
 
 #define MAX_SP_BUF                         500000
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
@@ -2104,6 +2105,10 @@ public:
 							mcForwards[i][thisMonIndx].push_back(currentLevels[i]);
 						}
 					}
+					for (i = 0; i < numUl; i++) {
+						simulatedReturnsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint]);
+						simulatedLevelsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays]);
+					}
 				}
 				else {
 					// bootstrap resampling
@@ -2636,7 +2641,7 @@ public:
 					MeanAndStdev(simulatedReturnsToMaxYears[i],thisMean, thisStd, thisStderr);
 					std::cout << "Simulated annualised drift rate to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << std::endl;
 					MeanAndStdev(simulatedLevelsToMaxYears[i], thisMean, thisStd, thisStderr);
-					std::cout << "Simulated final level at:" << ulPrices[i].date[startPoint + productDays] << " :" << thisMean << " for:" << ulNames[i] << std::endl;
+					std::cout << "Simulated final level at:" << ulPrices[i].date[startPoint + productDays] << ":" << thisMean << " for:" << ulNames[i] << " (" << productDays / 365.0 << "y):"  << std::endl;
 				}
 			}
 
