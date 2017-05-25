@@ -1700,6 +1700,7 @@ public:
 	std::vector<SpPayoffAndDate>        storeFixedCoupons;
 	std::vector<std::vector<std::vector<double>>> &optimiseMcLevels;
 	std::vector<int>                    &optimiseUlIdNameMap;
+	
 	// init
 	void init(const double maxYears){
 		// ...prebuild all dates outside loop
@@ -1714,7 +1715,7 @@ public:
 		// PRIIPs init
 		if (doPriips){
 			// drifts and discounting all at the rfr for the RecommendedHoldingPeriod, assumed to be max term
-			priipsRfr = interpCurve(baseCurveTenor, baseCurveSpread, maxYears);
+			priipsRfr  = interpCurve(baseCurveTenor, baseCurveSpread, maxYears);
 		}
 		// UKSPA init
 		notUKSPA = ukspaCase == "";

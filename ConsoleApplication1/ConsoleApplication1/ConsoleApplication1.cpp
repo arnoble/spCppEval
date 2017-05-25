@@ -704,7 +704,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				continue;
 			}
 
-			// shift prices if necessary
+			// shift prices if necessary - crude attempt to do shifted-lognormal analysis, where for example rates are negative
 			for (i=0; i<numUl; i++) {
 				if (minPrices[i] <= 0.0){
 					double thisShift = -minPrices[i] + 0.1*(maxPrices[i] - minPrices[i]);
@@ -793,6 +793,68 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<vector<int>>               fxcorrsOtherId(numUl);
 			vector<vector<double>>            fxcorrsCorrelation(numUl);
 
+			// get divs for a number of analysis cases
+			if (doPriips || doPriipsVolOnly || getMarketData || useUserParams){
+				//  divYields
+				sprintf(ulSql, "%s%s%s%s%s%d", "select d.underlyingid,",
+					doUKSPA || doPriips ? "100 Tenor,(d.divyield+dd.divyield)/2.0" : "Tenor,impdivyield",
+					" Rate,IsTotalReturn from ",
+					doUKSPA || doPriips ? "divyield dd join divyield d using (underlyingid,userid)" : "impdivyield d",
+					" join underlying u using (underlyingid) where d.UnderlyingId in (", ulIds[0]);
+				for (i = 1; i < numUl; i++) {
+					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
+				}
+				sprintf(ulSql, "%s%s%d%s%s", ulSql, ") and d.userid=", userId,
+					doUKSPA || doPriips ? " and dd.tenor=1 and d.tenor=5 " : "",
+					" order by UnderlyingId,Tenor ");
+				// .. parse each record <Date,price0,...,pricen>
+				mydb.prepare((SQLCHAR *)ulSql, 4);
+				retcode = mydb.fetch(false, ulSql);
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					int    thisUidx      = ulIdNameMap.at(atoi(szAllPrices[0]));
+					double thisTenor     = atof(szAllPrices[1]);
+					double thisYield     = atof(szAllPrices[2]);
+					bool   isTotalReturn = atoi(szAllPrices[3]) == 1;
+					double thisRate      = thisYield;
+
+					if (ukspaCase != ""){
+						thisRate       =  ulERPs[thisUidx] - thisYield;
+						if (ukspaCase == "Bull")        { thisRate = -thisRate; }
+						else if (ukspaCase == "Neutral"){ thisRate = 0.0; }
+						if (isTotalReturn) {
+							thisRate -= thisYield;
+						}
+					}
+					else if (doPriips || doPriipsVolOnly){
+						thisRate = -thisRate;
+					}
+					divYieldsTenor[thisUidx].push_back(thisTenor);
+					divYieldsRate[thisUidx].push_back(thisRate);
+					retcode = mydb.fetch(false, "");
+				}
+				// add dummy records for underlyings for which there are no divs (will include, for example total return indices)
+				for (i = 0; i < numUl; i++) {
+					if (divYieldsTenor[i].size() == 0){
+						double driftAdj = 0.0;
+						if (ukspaCase != "" || doPriips || doPriipsVolOnly){
+							double thisERP = ulERPs[i];
+							if (ulPriceReturnUids[i] || doPriips || doPriipsVolOnly){  // see if there is a related underlying with a yield 
+								sprintf(lineBuffer, "%s%d", "select divyield from divyield where UnderlyingId=", 
+									doPriips || doPriipsVolOnly ?  ulIds[i] : ulPriceReturnUids[i]);
+								mydb.prepare((SQLCHAR *)lineBuffer, 1);
+								retcode = mydb.fetch(false, ulSql);
+								if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+									driftAdj -= atof(szAllPrices[0]);
+								}
+							}
+							if (ukspaCase == "Bear")     { driftAdj  = thisERP + 2.0*driftAdj; }
+							else if (ukspaCase == "Bull"){ driftAdj  = -thisERP; }
+						}
+						divYieldsTenor[i].push_back(10.0);
+						divYieldsRate[i].push_back(driftAdj);
+					}
+				}
+			}
 			if (getMarketData || useUserParams){
 				int    thisUidx;
 				double thisFwdVol, thisTenor, previousVol, previousTenor;
@@ -907,7 +969,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						ulVolsFwdVol[thisUidx].push_back(someFwdVols);
 						ulVolsStrike[thisUidx].push_back(someStrikes);
 					}
-				}
+				} // END vols
 				//  OIS rates
 				sprintf(ulSql, "%s%s", "select ccy,Tenor,Rate from oncurve v where ccy in ('", ulCcys[0].c_str());
 				for (i = 1; i < numUl; i++) {
@@ -932,60 +994,6 @@ int _tmain(int argc, _TCHAR* argv[])
 					if (oisRatesTenor[i].size() == 0){
 						oisRatesTenor[i].push_back(10.0);
 						oisRatesRate[i].push_back(0.0);
-					}
-				}
-				//  divYields
-				sprintf(ulSql, "%s%s%s%s%s%d", "select d.underlyingid,", doUKSPA ? "100 Tenor,(d.divyield+dd.divyield)/2.0" : "Tenor,impdivyield",
-					" Rate,IsTotalReturn from ", 
-					doUKSPA ? "divyield dd join divyield d using (underlyingid,userid)" : "impdivyield d",
-					" join underlying u using (underlyingid) where d.UnderlyingId in (", ulIds[0]);
-				for (i = 1; i < numUl; i++) {
-					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
-				}
-				sprintf(ulSql, "%s%s%d%s%s", ulSql, ") and d.userid=", userId, 
-					doUKSPA ? " and dd.tenor=1 and d.tenor=5 " : "",
-					" order by UnderlyingId,Tenor ");
-				// .. parse each record <Date,price0,...,pricen>
-				mydb.prepare((SQLCHAR *)ulSql, 4);
-				retcode = mydb.fetch(false, ulSql);
-				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					int    thisUidx      = ulIdNameMap.at(atoi(szAllPrices[0]));
-					double thisTenor     = atof(szAllPrices[1]);
-					double thisYield     = atof(szAllPrices[2]);
-					bool   isTotalReturn = atoi(szAllPrices[3]) == 1;
-					double thisRate      = thisYield;
-
-					if (ukspaCase != ""){
-						thisRate       =  ulERPs[thisUidx] - thisYield;
-						if (ukspaCase == "Bull")        { thisRate = -thisRate; }
-						else if (ukspaCase == "Neutral"){ thisRate = 0.0; }
-						if (isTotalReturn) {
-							thisRate -= thisYield;
-						}
-					}
-					divYieldsTenor[thisUidx].push_back(thisTenor);
-					divYieldsRate[thisUidx].push_back(thisRate);
-					retcode = mydb.fetch(false, "");
-				}
-				// add dummy records for underlyings for which there are no divs (will include, for example total return indices)
-				for (i = 0; i < numUl; i++) {
-					if (divYieldsTenor[i].size() == 0){
-						double driftAdj = 0.0;
-						if (ukspaCase != ""){
-							double thisERP = ulERPs[i];
-							if (ulPriceReturnUids[i]){  // see if there is a related underlying with a yield 
-								sprintf(lineBuffer, "%s%d", "select divyield from divyield where UnderlyingId=", ulPriceReturnUids[i]);
-								mydb.prepare((SQLCHAR *)lineBuffer, 1);
-								retcode = mydb.fetch(false, ulSql);
-								if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-									driftAdj -= atof(szAllPrices[0]);
-								}
-							}
-							if (ukspaCase == "Bear")     { driftAdj  = thisERP + 2.0*driftAdj; }
-							else if (ukspaCase == "Bull"){ driftAdj  = -thisERP; }
-						}
-						divYieldsTenor[i].push_back(10.0);
-						divYieldsRate[i].push_back(driftAdj);
 					}
 				}
 				//  eq-eq corr
@@ -1428,6 +1436,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			
 			// initialise product, now we have all the state
+			vector<double> priipsDvds;
+			if (doPriips || doPriipsVolOnly){
+				for (i = 0; i < numUl; i++) {
+					priipsDvds.push_back(interpVector(divYieldsRate[i], divYieldsTenor[i], maxYears));
+				}
+			}
 			spr.init(maxYears);
 			productNeedsFullPriceRecord = forceFullPriceRecord || productNeedsFullPriceRecord;
 
@@ -1637,7 +1651,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 			}
 
-			// PRIIPs adjust driftrate to riskfree
+			// PRIIPs adjust driftrate to riskfree minus divs
 			if (doPriips){
 				// DOME: check 
 				// ... at least 2y of daily data
@@ -1649,10 +1663,8 @@ int _tmain(int argc, _TCHAR* argv[])
 					double thisDailyVol               = pow(thisVariance, .5);
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
 					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
-					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr + priipsDvds[i]) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
 					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
-
-					// do the rather dubious quanto correction
 					
 					// change underlyings' drift rate
 					for (j = 0; j < ulReturns[i].size(); j++) {
