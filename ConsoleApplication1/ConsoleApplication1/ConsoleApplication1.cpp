@@ -14,7 +14,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	try{
 		// initialise
 		if (argc < 3){ std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' "
-			<< "'hasISIN' 'hasInventory' 'notStale' 'debug' 'priips' 'priipsVolOnly' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   "
+			<< "'hasISIN' 'hasInventory' 'notStale' 'debug' 'priips' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   "
 			<< "'forceIterations' ' useProductFundingFractionFactor' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd "
 			<< "'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'<comma-sep list of underlyings names>  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   "
 			<< "'forceFundingFraction:'x.x  'useThisPrice':x.x 'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' "
@@ -25,7 +25,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), doPriipsVolOnly(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), hasDuration(false), forOptimisation(false);
 		bool             forceFullPriceRecord(false),fullyProtected, firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
@@ -53,7 +53,6 @@ int _tmain(int argc, _TCHAR* argv[])
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations"   )){ forceIterations    = true; }
 			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
-			if (strstr(thisArg, "priipsVolOnly"     )){ doPriipsVolOnly    = true; }
 			if (strstr(thisArg, "useProductFundingFractionFactor")){  useProductFundingFractionFactor  = true; }
 			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
@@ -550,9 +549,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<int>    quantoCrossRateUids; 
 			vector<double> quantoCorrelations,quantoCrossRateVols;
 			for (i=0; i < numUl; i++) { quantoCrossRateUids.push_back(0); quantoCorrelations.push_back(0.0); quantoCrossRateVols.push_back(0.0); }
-			if (currencyStruck || doPriips || doPriipsVolOnly){
+			if (currencyStruck || doPriips){
 				// get PRIIPs start date to use
-				if (doPriips || doPriipsVolOnly){
+				if (doPriips){
 					if (strlen(endDate)){ strcpy(charBuffer, endDate); }
 					else {
 						sprintf(lineBuffer, "%s", "select max(date) from prices");
@@ -571,7 +570,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 							int thisId = atoi(szAllPrices[0]);
 							if (currencyStruck             ){ crossRateUids[i]       = thisId; }
-							if (doPriips || doPriipsVolOnly){ 
+							if (doPriips){ 
 								double previousPrice[2];
 								quantoCrossRateUids[i] = thisId;
 								// get prices for ul and ccy
@@ -646,7 +645,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
 			else {
-				if (doPriips || doPriipsVolOnly){ sprintf(ulSql, "%s%s", ulSql, priipsStartDatePhrase); }
+				if (doPriips){ sprintf(ulSql, "%s%s", ulSql, priipsStartDatePhrase); }
 				else if (forceStartDate != "0000-00-00"){ sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", forceStartDate.c_str(), "'"); }
 				else if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31' "); }
 			}
@@ -794,7 +793,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<vector<double>>            fxcorrsCorrelation(numUl);
 
 			// get divs for a number of analysis cases
-			if (doPriips || doPriipsVolOnly || getMarketData || useUserParams){
+			if (doPriips || getMarketData || useUserParams){
 				//  divYields
 				sprintf(ulSql, "%s%s%s%s%s%d", "select d.underlyingid,",
 					doUKSPA || doPriips ? "100 Tenor,(d.divyield+dd.divyield)/2.0" : "Tenor,impdivyield",
@@ -825,7 +824,7 @@ int _tmain(int argc, _TCHAR* argv[])
 							thisRate -= thisYield;
 						}
 					}
-					else if (doPriips || doPriipsVolOnly){
+					else if (doPriips){
 						thisRate = -thisRate;
 					}
 					divYieldsTenor[thisUidx].push_back(thisTenor);
@@ -836,11 +835,11 @@ int _tmain(int argc, _TCHAR* argv[])
 				for (i = 0; i < numUl; i++) {
 					if (divYieldsTenor[i].size() == 0){
 						double driftAdj = 0.0;
-						if (ukspaCase != "" || doPriips || doPriipsVolOnly){
+						if (ukspaCase != "" || doPriips){
 							double thisERP = ulERPs[i];
-							if (ulPriceReturnUids[i] || doPriips || doPriipsVolOnly){  // see if there is a related underlying with a yield 
+							if (ulPriceReturnUids[i] || doPriips){  // see if there is a related underlying with a yield 
 								sprintf(lineBuffer, "%s%d", "select divyield from divyield where UnderlyingId=", 
-									doPriips || doPriipsVolOnly ?  ulIds[i] : ulPriceReturnUids[i]);
+									doPriips ?  ulIds[i] : ulPriceReturnUids[i]);
 								mydb.prepare((SQLCHAR *)lineBuffer, 1);
 								retcode = mydb.fetch(false, ulSql);
 								if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
@@ -1412,6 +1411,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			// so omit for non-PRIIPs analysis
 			vector<double> calendarDailyVariance;
 			if (doPriips){
+				vector<double> priipsDvds;
+				if (doPriips){
+					for (i = 0; i < numUl; i++) {
+						priipsDvds.push_back(interpVector(divYieldsRate[i], divYieldsTenor[i], maxYears));
+					}
+				}
 				// do convexity adjustment
 				for (i = 0; i < numUl; i++) {
 					originalUlReturns[i] = ulReturns[i];
@@ -1423,7 +1428,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						}
 					}
 					double sliceMean, sliceStdev, sliceStderr;
-					const double volScalingFactor(sqrt(253.0 / 365.25));	
+					const double volScalingFactor(sqrt(253.0 / 365.25));
 					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
 					calendarDailyVariance.push_back(sliceStdev*sliceStdev * volScalingFactor);
 					double thisDailyDriftCorrection = exp(-0.5*calendarDailyVariance[i]);
@@ -1433,15 +1438,28 @@ int _tmain(int argc, _TCHAR* argv[])
 						ulReturns[i][j] *= thisDailyDriftCorrection;
 					}
 				}
-			}
+				// adjust driftrate to riskfree minus divs
+				// DOME: check 
+				// ... at least 2y of daily data
+				// ... monthly data is penalised by RiskScore +1
+
+				for (i = 0; i < numUl; i++) {
+					double thisVariance               = calendarDailyVariance[i];
+					double thisDailyVol               = pow(thisVariance, .5);
+					// calculate ACTUAL drift rates	
+					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
+					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr + priipsDvds[i]) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
+					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
+
+					// change underlyings' drift rate
+					for (j = 0; j < ulReturns[i].size(); j++) {
+						ulReturns[i][j] *= priipsDailyDriftCorrection;
+					}
+				}
+			} // doPriips
 			
 			// initialise product, now we have all the state
-			vector<double> priipsDvds;
-			if (doPriips || doPriipsVolOnly){
-				for (i = 0; i < numUl; i++) {
-					priipsDvds.push_back(interpVector(divYieldsRate[i], divYieldsTenor[i], maxYears));
-				}
-			}
 			spr.init(maxYears);
 			productNeedsFullPriceRecord = forceFullPriceRecord || productNeedsFullPriceRecord;
 
@@ -1450,7 +1468,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			bool   productHasMatured(false);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, false, useProto, getMarketData,useUserParams,thisMarketData,
+				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData,useUserParams,thisMarketData,
 				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured);
 
 			// ...check product not matured
@@ -1459,17 +1477,11 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
-			/* our PRIIPS analysis does:
-			 * a) realworld drifts, IPR-vol methodology
-			 * b) riskfree drifts, PRIIPS-vol methodlogy
-			 * ... "doPriips"        will do a) and b)
-			 * ... "doPriipsVolOnly" will do b) ONLY
-			 */
-			if (!doPriipsVolOnly){
+			if (!doPriips){
 				// first-time we set conserveRande=true and consumeRande=false
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsVol */,false /* doPriipsStress */, 
+					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false /* doPriipsStress */, 
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
 					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured);
 				
@@ -1558,7 +1570,7 @@ int _tmain(int argc, _TCHAR* argv[])
 									// re-evaluate
 									spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 										numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-										contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false,false,useProto, getMarketData, useUserParams, thisMarketData,
+										contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false,useProto, getMarketData, useUserParams, thisMarketData,
 										cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured);
 									if (doDeltas){
 										if (deltaBumpAmount != 0.0){
@@ -1615,7 +1627,7 @@ int _tmain(int argc, _TCHAR* argv[])
 								cerr << "BUMPALL: theta:" << thetaBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
 								spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 									numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-									contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, false,useProto, getMarketData, useUserParams, thisMarketData,
+									contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false,useProto, getMarketData, useUserParams, thisMarketData,
 									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true, productHasMatured);
 								if (doDeltas) {
 									if (deltaBumpAmount != 0.0){
@@ -1653,24 +1665,6 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// PRIIPs adjust driftrate to riskfree minus divs
 			if (doPriips){
-				// DOME: check 
-				// ... at least 2y of daily data
-				// ... monthly data is penalised by RiskScore +1
-
-				// calculate ACTUAL drift rates
-				for (i = 0; i < numUl; i++) {
-					double thisVariance               = calendarDailyVariance[i];
-					double thisDailyVol               = pow(thisVariance, .5);
-					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
-					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
-					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr + priipsDvds[i]) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
-					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
-					
-					// change underlyings' drift rate
-					for (j = 0; j < ulReturns[i].size(); j++) {
-						ulReturns[i][j] *= priipsDailyDriftCorrection;
-					}
-				}
 				// re-initialise barriers
 				for (j=0; j < numBarriers; j++){
 					SpBarrier& b(spr.barrier.at(j));
@@ -1679,7 +1673,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true /* doPriipsVol */, false /* doPriipsStress */,
+					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
 					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured);
 
@@ -1756,7 +1750,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true /* doPriipsVol */, true /* doPriipsStress */,
+					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true /* doPriipsStress */,
 					useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
 					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured);
 
