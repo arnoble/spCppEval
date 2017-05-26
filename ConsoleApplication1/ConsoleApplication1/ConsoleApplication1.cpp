@@ -19,14 +19,16 @@ int _tmain(int argc, _TCHAR* argv[])
 			<< "'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'<comma-sep list of underlyings names>  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   "
 			<< "'forceFundingFraction:'x.x  'useThisPrice':x.x 'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' "
 			<< "'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >  'duration:'<number-number, or just number(min)>  'forOptimisation' " 
-			<< endl;  exit(0); }
+			<< "'volatility:'<number - number, or just number(min)> " << "'arithReturn:'<number - number, or just number(min)> " 
+			<< "'couponReturn:'<number - number, or just number(min)> " << endl;  exit(0);
+		}
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doStickySmile(false), useProductFundingFractionFactor(false), hasDuration(false), forOptimisation(false);
+		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false);
 		bool             forceFullPriceRecord(false),fullyProtected, firstTime;
 		char             lineBuffer[1000], charBuffer[1000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -39,10 +41,17 @@ int _tmain(int argc, _TCHAR* argv[])
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		int              optimiseNumUls(0),deltaBumps(1), vegaBumps(1), thetaBumps(1);
 		boost::gregorian::date lastDate;
-		string           durationString(""), anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), lastOptimiseDate;
+		string           anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
+		vector<string>   rangeFilterStrings;
+		map<string,string> rangeVerbs;  // key:sql
+		rangeVerbs["duration"    ] = "duration"; 
+		rangeVerbs["volatility"  ] = "100*EsVol*sqrt(duration)";
+		rangeVerbs["arithReturn" ] = "100*EarithReturn";
+		rangeVerbs["couponReturn"] = "100*couponReturn";
+
 		// build list of productIds
 		if (!commaSepList == 1) {
 			startProductId = argc > 1 ? _ttoi(argv[1]) : 363;
@@ -66,10 +75,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "notStale"          )){ notStale           = true; }
 			if (strstr(thisArg, "stickySmile"       )){ doStickySmile      = true; }
 			if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
-			
-			if (sscanf(thisArg, "duration:%s", lineBuffer)){
+
+			// parse range strings, of the form <name>:<number or number-number>
+			strcpy(charBuffer, thisArg);
+			char *thisVerb = std::strtok(charBuffer, ":");
+			if (rangeVerbs.find(thisVerb) != rangeVerbs.end()){
+				char *arg = std::strtok(NULL, ":");
+				strcpy(lineBuffer, arg);
 				// number-number, or just number(min)
-				hasDuration = true;
 				char *token = std::strtok(lineBuffer, "-");
 				std::vector<std::string> tokens;
 				while (token != NULL) { 
@@ -77,11 +90,11 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				int numTokens = tokens.size();
 				if (numTokens > 0){
-					sprintf(lineBuffer, " and Duration > %s", tokens[0].c_str());
+					sprintf(lineBuffer, " and %s > %s", rangeVerbs[thisVerb].c_str(), tokens[0].c_str());
 					if (numTokens > 1){
-						sprintf(lineBuffer, "%s and Duration < %s", lineBuffer, tokens[1].c_str());
+						sprintf(lineBuffer, "%s and %s < %s", lineBuffer, rangeVerbs[thisVerb].c_str(), tokens[1].c_str());
 					}
-					durationString = lineBuffer;
+					rangeFilterStrings.push_back(lineBuffer);
 				}
 			}
 			if (strstr(thisArg, "doDeltas")){
@@ -219,17 +232,20 @@ int _tmain(int argc, _TCHAR* argv[])
 		} else{
 			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
 		}
-		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto, 
-			"cashflows c using (ProductId) join institution i on (p.counterpartyid=i.institutionid) ", 
+		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto,
+			"cashflows c using (ProductId) join institution i on (p.counterpartyid=i.institutionid) ",
 			(onlyTheseUls ? onlyTheseUlsBuffer : ""),
 			charBuffer,
-			showMatured      ? ""                      : " and Matured=0 ", 
-			(notIllustrative ? " and Illustrative=0 "  : ""), 
-			(hasISIN         ? " and ISIN != '' "      : ""),
-			(hasInventory    ? " and p.Inventory > 0 " : ""),			
-			(notStale        ? " and StalePrice=0 "    : ""),
-			(hasDuration     ? durationString.c_str()  : ""),
-			" and ProjectedReturn=1 ");
+			showMatured ? "" : " and Matured=0 ",
+			(notIllustrative ? " and Illustrative=0 " : ""),
+			(hasISIN ? " and ISIN != '' " : ""),
+			(hasInventory ? " and p.Inventory > 0 " : ""),
+			(notStale ? " and StalePrice=0 " : ""));
+		for (int i=0; i < rangeFilterStrings.size();i++){
+			sprintf(lineBuffer, "%s%s", lineBuffer, rangeFilterStrings[i].c_str());
+		}
+		sprintf(lineBuffer, "%s%s", lineBuffer, " and ProjectedReturn=1 ");
+		
 		if (minSecsTaken){
 			sprintf(lineBuffer, "%s%s%d",lineBuffer, " and SecsTaken>=", minSecsTaken);
 		}
