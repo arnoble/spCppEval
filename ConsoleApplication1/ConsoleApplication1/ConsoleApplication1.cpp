@@ -30,7 +30,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false);
 		bool             forceFullPriceRecord(false),fullyProtected, firstTime;
-		char             lineBuffer[1000], charBuffer[1000];
+		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
 		char             endDate[11]              = "";
@@ -51,6 +51,25 @@ int _tmain(int argc, _TCHAR* argv[])
 		rangeVerbs["volatility"  ] = "100*EsVol*sqrt(duration)";
 		rangeVerbs["arithReturn" ] = "100*EarithReturn";
 		rangeVerbs["couponReturn"] = "100*couponReturn";
+		const int        maxUls(100);
+		const int        bufSize(1000);
+		RETCODE          retcode;
+		SomeCurve        anyCurve;
+		time_t           startTime = time(0);
+		char             **szAllPrices = new char*[maxUls];
+		vector<int>      allProductIds; allProductIds.reserve(1000);
+		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut",
+			"basketCallQuanto", "basketPutQuanto", "cappuccino", "levelsCall" };
+		vector<int>::iterator intIterator, intIterator1;
+		for (int i = 0; i < maxUls; i++){
+			szAllPrices[i] = new char[bufSize];
+		}
+		srand(time(0)); // reseed rand
+
+
+		// open database
+		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
+
 
 		// build list of productIds
 		if (!commaSepList == 1) {
@@ -165,9 +184,13 @@ int _tmain(int argc, _TCHAR* argv[])
 				for (int j=0; j < tokens.size();j++){
 					sprintf(lineBuffer, "%s%s%s%s%s", lineBuffer, (j == 0 ? "" : ","), "'", tokens[j].c_str(), "'");
 				}
-				sprintf(onlyTheseUlsBuffer, "%s%s%s",
-					" join (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid) join underlying u using (underlyingid) where u.name not in (",
-					lineBuffer, "))) x using (productid) ");
+				// to avoid large strings of productids, store them in anyid table
+				sprintf(charBuffer, "%s%s%s", 
+					"CREATE TEMPORARY TABLE tempOnly ENGINE=MEMORY as (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid) join underlying u using (underlyingid) where u.name not in (",
+					lineBuffer, ")))");
+				mydb.prepare((SQLCHAR *)charBuffer, 1);
+
+				strcpy(onlyTheseUlsBuffer, " join tempOnly using (productid) ");
 			}
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer))             { strcpy(startDate, lineBuffer); }
 			if (sscanf(thisArg, "UKSPA:%s", lineBuffer))                  {
@@ -181,7 +204,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		
 			else if (sscanf(thisArg, "endDate:%s",      lineBuffer)){ strcpy(endDate, lineBuffer); }
 			else if (sscanf(thisArg, "dbServer:%s",     lineBuffer)){ strcpy(dbServer,  lineBuffer); }
-			else if (sscanf(thisArg, "minSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "minnSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s", lineBuffer)){ maxSecsTaken  = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "historyStep:%s",  lineBuffer)){ historyStep   = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "useThisPrice:%s", lineBuffer)){ useThisPrice  = atof(lineBuffer); doUseThisPrice = true; }
@@ -199,29 +222,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			pFile = fopen("debug.txt", "w");
 			fclose(pFile);
 		}
-		const int        maxUls(100);
-		const int        bufSize(1000);
-		RETCODE          retcode;
-		SomeCurve        anyCurve;
-		time_t           startTime = time(0);
-		char             **szAllPrices = new char*[maxUls];
-		vector<int>      allProductIds; allProductIds.reserve(1000);
-		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut", 
-			"basketCallQuanto", "basketPutQuanto","cappuccino","levelsCall" };
-		vector<int>::iterator intIterator, intIterator1;
-		for (int i = 0; i < maxUls; i++){
-			szAllPrices[i] = new char[bufSize];
-		}
-		srand(time(0)); // reseed rand
 	
-		// open database
-		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
 
 
 		// get list of productIds
 		// ... but first deal with any optimisation demands
 		if (forOptimisation){
 			allProductIds.push_back(1);  // special product id=1 with UK100,SX5E,SPX
+			notIllustrative = true;
 		}
 
 		if (commaSepList == 1) {
@@ -234,13 +242,13 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto,
 			"cashflows c using (ProductId) join institution i on (p.counterpartyid=i.institutionid) ",
-			(onlyTheseUls ? onlyTheseUlsBuffer : ""),
+			(onlyTheseUls      ? onlyTheseUlsBuffer : ""),
 			charBuffer,
-			showMatured ? "" : " and Matured=0 ",
-			(notIllustrative ? " and Illustrative=0 " : ""),
-			(hasISIN ? " and ISIN != '' " : ""),
-			(hasInventory ? " and p.Inventory > 0 " : ""),
-			(notStale ? " and StalePrice=0 " : ""));
+			showMatured        ? "" : " and Matured=0 ",
+			(notIllustrative   ? " and Illustrative=0 " : ""),
+			(hasISIN           ? " and ISIN != '' " : ""),
+			(hasInventory      ? " and p.Inventory > 0 " : ""),
+			(notStale          ? " and StalePrice=0 " : ""));
 		for (int i=0; i < rangeFilterStrings.size();i++){
 			sprintf(lineBuffer, "%s%s", lineBuffer, rangeFilterStrings[i].c_str());
 		}
@@ -255,6 +263,10 @@ int _tmain(int argc, _TCHAR* argv[])
 		if (issuerPartName != ""){
 			sprintf(lineBuffer, "%s%s%s%s", lineBuffer, " and i.name like '%", issuerPartName.c_str(), "%'");
 		}
+		if (forOptimisation){
+			sprintf(lineBuffer, "%s%s", lineBuffer, " and i.name != 'Markets'");
+		}
+
 		sprintf(lineBuffer, "%s%s", lineBuffer, " order by productid");
 		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true,lineBuffer);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
@@ -278,7 +290,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(charBuffer, "%s%s%d", charBuffer, i > 1 ? "," : "", allProductIds[i]);
 			}
 			sprintf(lineBuffer, "%s%s%s", "select max(greatest(settlementDate,EndDate)) from barrierrelation join productbarrier using (productbarrierid) where productid in (",
-				charBuffer, ")");
+				charBuffer, ") and SettlementDate < date_add(now(),INTERVAL 12 YEAR)");  // limit to 12y to avoid blowing memory, and some 'Markets' products are deliberately set to start way-in-the-future
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
 			retcode = mydb.fetch(true, lineBuffer);
 			lastOptimiseDate = szAllPrices[0]; 
@@ -478,7 +490,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty..." << endl; continue; }
-			cout << "Iterations:" << thisNumIterations << " ProductId:" << productId << endl;
+			cout << endl << endl << productIndx << " of " << numProducts << "Iterations:" << thisNumIterations << " ProductId:" << productId << endl << endl;
 			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
 
@@ -1132,7 +1144,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (AMC != 0.0){
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
-			SProduct spr(bLastDataDate,productId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
+			SProduct spr(&lineBuffer[0],bLastDataDate,productId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx);

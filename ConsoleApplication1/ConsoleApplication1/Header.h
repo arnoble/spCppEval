@@ -1643,6 +1643,7 @@ private:
 
 public:
 	SProduct(
+		char                           *lineBuffer,
 		const boost::gregorian::date    &bLastDataDate,
 		const int                       productId,
 		const std::string               productCcy,
@@ -1678,7 +1679,7 @@ public:
 		std::vector<int>                &optimiseUlIdNameMap,
 		const bool                      forOptimisation, 
 		const int                       productIndx)
-		: bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
+		: lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
 		benchmarkStrike(benchmarkStrike), depositGteed(depositGteed), collateralised(collateralised),
@@ -1688,6 +1689,7 @@ public:
 		optimiseUlIdNameMap(optimiseUlIdNameMap),forOptimisation(forOptimisation), productIndx(productIndx){};
 
 	// public members: DOME consider making private
+	char                           *lineBuffer;
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips,notUKSPA;
 	int                             maxProductDays, productDays, numUls;
@@ -1776,7 +1778,7 @@ public:
 		int                      numTimepoints    = timepointDays.size();
 		int                      randnoIndx       =  0;
 		int                      optCount         = 0;
-		char                     lineBuffer[MAX_SP_BUF], charBuffer[1000];
+		char                     charBuffer[1000];
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
 		double                   thisAmount,anyDouble, anyDouble1, couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		boost::gregorian::date   bFixedCouponsDate(bLastDataDate);
@@ -3255,9 +3257,9 @@ public:
 					std::string   thisDateString(allDates.at(startPoint));
 					sprintf(charBuffer, "%s", "Spot,Forward,DiscountFactor\nUIDs: ");
 					for (i = 0; i < numUl; i++){
-						sprintf(charBuffer, "%s\t%d", charBuffer, ulIds[i]);
+						sprintf(charBuffer, "%s\t%s", charBuffer, ulNames[i].c_str());
 					}
-					sprintf(charBuffer, "%s%s", charBuffer, "\t DiscountFactor");
+					sprintf(charBuffer, "%s%s", charBuffer, "\tDiscountFactor");
 					std::cout << charBuffer << std::endl;
 					sprintf(charBuffer, "%s%s", "Spots on: ", thisDateString.c_str());
 					for (i = 0; i < numUl; i++){
