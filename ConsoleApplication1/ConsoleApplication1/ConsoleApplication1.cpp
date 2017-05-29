@@ -29,7 +29,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false);
-		bool             forceFullPriceRecord(false),fullyProtected, firstTime;
+		bool             done,forceFullPriceRecord(false),fullyProtected, firstTime;
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -68,6 +68,14 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 		// open database
+		done = false;
+		for(int i=4 - commaSepList; i < argc && !done; i++){
+			char *thisArg  = WcharToChar(argv[i], &numChars);
+			if (sscanf(thisArg, "dbServer:%s", lineBuffer)){ 
+				strcpy(dbServer, lineBuffer); 
+				done = true;
+			}
+		}
 		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
 
 
@@ -203,7 +211,6 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (sscanf(thisArg, "forceFundingFraction:%s", lineBuffer))   { forceFundingFraction	= lineBuffer; }
 		
 			else if (sscanf(thisArg, "endDate:%s",      lineBuffer)){ strcpy(endDate, lineBuffer); }
-			else if (sscanf(thisArg, "dbServer:%s",     lineBuffer)){ strcpy(dbServer,  lineBuffer); }
 			else if (sscanf(thisArg, "minnSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s", lineBuffer)){ maxSecsTaken  = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "historyStep:%s",  lineBuffer)){ historyStep   = atoi(lineBuffer); }
