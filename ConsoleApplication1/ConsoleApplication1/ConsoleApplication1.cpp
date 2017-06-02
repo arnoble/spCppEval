@@ -1437,6 +1437,10 @@ int _tmain(int argc, _TCHAR* argv[])
 				hazardCurve.push_back(dpCurve[j]);
 			}			
 
+			// initialise product, now we have all the state
+			spr.init(maxYears);
+			productNeedsFullPriceRecord = forceFullPriceRecord || productNeedsFullPriceRecord;
+
 			// possibly impose user-defined view of expectedReturn: only need to bump ulReturns
 
 
@@ -1447,11 +1451,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<double> calendarDailyVariance;
 			if (doPriips){
 				vector<double> priipsDvds;
-				if (doPriips){
-					for (i = 0; i < numUl; i++) {
-						priipsDvds.push_back(interpVector(divYieldsRate[i], divYieldsTenor[i], maxYears));
-					}
+				for (i = 0; i < numUl; i++) {
+					priipsDvds.push_back(interpVector(divYieldsRate[i], divYieldsTenor[i], maxYears));
 				}
+
 				// do convexity adjustment
 				for (i = 0; i < numUl; i++) {
 					originalUlReturns[i] = ulReturns[i];
@@ -1484,7 +1487,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					// calculate ACTUAL drift rates	
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
 					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
-					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr + priipsDvds[i]) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr /* + priipsDvds[i] */) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
 					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
 
 					// change underlyings' drift rate
@@ -1494,9 +1497,6 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 			} // doPriips
 			
-			// initialise product, now we have all the state
-			spr.init(maxYears);
-			productNeedsFullPriceRecord = forceFullPriceRecord || productNeedsFullPriceRecord;
 
 			// get accrued coupons
 			double accruedCoupon(0.0);

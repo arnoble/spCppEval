@@ -1713,12 +1713,13 @@ public:
 		numUls = ulIds.size();
 		for (int i=0; i < numUls; i++){ useUl.push_back(true); }
 		barrier.reserve(100); // for more efficient push_back
-		
+
 		// PRIIPs init
 		if (doPriips){
 			// drifts and discounting all at the rfr for the RecommendedHoldingPeriod, assumed to be max term
 			priipsRfr  = interpCurve(baseCurveTenor, baseCurveSpread, maxYears);
 		}
+
 		// UKSPA init
 		notUKSPA = ukspaCase == "";
 	}
