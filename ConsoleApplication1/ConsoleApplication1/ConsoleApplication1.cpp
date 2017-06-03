@@ -13,15 +13,66 @@ int _tmain(int argc, _TCHAR* argv[])
 	size_t numChars;
 	try{
 		// initialise
-		if (argc < 3){ std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' "
+		map<string, string> argWords;
+		argWords["doFAR"          ]         = "";      
+		argWords["doDeltas"       ]         = "";
+		argWords["notIllustrative"]         = "";
+		argWords["hasISIN"]                 = "";
+		argWords["hasInventory"]            = "";
+		argWords["notStale"]                = "";
+		argWords["debug"]                   = "";
+		argWords["priips"]                  = "";
+		argWords["doAnyIdTable"]            = "";
+		argWords["getMarketData"]           = "";
+		argWords["proto"]                   = "";
+		argWords["dbServer"]                = "spCloud|newSp|spIPRL";
+		argWords["forceIterations"]         = "";
+		argWords["useProductFundingFractionFactor"] = "";
+		argWords["showMatured"]             = "";
+		argWords["historyStep"]             = "nnn";
+		argWords["startDate"]               = "YYYY-mm-dd";
+		argWords["endDate"]                 = "YYYY-mm-dd";
+		argWords["minSecsTaken"]            = "nnn";
+		argWords["maxSecsTaken"]            = "nnn";
+		argWords["only"]                    = "<comma-sep list of underlyings names>";
+		argWords["UKSPA"]                   = "Bear|Neutral|Bull";
+		argWords["Issuer"]                  = "partName";
+		argWords["fundingFractionFactor"]   = "x.x";
+		argWords["forceFundingFraction"]    = "x.x";
+		argWords["useThisPrice"]            = "x.x";
+		argWords["eqFx"]                    = "eqUid:fxId:x.x  eg 3:1:-0.5";
+		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
+		argWords["stickySmile"]             = "";
+		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >";
+		argWords["duration"]                = "<number-number, or just number(min)>";
+		argWords["forOptimisation"]         = "";
+		argWords["volatility"]              = "<number - number, or just number(min)>";
+		argWords["arithReturn"]             = "";
+		argWords["couponReturn"]            = "<number - number, or just number(min)> ";
+
+		if (argc < 3){ 
+			std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' "
 			<< "'hasISIN' 'hasInventory' 'notStale' 'debug' 'priips' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   "
 			<< "'forceIterations' ' useProductFundingFractionFactor' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd "
 			<< "'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'<comma-sep list of underlyings names>  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   "
 			<< "'forceFundingFraction:'x.x  'useThisPrice':x.x 'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' "
 			<< "'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >  'duration:'<number-number, or just number(min)>  'forOptimisation' " 
 			<< "'volatility:'<number - number, or just number(min)> " << "'arithReturn:'<number - number, or just number(min)> " 
-			<< "'couponReturn:'<number - number, or just number(min)> " << endl;  exit(0);
+			<< "'couponReturn:'<number - number, or just number(min)> " << endl; 
+
+			std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments:>";
+			for (std::map<string,string>::iterator iter = argWords.begin(); iter != argWords.end(); ++iter) {
+				std::cout << iter->first.c_str();
+				if (iter->second != ""){
+					std::cout << ":" << iter->second.c_str();
+				};
+				std::cout << "\n";
+			}
+			std::cout << endl;  
+			exit(0);
 		}
+		
+		
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
@@ -84,6 +135,20 @@ int _tmain(int argc, _TCHAR* argv[])
 			startProductId = argc > 1 ? _ttoi(argv[1]) : 363;
 			stopProductId  = argc > 2 ? _ttoi(argv[2]) : 363;
 		}
+		// check for non-existent/mis-typed args 
+		// ... DOME
+				
+		for (int i=4 - commaSepList; i < argc; i++){
+			char *thisArg  = WcharToChar(argv[i], &numChars);
+			strcpy(charBuffer,thisArg);
+			char *token = std::strtok(charBuffer, ":");
+			if (argWords.find(token) == argWords.end()){
+				cerr << "Unknown argument: " << thisArg << endl;
+				exit(1);
+			}
+		}
+		
+
 		// process optional argumants
 		for (int i=4 - commaSepList; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
