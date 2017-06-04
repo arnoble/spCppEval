@@ -47,8 +47,9 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["duration"]                = "<number-number, or just number(min)>";
 		argWords["forOptimisation"]         = "";
 		argWords["volatility"]              = "<number - number, or just number(min)>";
-		argWords["arithReturn"]             = "";
-		argWords["couponReturn"]            = "<number - number, or just number(min)> ";
+		argWords["arithReturn"]             = "<number - number, or just number(min)>";
+		argWords["CAGR"]                    = "<number - number, or just number(min)>";
+		argWords["couponReturn"]            = "<number - number, or just number(min)>";
 
 		if (argc < 3){ 
 			std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' "
@@ -101,6 +102,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		rangeVerbs["duration"    ] = "duration"; 
 		rangeVerbs["volatility"  ] = "100*EsVol*sqrt(duration)";
 		rangeVerbs["arithReturn" ] = "100*EarithReturn";
+		rangeVerbs["CAGR"        ] = "100*ExpectedReturn";
 		rangeVerbs["couponReturn"] = "100*couponReturn";
 		const int        maxUls(100);
 		const int        bufSize(1000);
@@ -562,7 +564,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty..." << endl; continue; }
-			cout << endl << endl << productIndx << " of " << numProducts << "Iterations:" << thisNumIterations << " ProductId:" << productId << endl << endl;
+			cout << endl << endl << productIndx << " of " << numProducts << "\nIterations:" << thisNumIterations << " ProductId:" << productId << endl << endl;
 			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
 
@@ -772,6 +774,10 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (!firstTime) {
 					boost::gregorian::date_duration dateDiff(bDate - lastDate);
 					numDayDiff = dateDiff.days();
+					if (numDayDiff > 10){
+						std::cerr << "gaps in underlying prices at " << bDate << " compared to lastDate " << lastDate << endl;
+						exit(34);
+					}
 				}
 				for (i = 0; i < numUl; i++) {
 					double thisPrice;

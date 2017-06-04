@@ -2108,10 +2108,6 @@ public:
 							mcForwards[i][thisMonIndx].push_back(currentLevels[i]);
 						}
 					}
-					for (i = 0; i < numUl; i++) {
-						simulatedReturnsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint]);
-						simulatedLevelsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays]);
-					}
 				}
 				else {
 					// bootstrap resampling
@@ -2135,10 +2131,6 @@ public:
 							}
 							// wind back one unit
 							npPos = npPos>1 ? npPos - 1 : maxNpPos;
-						}
-						for (i = 0; i < numUl; i++) {
-							simulatedReturnsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint]);
-							simulatedLevelsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays]);
 						}
 					}
 					else {
@@ -2174,6 +2166,11 @@ public:
 						}
 					}
 				}
+			}
+			// track simulated underlying levels at maturity
+			for (i = 0; i < numUl; i++) {
+				simulatedReturnsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint]);
+				simulatedLevelsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays]);
 			}
 
 			// START LOOP wind 'thisPoint' forwards to next TRADING date, so as to start a new product
