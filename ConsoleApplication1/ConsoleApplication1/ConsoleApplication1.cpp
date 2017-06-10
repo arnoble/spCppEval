@@ -771,6 +771,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			// .. parse each record <Date,price0,...,pricen>
 			retcode = mydb.fetch(true,ulSql);
+			int numGaps = 0;
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 				int    numDayDiff;
 				boost::gregorian::date bDate(boost::gregorian::from_simple_string(szAllPrices[0]));
@@ -778,8 +779,11 @@ int _tmain(int argc, _TCHAR* argv[])
 					boost::gregorian::date_duration dateDiff(bDate - lastDate);
 					numDayDiff = dateDiff.days();
 					if (numDayDiff > 10){
-						std::cerr << "gaps in underlying prices at " << bDate << " compared to lastDate " << lastDate << endl;
-						exit(34);
+						numGaps += 1;
+						if (numGaps>10){
+							std::cerr << "gaps in underlying prices at " << bDate << " compared to lastDate " << lastDate << endl;
+							exit(34);
+						}						
 					}
 				}
 				for (i = 0; i < numUl; i++) {
