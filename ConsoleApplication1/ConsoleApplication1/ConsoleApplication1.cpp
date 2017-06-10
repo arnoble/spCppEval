@@ -49,6 +49,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["volatility"]              = "<number - number, or just number(min)>";
 		argWords["arithReturn"]             = "<number - number, or just number(min)>";
 		argWords["CAGR"]                    = "<number - number, or just number(min)>";
+		argWords["CAGRsharpe"]              = "<number - number, or just number(min)>";
 		argWords["couponReturn"]            = "<number - number, or just number(min)>";
 
 		if (argc < 3){ 
@@ -98,11 +99,13 @@ int _tmain(int argc, _TCHAR* argv[])
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 		vector<string>   rangeFilterStrings;
+		// commandLineName: sql to select corresponding quantity from cashflows table
 		map<string,string> rangeVerbs;  // key:sql
 		rangeVerbs["duration"    ] = "duration"; 
 		rangeVerbs["volatility"  ] = "100*EsVol*sqrt(duration)";
 		rangeVerbs["arithReturn" ] = "100*EarithReturn";
 		rangeVerbs["CAGR"        ] = "100*ExpectedReturn";
+		rangeVerbs["CAGRsharpe"  ] = "ExpectedReturn/(EsVol*sqrt(duration))";
 		rangeVerbs["couponReturn"] = "100*couponReturn";
 		const int        maxUls(100);
 		const int        bufSize(1000);

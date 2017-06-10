@@ -2518,6 +2518,10 @@ public:
 				}
 			} // END LOOP wind 'thisPoint' forwards to next TRADING date, so as to start a new product
 
+			// debug
+			if (!matured){
+				int j = 1;
+			}
 			// end-this-iteration convergence test
 			if ((thisIteration + 1) % 1000 == 0){ std::cout << "."; }
 			if (thisIteration>750 && (thisIteration + 1) % 10000 == 0){
@@ -3085,7 +3089,7 @@ public:
 						std::cerr << "Too high a percentile return " << thisPriip.pvReturn << "\n";
 						exit(1);
 					}
-					esVol              = thisPriip.pvReturn>0.0 && priipsDuration>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) : 0.0;
+					esVol              = thisPriip.pvReturn>0.0 && priipsDuration>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) / sqrt(duration) : 0.0;
 					if (validFairValue){
 						priipsImpliedCost  =  1.0 - fairValue / askPrice;
 					}
@@ -3180,6 +3184,7 @@ public:
 							// PRIIPS now calculates scenarios using riskfree drift rates
 							// ... although the 2017-03-08 regs seem to have a typo at para 12a): where "6" shouldbe presumably "18"...
 							// the expected return for each asset or assets shall be the return observed over the period as determined under point 6 of Annex II
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVarYears='", priipsDuration);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaRyears='", varYears);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1years='", var1Years);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2years='", var2Years);						
