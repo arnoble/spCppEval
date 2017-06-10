@@ -782,7 +782,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						numGaps += 1;
 						if (numGaps>10){
 							std::cerr << "gaps in underlying prices at " << bDate << " compared to lastDate " << lastDate << endl;
-							exit(34);
+							// problematical in batch mode exit(34);
 						}						
 					}
 				}
