@@ -1724,6 +1724,16 @@ public:
 		notUKSPA = ukspaCase == "";
 	}
 
+	// re-initialise barriers
+	void initBarriers(){
+		int numBarriers = barrier.size();
+		for (int j=0; j < numBarriers; j++){
+			SpBarrier& b(barrier.at(j));
+			// clear hits etc
+			b.init();
+		}
+	}
+
 
 	// evaluate product at this point in time
 	void evaluate(const int       totalNumDays,
@@ -1804,6 +1814,7 @@ public:
 		RETCODE                  retcode;
 		
 		// init
+		initBarriers();
 		if (!doAccruals){
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				if (!barrier.at(thisBarrier).capitalOrIncome) { numIncomeBarriers  += 1; }

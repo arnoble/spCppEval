@@ -1778,12 +1778,6 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// PRIIPs adjust driftrate to riskfree minus divs
 			if (doPriips){
-				// re-initialise barriers
-				for (j=0; j < numBarriers; j++){
-					SpBarrier& b(spr.barrier.at(j));
-					// clear hits etc
-					b.init();
-				}
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
