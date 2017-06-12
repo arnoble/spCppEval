@@ -1783,6 +1783,7 @@ public:
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
 		double                   thisAmount,anyDouble, anyDouble1, couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		boost::gregorian::date   bFixedCouponsDate(bLastDataDate);
+		std::vector< std::vector<double> > simulatedLogReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
 		std::vector<double>      stdevRatioPctChanges, optimiseAnnRets; optimiseAnnRets.reserve(numMcIterations);
@@ -2169,7 +2170,9 @@ public:
 			}
 			// track simulated underlying levels at maturity
 			for (i = 0; i < numUl; i++) {
-				simulatedReturnsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint]);
+				double thisReturn = ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint];
+				simulatedLogReturnsToMaxYears[i].push_back(log(thisReturn)); 
+				simulatedReturnsToMaxYears[i].push_back(thisReturn);
 				simulatedLevelsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays]);
 			}
 
@@ -2641,6 +2644,8 @@ public:
 			for (i = 0; i < numUl; i++) {
 				MeanAndStdev(simulatedReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
 				std::cout << "Simulated annualised drift rate to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << std::endl;
+				MeanAndStdev(simulatedLogReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
+				std::cout << "Simulated vol to:" << ulPrices[i].date[startPoint + productDays] << " :" << thisStd / sqrt(productDays/365) << " for:" << ulNames[i] << std::endl;
 				MeanAndStdev(simulatedLevelsToMaxYears[i], thisMean, thisStd, thisStderr);
 				std::cout << "Simulated final level at:" << ulPrices[i].date[startPoint + productDays] << ":" << thisMean << " for:" << ulNames[i] << " (" << productDays / 365.0 << "y):" << std::endl;
 			}
@@ -2994,9 +2999,9 @@ public:
 				if (doPriips){
 					double thisStressT = maxProductDays > 365 ? 0.05 : 0.01;
 					if (doPriipsStress){
-						PriipsAnnRet &thisPriipAnnRet(priipsAnnRetInstances[floor(numAnnRets*thisStressT)]);
-						priipsStressVar   = thisPriipAnnRet.annRet  * 100.0;
-						priipsStressYears = thisPriipAnnRet.yearsToPayoff;
+						PriipsStruct &thisPriip(priipsInstances[floor(numAnnRets*thisStressT)]);
+						priipsStressVar   = thisPriip.pvReturn;
+						priipsStressYears = thisPriip.yearsToPayoff;
 					}
 					varYears  = priipsAnnRetInstances[floor(numAnnRets*(0.1))].yearsToPayoff;
 					var1Years = priipsAnnRetInstances[floor(numAnnRets*(0.5))].yearsToPayoff;
