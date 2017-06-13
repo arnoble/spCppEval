@@ -875,7 +875,7 @@ public:
 
 
 			// ...compute moneyness
-			calcMoneyness(ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - daysExtant]);
+			calcMoneyness(ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - (isStrikeReset && startDays<0 ? -startDays : daysExtant)]);
 			originalMoneyness = moneyness;
 
 			// ...compute running averages
@@ -919,8 +919,16 @@ public:
 
 	// calculate moneyness
 	void calcMoneyness(const double thisMoneyness){
-		//    ... isStopLoss is monitored daily, so if barrier is also isStrikeReset, the moneyness will always be 1.0
+		// moneyness = 1.0 for barriers that are:
+		// ... strikeReset in the future, or
+		// ... since isStopLoss is monitored daily, ANY isStrikeReset moneyness will be 1.0
+		// ... HOWEVER past strikeReset barriers need moneyness=1.0 to correctly calc accrued coupons
+		//     BUT only problem is part-way through a strikeResetted barrier when doing HistoricalBacktest
+		//     ... we want to reflect its current-moneyness when trundling through history
+		//     ... whereas here we will be resetting to whatever the historical moneyness would have been
+		//     ... Solution: key thisMoneyness to the resetDate
 		moneyness    = isStrikeReset && (startDays>0 || isStopLoss) ? 1.0 : thisMoneyness ;
+		// moneyness    = isStrikeReset ? 1.0 : thisMoneyness;
 		strike       = originalStrike/moneyness;
 	}
 
@@ -1002,7 +1010,10 @@ public:
 
 	// set levels which are linked to prevailing spot level 'ulPrice'
 	void setLevels(const double ulPrice) {
-		refLevel         = ulPrice / moneyness;
+		refLevel  = ulPrice;
+		refLevel /= moneyness;
+		// NOTE: strikeReset barriers will also reset the barrierLevel, as follows
+		//     ... if we need barriers to reference StrikeDate levels, will need to pass in 2nd arg    startLevels.at(thisName)    and use those
 		barrierLevel     = barrier * refLevel;
 		if (uBarrier != NULL) { 
 				uBarrierLevel     = uBarrier * refLevel; 
@@ -1081,7 +1092,6 @@ public:
 		brel.reserve(10);
 		if (doFinalAssetReturn){ fars.reserve(100000); }
 		hit.reserve(100000);
-		hit.clear();  // in case product already analysed using some other methodology
 	};
 
 	// public members: DOME consider making private, in case we implement their content some other way
@@ -1350,7 +1360,11 @@ public:
 				}
 				else {
 					thisRefLevel = thisBrel.refLevel;  // startLevels[n] / thisBrel.moneyness;
-					thisStrike   = thisBrel.strike * (isStrikeReset ? thisRefLevel : startLevels[n]);
+					if (isStrikeReset){ 
+						// re-establish the strike-reset-date as the reference level
+						thisRefLevel  *= thisBrel.moneyness; 
+					}
+					thisStrike   = thisBrel.strike * (isStrikeReset && (thisBrel.startDays>0 || isStopLoss) ? thisRefLevel : startLevels[n]);
 				}
 				if (payoffTypeId == lookbackCallPayoff || payoffTypeId == lookbackPutPayoff) {
 					thisAssetReturn = lookbackLevel[n] / thisRefLevel;
@@ -1500,7 +1514,6 @@ public:
 		if (doAccruals) { hitWithDate.push_back(SpPayoffAndDate(thisDateString, amount)); }
 		else {            
 			hit.push_back( SpPayoff(thisDateString, amount) );
-
 		}
 		couponValues.push_back(couponValue);
 		if (doFinalAssetReturn){ fars.push_back(finalAssetInfo(finalAssetReturn,finalAssetIndx,barrierIndx)); }
@@ -1729,8 +1742,10 @@ public:
 		int numBarriers = barrier.size();
 		for (int j=0; j < numBarriers; j++){
 			SpBarrier& b(barrier.at(j));
-			// clear hits etc
-			b.init();
+			// clear un-accrued hits ... where we call evaluate() several times eg PRIIPs and PRIIPsStresstest, or doing bumps
+			if (!b.hasBeenHit){
+				b.hit.clear();
+			}
 		}
 	}
 
@@ -1814,8 +1829,8 @@ public:
 		RETCODE                  retcode;
 		
 		// init
-		initBarriers();
 		if (!doAccruals){
+			initBarriers();
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				if (!barrier.at(thisBarrier).capitalOrIncome) { numIncomeBarriers  += 1; }
 			}
@@ -2357,7 +2372,7 @@ public:
 								barrierWasHit[thisBarrier] = true;
 
 								// for post-strike deals, record if barriers have already been hit
-								if (doAccruals){ b.hasBeenHit = true; }  
+								if (doAccruals){ b.hasBeenHit= true; }  
 								double thisOptionPayoff;
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl);
 
