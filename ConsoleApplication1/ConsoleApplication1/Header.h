@@ -921,14 +921,8 @@ public:
 	void calcMoneyness(const double thisMoneyness){
 		// moneyness = 1.0 for barriers that are:
 		// ... strikeReset in the future, or
-		// ... since isStopLoss is monitored daily, ANY isStrikeReset moneyness will be 1.0
-		// ... HOWEVER past strikeReset barriers need moneyness=1.0 to correctly calc accrued coupons
-		//     BUT only problem is part-way through a strikeResetted barrier when doing HistoricalBacktest
-		//     ... we want to reflect its current-moneyness when trundling through history
-		//     ... whereas here we will be resetting to whatever the historical moneyness would have been
-		//     ... Solution: key thisMoneyness to the resetDate
+		// ... a hack to accomodate #2774 where investor is short a strip of daily-reset KIPs struck at YESTERDAY's close
 		moneyness    = isStrikeReset && (startDays>0 || isStopLoss) ? 1.0 : thisMoneyness ;
-		// moneyness    = isStrikeReset ? 1.0 : thisMoneyness;
 		strike       = originalStrike/moneyness;
 	}
 
@@ -1010,8 +1004,7 @@ public:
 
 	// set levels which are linked to prevailing spot level 'ulPrice'
 	void setLevels(const double ulPrice) {
-		refLevel  = ulPrice;
-		refLevel /= moneyness;
+		refLevel  = ulPrice / moneyness;
 		// NOTE: strikeReset barriers will also reset the barrierLevel, as follows
 		//     ... if we need barriers to reference StrikeDate levels, will need to pass in 2nd arg    startLevels.at(thisName)    and use those
 		barrierLevel     = barrier * refLevel;
@@ -1360,10 +1353,6 @@ public:
 				}
 				else {
 					thisRefLevel = thisBrel.refLevel;  // startLevels[n] / thisBrel.moneyness;
-					if (isStrikeReset){ 
-						// re-establish the strike-reset-date as the reference level
-						thisRefLevel  *= thisBrel.moneyness; 
-					}
 					thisStrike   = thisBrel.strike * (isStrikeReset && (thisBrel.startDays>0 || isStopLoss) ? thisRefLevel : startLevels[n]);
 				}
 				if (payoffTypeId == lookbackCallPayoff || payoffTypeId == lookbackPutPayoff) {
@@ -2283,7 +2272,7 @@ public:
 						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint, ulPrices.at(thisName));
 						
 						
-						if (b.isStrikeReset){
+						if (b.isStrikeReset && (thisBrel.startDays>0 || b.isStopLoss)){
 							int brelStartPoint = thisPoint + thisBrel.startDays;
 							if (brelStartPoint < 0){ brelStartPoint  = 0; }
 							// remove next line: we now ensure there are enough prices for the full product term
@@ -2356,6 +2345,7 @@ public:
 						bool notDisabled = barrierDisabled[thisBarrier] == false;
 						if ((b.endDays == thisMonDays || (b.isContinuous && thisMonDays <= b.endDays && thisMonDays >= b.startDays)) && notDisabled) {
 							// strikeReset AND stopLoss means we want YESTERDAY's close
+							// ... a hack to accomodate #2774 where investor is short a strip of daily-reset KIPs struck at YESTERDAY's close
 							if (b.isStrikeReset && b.isStopLoss){
 								int numBrel = b.brel.size();
 								for (unsigned int uI = 0; uI < numBrel; uI++){
