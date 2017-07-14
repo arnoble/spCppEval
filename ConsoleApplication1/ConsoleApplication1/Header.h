@@ -1781,7 +1781,8 @@ public:
 		double                    &thisFairValue,
 		const bool                conserveRands,
 		const bool                consumeRands,
-		bool                      &productHasMatured
+		bool                      &productHasMatured,
+		const bool                priipsUsingRNdrifts
 		){
 		std::vector<bool>		 barrierDisabled;
 		const int                optMaxNumToSend = 1000;
@@ -2864,7 +2865,7 @@ public:
 					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
 					// ** SQL 
 					// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
-					if ((!getMarketData || analyseCase == 0) && !doPriipsStress){
+					if ((!getMarketData || analyseCase == 0) && !priipsUsingRNdrifts){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d", "update ", useProto, "barrierprob set Prob='", prob,
 							"',AnnReturn='", annReturn,
 							"',CondPayoff='", mean,
@@ -2883,6 +2884,13 @@ public:
 						}	
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
+					// save PRIIPS-riskNeutral-drift barrierProb somewhere
+					if (priipsUsingRNdrifts && !doPriipsStress && analyseCase == 0){
+						sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "barrierprob set Reason1Prob='", prob);
+						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);						
+					}
+					
 					
 				}
 				if (!doPriips && doMostLikelyBarrier && maxBarrierProb>0.0){
@@ -3110,7 +3118,7 @@ public:
 						std::cerr << "Too high a percentile return " << thisPriip.pvReturn << "\n";
 						exit(1);
 					}
-					esVol              = thisPriip.pvReturn>0.0 && priipsDuration>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) / sqrt(duration) : 0.0;
+					esVol = thisPriip.pvReturn>0.0 && priipsDuration>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) / sqrt(duration) : 0.0;
 					if (validFairValue){
 						priipsImpliedCost  =  1.0 - fairValue / askPrice;
 					}
@@ -3197,18 +3205,25 @@ public:
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressVar='", priipsStressVar);
 					}
 					else{
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "ESvol='", esVol);
-						if (doPriips){
+						sprintf(lineBuffer, "%s%s%.5lf%s", lineBuffer, "ESvol='", priipsUsingRNdrifts ? scaledVol : esVol, priipsUsingRNdrifts ? "'/sqrt(duration) +'0" : "");   // pesky way to pick up previously saved realWorld duration
+						if (priipsUsingRNdrifts){
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsImpliedCost='", priipsImpliedCost);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVaR='", priipsVaR);
-							// PRIIPS now calculates scenarios using riskfree drift rates
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVarYears='", priipsDuration);
+						}
+						else {
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsRealWorldVol='", esVol);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsRealWorldDuration='", duration);
+							// PRIIPS now calculates scenarios using riskfree drift rates ?? following assumes REAL-WORLD drifts
 							// ... although the 2017-03-08 regs seem to have a typo at para 12a): where "6" shouldbe presumably "18"...
 							// the expected return for each asset or assets shall be the return observed over the period as determined under point 6 of Annex II
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsVarYears='", priipsDuration);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaRyears='", varYears);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1years='", var1Years);
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2years='", var2Years);						
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2years='", var2Years);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR90);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1='", vaR50);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2='", vaR10);
 						}
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedPayoff='", expectedPayoff);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedGainPayoff='", ePosPayoff);
@@ -3240,9 +3255,6 @@ public:
 						sprintf(lineBuffer, "%s%s%s", lineBuffer, "',WhenEvaluated='", charBuffer);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='", probEarliest);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='", probEarly);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR90);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1='", vaR50);
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2='", vaR10);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='", ecGain);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='", ecStrictGain);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='", ecLoss);
@@ -3266,6 +3278,7 @@ public:
 						sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
 						sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='", secsTaken);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',IRR='", thisIrr);
+
 					}
 					sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 					std::cout << lineBuffer << std::endl;

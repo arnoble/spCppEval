@@ -1108,6 +1108,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						oisRatesRate[i].push_back(0.0);
 					}
 				}
+
 				//  eq-eq corr
 				if (ukspaCase != "" && totalNumReturns > 2){
 					// calc corrs - 1y window, 3day returns
@@ -1553,26 +1554,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					for (j = 0; j < ulReturns[i].size(); j++) {
 						ulReturns[i][j] *= thisDailyDriftCorrection;
 					}
-				}
-				// adjust driftrate to riskfree minus divs
-				// DOME: check 
-				// ... at least 2y of daily data
-				// ... monthly data is penalised by RiskScore +1
-
-				for (i = 0; i < numUl; i++) {
-					double thisVariance               = calendarDailyVariance[i];
-					double thisDailyVol               = pow(thisVariance, .5);
-					// calculate ACTUAL drift rates	
-					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
-					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
-					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr /* + priipsDvds[i] */) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
-					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
-
-					// change underlyings' drift rate
-					for (j = 0; j < ulReturns[i].size(); j++) {
-						ulReturns[i][j] *= priipsDailyDriftCorrection;
-					}
-				}
+				}				
 			} // doPriips
 			
 
@@ -1582,7 +1564,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData,useUserParams,thisMarketData,
-				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured);
+				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured,false);
 
 			// ...check product not matured
 			numMonPoints = monDateIndx.size();
@@ -1596,7 +1578,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false /* doPriipsStress */, 
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
-					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured);
+					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,false);
 				
 				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), thetaBumpAmount(0.0);
 				if (doBumps && (deltaBumps || vegaBumps || thetaBumps)  /* && daysExtant>0 */){
@@ -1684,7 +1666,7 @@ int _tmain(int argc, _TCHAR* argv[])
 									spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 										numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 										contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false,useProto, getMarketData, useUserParams, thisMarketData,
-										cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured);
+										cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,false);
 									if (doDeltas){
 										if (deltaBumpAmount != 0.0){
 											double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
@@ -1741,7 +1723,7 @@ int _tmain(int argc, _TCHAR* argv[])
 								spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 									numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 									contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false,useProto, getMarketData, useUserParams, thisMarketData,
-									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true, productHasMatured);
+									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true, productHasMatured,false);
 								if (doDeltas) {
 									if (deltaBumpAmount != 0.0){
 										double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
@@ -1778,11 +1760,37 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// PRIIPs adjust driftrate to riskfree minus divs
 			if (doPriips){
+				// real-world drifts
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
-					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured);
+					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured,false);
+
+				// adjust driftrate to riskfree (? minus divs ?)
+				// DOME: check 
+				// ... at least 2y of daily data
+				// ... monthly data is penalised by RiskScore +1
+				for (i = 0; i < numUl; i++) {
+					double thisVariance               = calendarDailyVariance[i];
+					double thisDailyVol               = pow(thisVariance, .5);
+					// calculate ACTUAL drift rates	
+					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
+					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr /* + priipsDvds[i] */) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
+					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
+
+					// change underlyings' drift rate
+					for (j = 0; j < ulReturns[i].size(); j++) {
+						ulReturns[i][j] *= priipsDailyDriftCorrection;
+					}
+				}
+				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
+					useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured, true);
+
 
 				// PRIIPS stresstest
 				// ... build rolling 21-day windows of historical log returns
@@ -1860,7 +1868,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true /* doPriipsStress */,
 					useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
-					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured);
+					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured,true);
 
 			}
 
