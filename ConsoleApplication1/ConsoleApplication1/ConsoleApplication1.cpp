@@ -353,6 +353,24 @@ int _tmain(int argc, _TCHAR* argv[])
 		int numProducts = allProductIds.size();
 		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
+		/*
+		* getBenchmarkPerf
+		*/
+		double bmSwapRate(0.0);
+		sprintf(lineBuffer, "%s", "SELECT avg(Rate)/100.0 sixYSwaps from curve where ccy='GBP' and Tenor in (5,7)");
+		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true, lineBuffer);
+		if(retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+			bmSwapRate = atof(szAllPrices[0]);			
+		}
+		double projectedReturn = (thisNumIterations <= 1 ? 0.0 : (doPriips ? 0.08 : 1.0)); 
+		double bmEarithReturn(0.0), bmVol(0.18);
+		sprintf(lineBuffer, "%s%.4lf%s","SELECT EarithReturn ArithmeticReturn_pa, esVol*sqrt(duration) Volatility from cashflows where ProductId=71 and ProjectedReturn='",projectedReturn,"'");
+		mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
+		if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+			bmEarithReturn = atof(szAllPrices[0]);
+			bmVol          = atof(szAllPrices[1]);
+		}
+		
 		// deal with any optimisation demands
 		if (forOptimisation){
 			// find #underlyings
@@ -420,7 +438,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int              numBarriers = 0, thisIteration = 0;
 			int              i, j, k, len, len1, anyInt, anyInt1, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId;
-			double           anyDouble, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, protectionLevelId, issuePrice, bidPrice, askPrice, midPrice, baseCcyReturn, benchmarkStrike;
+			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, protectionLevelId, issuePrice, bidPrice, askPrice, midPrice, baseCcyReturn, benchmarkStrike;
 			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, productBaseCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
@@ -590,8 +608,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			retcode = mydb.fetch(false,lineBuffer);
 			vector<double> cdsTenor, cdsSpread;
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				cdsTenor.push_back(atof(szAllPrices[0]));
-				cdsSpread.push_back(atof(szAllPrices[1]) / 10000.0);
+				double thisSpread,thisTenor;
+				thisTenor = atof(szAllPrices[0]);
+				cdsTenor.push_back(thisTenor);
+				thisSpread = atof(szAllPrices[1]) / 10000.0;
+				cdsSpread.push_back(thisSpread);
+				if (fabs(thisTenor - 5.0) < 0.01){
+					cds5y = thisSpread;
+				}
 				retcode = mydb.fetch(false,"");
 			}
 
@@ -1233,7 +1257,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			SProduct spr(&lineBuffer[0],bLastDataDate,productId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
-				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx);
+				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
+				bmSwapRate, bmEarithReturn, bmVol,cds5y);
 			numBarriers = 0;
 
 			// get barriers from DB

@@ -1680,7 +1680,12 @@ public:
 		std::vector<std::vector<std::vector<double>>> &optimiseMcLevels,
 		std::vector<int>                &optimiseUlIdNameMap,
 		const bool                      forOptimisation, 
-		const int                       productIndx)
+		const int                       productIndx,
+		const double                    bmSwapRate, 
+		const double                    bmEarithReturn, 
+		const double                    bmVol,
+		const double                    cds5y
+		)
 		: lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
@@ -1688,14 +1693,15 @@ public:
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
-		optimiseUlIdNameMap(optimiseUlIdNameMap),forOptimisation(forOptimisation), productIndx(productIndx){};
+		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
+		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y) {};
 
 	// public members: DOME consider making private
 	char                           *lineBuffer;
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips,notUKSPA;
 	int                             maxProductDays, productDays, numUls;
-	double                          forwardStartT, issuePrice, priipsRfr;
+	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl,doShiftPrices;
@@ -3192,6 +3198,9 @@ public:
 				double expectedPayoff = (applyCredit ? sumPossiblyCreditAdjPayoffs : sumPayoffs) / numAnnRets;
 				double earithReturn   = sumPossiblyCreditAdjPayoffs<=0.0 ? -1.0 : pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
 				double bmRelAverage   = bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf;
+				double productBmReturn     = bmSwapRate + cds5y / 2.0 + (esVol*pow(duration, 0.5) / bmVol)*(bmEarithReturn - bmSwapRate);
+				double productExcessReturn = earithReturn - productBmReturn;
+
 				int    secsTaken      = difftime(time(0), startTime);
 
 				// if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
@@ -3278,7 +3287,8 @@ public:
 						sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
 						sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='", secsTaken);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',IRR='", thisIrr);
-
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkReturn='", productBmReturn);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProductExcessReturn='", productExcessReturn);
 					}
 					sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 					std::cout << lineBuffer << std::endl;
