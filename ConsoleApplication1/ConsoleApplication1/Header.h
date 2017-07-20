@@ -2718,6 +2718,7 @@ public:
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
+			
 			for (int analyseCase = 0; analyseCase < (doPriips || getMarketData ? 1 : 2); analyseCase++) {
 				if (doDebug){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 				bool     applyCredit = analyseCase == 1;
@@ -3347,17 +3348,32 @@ public:
 				}
 
 				// text output
-				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", 
+				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", 
 						analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
 						100.0*geomReturn, ":", 
 						100.0*earithReturn, ":",
 						100.0*esVol*pow(duration, 0.5), ":",
+						100.0*productExcessReturn, ":",
+						100.0*thisIrr, ":",
 						100.0*probStrictGain, ":",
+						100.0*probGain, ":",
 						100.0*probLoss, ":",
 						ecStrictGain, ":",
+						ecGain, ":",
 						ecLoss, ":",
 						ecStrictGain*probStrictGain, ":",
 						ecLoss*probLoss, ":",
+						duration, ":",
+						riskCategory, ":",
+						riskScore1to10, ":",
+						winLose, ":",
+						100.0*eShortfall, ":",
+						vaR90, ":",
+						vaR50, ":",
+						vaR10, ":",
+						100.0*averageCouponReturn, ":",
+						100.0*maxBarrierProb, ":",
+						100.0*maxBarrierProbMoneyness, ":",
 						100.0*benchmarkProbOutperf, ":",
 						100.0*benchmarkCondOutperf, ":",
 						100.0*benchmarkProbUnderperf, ":",
@@ -3365,11 +3381,12 @@ public:
 						100.0*bmRelCAGR, ":",
 						100.0*bmRelOutperfPV, ":",
 						100.0*bmRelUnderperfPV, ":",
-						100.0*bmRelAverage, ":",
-						100.0*averageCouponReturn);
+						100.0*bmRelAverage
+						);
 				std::cout << charBuffer << std::endl;
 
 			}
 		}
 	}
 };
+	
