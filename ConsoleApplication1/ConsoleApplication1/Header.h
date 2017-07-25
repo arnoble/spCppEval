@@ -547,7 +547,7 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 }
 
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, 
-	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff,levelsCallPayoff
+	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff, levelsCallPayoff, outperformanceCallPayoff, outperformancePutPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
 
@@ -1327,7 +1327,7 @@ public:
 		std::vector<bool>                      &useUl) {
 		double              thisPayoff(payoff), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
 		double              cumReturn,w, basketFinal, basketStart, basketRef;
-		std::vector<double> basketPerfs,basketWeights,optionPayoffs; optionPayoffs.reserve(10);
+		std::vector<double> basketPerfs,basketWeights,uPerfs,optionPayoffs; optionPayoffs.reserve(10);
 		int                 callOrPut = -1, j, len,n;     				// default option is a put
 
 		// init
@@ -1446,7 +1446,7 @@ public:
 			}
 		   finalAssetReturn = basketFinal;
 		   optionPayoff     = callOrPut *(basketFinal - strike);
-		   if (optionPayoff > cap){ optionPayoff =cap; }
+		   if (optionPayoff > cap){ optionPayoff = cap; }
 		   thisPayoff      += participation*(optionPayoff > 0.0 ? optionPayoff : 0.0);
 		   break;
 		case cappuccinoPayoff:
@@ -1454,7 +1454,7 @@ public:
 			cumReturn = 0.0;
 			w          = 1.0 / brel.size();
 			basketFinal=0.0, basketStart=0.0, basketRef=0.0;
-			for (j=0, len=len = brel.size(); j<len; j++) {
+			for (j=0, len = brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n              = ulIdNameMap[thisBrel.underlying];
 				thisRefLevel   = startLevels[n] * thisBrel.strike;
@@ -1470,6 +1470,23 @@ public:
 			thisPayoff       = participation*(optionPayoff > 0.0 ? optionPayoff : 0.0);
 			proportionHits   = thisPayoff > 0.0 ? 1.0 : 0.0;
 			break;			 
+		case outperformanceCallPayoff:
+			callOrPut = 1;
+		case outperformancePutPayoff:
+			// first MINUS second
+			if (brel.size() == 2){
+				for (j=0; j<2; j++) {
+					const SpBarrierRelation &thisBrel(brel[j]);
+					n              = ulIdNameMap[thisBrel.underlying];
+					thisRefLevel   = startLevels[n];
+					thisFinalLevel = thesePrices[n];
+					uPerfs.push_back(thisFinalLevel / thisRefLevel);
+				}
+				optionPayoff     = callOrPut *(uPerfs[0] - uPerfs[1]) - strike;
+				if (optionPayoff > cap){ optionPayoff = cap; }
+				thisPayoff      += participation*(optionPayoff > 0.0 ? optionPayoff : 0.0);
+			}			
+			break;
 		case fixedPayoff:
 			if (doFinalAssetReturn){
 				// DOME: just record worstPerformer for now

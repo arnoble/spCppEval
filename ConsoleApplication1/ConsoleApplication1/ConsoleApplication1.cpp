@@ -114,8 +114,6 @@ int _tmain(int argc, _TCHAR* argv[])
 		time_t           startTime = time(0);
 		char             **szAllPrices = new char*[maxUls];
 		vector<int>      allProductIds; allProductIds.reserve(1000);
-		vector<string>   payoffType ={ "", "fixed", "call", "put", "twinWin", "switchable", "basketCall", "lookbackCall", "lookbackPut", "basketPut",
-			"basketCallQuanto", "basketPutQuanto", "cappuccino", "levelsCall" };
 		vector<int>::iterator intIterator, intIterator1;
 		for (int i = 0; i < maxUls; i++){
 			szAllPrices[i] = new char[bufSize];
@@ -133,6 +131,17 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 		}
 		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
+
+		// some inits from db
+		vector<string>   payoffType;  payoffType.push_back("");
+		sprintf(lineBuffer, "%s", "select name from payofftype order by PayoffTypeId");
+		mydb.prepare((SQLCHAR *)lineBuffer, 1);
+		retcode = mydb.fetch(false, lineBuffer);
+		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+			payoffType.push_back(szAllPrices[0]);
+			retcode = mydb.fetch(false, "");
+		}
+
 
 
 		// build list of productIds
@@ -634,7 +643,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// get underlyingids for this product from DB
-			// they can come in any order of UnderlyingId (this is deliberate to aviod the code becoming dependent on any ordering
+			// they can come in any order of UnderlyingId (this is deliberate to avoid the code becoming dependent on any ordering
 			vector<int> ulIds,ulPriceReturnUids;
 			vector<string> ulCcys;
 			vector<string> ulNames;
@@ -1320,7 +1329,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					brcolTriggered, brcolIsAbsolute, brcolUpperBarrier, brcolWeight, brcolStrikeOverride, colBarrierRelationLast
 				};
 				// ** SQL fetch block
-				sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "barrierrelation where ProductBarrierId='", barrierId, "' order by UnderlyingId");
+				sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "barrierrelation where ProductBarrierId='", barrierId, "' order by BarrierRelationId");  // WAS ordered by UnderlyingId ... for no reason I can think of
 				mydb1.prepare((SQLCHAR *)lineBuffer, colBarrierRelationLast);
 				retcode = mydb1.fetch(false,lineBuffer);
 				// ...parse each barrierrelation row
@@ -1589,7 +1598,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData,useUserParams,thisMarketData,
-				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured,false);
+				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ false);
 
 			// ...check product not matured
 			numMonPoints = monDateIndx.size();
@@ -1603,7 +1612,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false /* doPriipsStress */, 
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
-					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,false);
+					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false);
 				
 				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), thetaBumpAmount(0.0);
 				if (doBumps && (deltaBumps || vegaBumps || thetaBumps)  /* && daysExtant>0 */){
@@ -1691,7 +1700,8 @@ int _tmain(int argc, _TCHAR* argv[])
 									spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 										numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 										contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false,useProto, getMarketData, useUserParams, thisMarketData,
-										cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,false);
+										cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */, 
+										productHasMatured,/* priipsUsingRNdrifts */ false);
 									if (doDeltas){
 										if (deltaBumpAmount != 0.0){
 											double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
@@ -1748,7 +1758,8 @@ int _tmain(int argc, _TCHAR* argv[])
 								spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 									numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 									contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false,useProto, getMarketData, useUserParams, thisMarketData,
-									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true, productHasMatured,false);
+									cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true, 
+									productHasMatured,/* priipsUsingRNdrifts */ false);
 								if (doDeltas) {
 									if (deltaBumpAmount != 0.0){
 										double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
@@ -1783,14 +1794,14 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 			}
 
-			// PRIIPs adjust driftrate to riskfree minus divs
+			// PRIIPs
 			if (doPriips){
 				// real-world drifts
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
-					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured,false);
+					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured,/* priipsUsingRNdrifts */ false);
 
 				// adjust driftrate to riskfree (? minus divs ?)
 				// DOME: check 
@@ -1810,11 +1821,12 @@ int _tmain(int argc, _TCHAR* argv[])
 						ulReturns[i][j] *= priipsDailyDriftCorrection;
 					}
 				}
+				// re-evaluate, this time setting priipsUsingRNdrifts=true
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 					useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
-					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured, true);
+					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ true);
 
 
 				// PRIIPS stresstest
@@ -1893,7 +1905,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true /* doPriipsStress */,
 					useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
-					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured,true);
+					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ true);
 
 			}
 
