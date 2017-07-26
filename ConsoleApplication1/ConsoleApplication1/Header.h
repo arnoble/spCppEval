@@ -1078,6 +1078,9 @@ public:
 		else if (payoffType.find("basket") != std::string::npos){
 			isHit = &SpBarrier::isHitBasket;
 		}
+		else if (payoffType.find("outperf") != std::string::npos){
+			isHit = &SpBarrier::isHitOutperf;
+		}
 		else {
 			isHit = &SpBarrier::isHitVanilla;
 		}
@@ -1241,6 +1244,35 @@ public:
 			}
 		}
 		double diff      = basketReturn - param1;
+		bool   thisTest  = above ? diff > 0 : diff < 0;
+		if (isAnd)  isHit &= thisTest;
+		else        isHit |= thisTest;
+		//std::cout << "isHit:" << isHit << "Press a key to continue..." << std::endl;  std::getline(std::cin, word);
+		return isHit;
+	};
+
+
+	// outperf test if barrier is hit
+	bool isHitOutperf(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		if (numBrel < 2) return true;
+		int j, thisIndx;
+		bool isHit  = isAnd;
+		bool above  = brel[0].above;
+		double w, thisRefLevel;
+
+		/*
+		* see if return difference breaches barrier level (in 'N' field)
+		*/
+		double returnDiff = 0.0;
+		for (j = 0; j<2; j++) {
+			const SpBarrierRelation &thisBrel(brel[j]);
+			thisIndx       = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
+			above          = thisBrel.above;
+			// thisRefLevel   = startLevels[thisIndx] / thisBrel.moneyness;
+			returnDiff  += (thesePrices[thisIndx] / thisBrel.refLevel) * (j == 0 ? 1.0 : -1.0);
+		}
+		double diff      = 1.0 + returnDiff - param1;
 		bool   thisTest  = above ? diff > 0 : diff < 0;
 		if (isAnd)  isHit &= thisTest;
 		else        isHit |= thisTest;
