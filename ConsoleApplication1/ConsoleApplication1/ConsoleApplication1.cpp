@@ -1563,11 +1563,6 @@ int _tmain(int argc, _TCHAR* argv[])
 			// so omit for non-PRIIPs analysis
 			vector<double> calendarDailyVariance;
 			if (doPriips){
-				vector<double> priipsDvds;
-				for (i = 0; i < numUl; i++) {
-					priipsDvds.push_back(interpVector(divYieldsRate[i], divYieldsTenor[i], maxYears));
-				}
-
 				// do convexity adjustment
 				for (i = 0; i < numUl; i++) {
 					originalUlReturns[i] = ulReturns[i];
@@ -1811,10 +1806,12 @@ int _tmain(int argc, _TCHAR* argv[])
 					double thisVariance               = calendarDailyVariance[i];
 					double thisDailyVol               = pow(thisVariance, .5);
 					// calculate ACTUAL drift rates	
+					double thisDivYield               = 0.0; // interpVector(divYieldsRate[i], divYieldsTenor[i], maxYears);
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
 					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
-					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr /* + priipsDvds[i] */) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
+					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr + thisDivYield) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
 					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
+
 
 					// change underlyings' drift rate
 					for (j = 0; j < ulReturns[i].size(); j++) {
