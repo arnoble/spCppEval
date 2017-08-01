@@ -100,8 +100,8 @@ double pv(const double r, const std::vector<double> &c, const std::vector<double
 double irr(const std::vector<double> &c, const std::vector<double> &t) {
 	int maxit = 100;
 	double xacc  = 0.0001;     // 1bp accuracy
-	double x1    = -0.1;       // lower bound guess
-	double x2    =  0.5;       // upper bound guess ... some products nearing KO may have funny midPrices
+	double x1    = -0.9;       // lower bound guess
+	double x2    =  0.9;       // upper bound guess ... some products nearing KO may have funny midPrices
 	int  i, j;
 	double  dx, dxold, f, df, fh, fl, temp, xh, xl, rts;
 	fAndDf funcResults(0,0) ;
@@ -115,6 +115,7 @@ double irr(const std::vector<double> &c, const std::vector<double> &t) {
 		double sumCashflows(0.0);
 		for (i=0; i < c.size(); i++){ sumCashflows += c[i]; }
 		if (sumCashflows <= 0.0){   // products about to mature for x may have a slightly high midPrice making sumCashflows negative
+			return(x1);
 		}
 		else {                   // products about to mature for x may have a slightly low  midPrice requiring a very high IRR to zero them
 			return(x2);
