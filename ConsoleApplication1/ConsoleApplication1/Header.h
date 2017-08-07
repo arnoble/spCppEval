@@ -1358,7 +1358,7 @@ public:
 		int                                    &finalAssetIndx,
 		const std::vector<int>                 &ulIds,
 		std::vector<bool>                      &useUl,
-		const int                               startPoint,
+		const int                               thisPoint,
 		std::vector<UlTimeseries>              &ulPrices) {
 		double              thisPayoff(payoff), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
 		double              cumReturn,w, basketFinal, basketStart, basketRef;
@@ -1538,7 +1538,7 @@ public:
 			callOrPut        = 1;
 			n                = ulIdNameMap[thisBrel.underlying];
 			std::vector<double> thisPriceSlice;
-			for (k=startPoint + thisBrel.startDays; k <= startPoint + thisBrel.endDays; k++){
+			for (k=thisPoint + thisBrel.startDays; k <= thisPoint + thisBrel.endDays; k++){
 				if (!ulPrices[n].nonTradingDay[k]){
 					thisPriceSlice.push_back(log(ulPrices[n].price[k]));
 				}
@@ -2425,7 +2425,7 @@ public:
 						bool notDisabled = barrierDisabled[thisBarrier] == false;
 						if ((b.endDays == thisMonDays || (b.isContinuous && thisMonDays <= b.endDays && thisMonDays >= b.startDays)) && notDisabled) {
 							// strikeReset AND stopLoss means we want YESTERDAY's close
-							// ... a hack to accomodate #2774 where investor is short a strip of daily-reset KIPs struck at YESTERDAY's close
+							// ...ge a hack to accomodate #2774 where investor is short a strip of daily-reset KIPs struck at YESTERDAY's close
 							if (b.isStrikeReset && b.isStopLoss){
 								int numBrel = b.brel.size();
 								for (unsigned int uI = 0; uI < numBrel; uI++){
@@ -2445,7 +2445,7 @@ public:
 								if (doAccruals){ b.hasBeenHit= true; }  
 								double thisOptionPayoff;
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, 
-									finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl,startPoint,ulPrices);
+									finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl,thisPoint,ulPrices);
 
 								// process barrier commands
 								if (b.barrierCommands != ""){
