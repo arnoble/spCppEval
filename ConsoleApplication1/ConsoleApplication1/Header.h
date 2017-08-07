@@ -548,7 +548,7 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 }
 
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, 
-	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff, levelsCallPayoff, outperformanceCallPayoff, outperformancePutPayoff
+	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff, levelsCallPayoff, outperformanceCallPayoff, outperformancePutPayoff,varianceSwapPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
 
@@ -1357,11 +1357,13 @@ public:
 		double                                 &optionPayoff,
 		int                                    &finalAssetIndx,
 		const std::vector<int>                 &ulIds,
-		std::vector<bool>                      &useUl) {
+		std::vector<bool>                      &useUl,
+		const int                               startPoint,
+		std::vector<UlTimeseries>              &ulPrices) {
 		double              thisPayoff(payoff), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
 		double              cumReturn,w, basketFinal, basketStart, basketRef;
 		std::vector<double> basketPerfs,basketWeights,uPerfs,optionPayoffs; optionPayoffs.reserve(10);
-		int                 callOrPut = -1, j, len,n;     				// default option is a put
+		int                 callOrPut = -1, j, k, len,n;     				// default option is a put
 
 		// init
 		optionPayoff = 0.0;
@@ -1530,6 +1532,27 @@ public:
 					if (perf < finalAssetReturn){ finalAssetReturn = perf; }
 				}
 			}
+			break;
+		case varianceSwapPayoff:
+			const SpBarrierRelation &thisBrel(brel[0]);
+			callOrPut        = 1;
+			n                = ulIdNameMap[thisBrel.underlying];
+			std::vector<double> thisPriceSlice;
+			for (k=startPoint + thisBrel.startDays; k <= startPoint + thisBrel.endDays; k++){
+				if (!ulPrices[n].nonTradingDay[k]){
+					thisPriceSlice.push_back(log(ulPrices[n].price[k]));
+				}
+			}
+			double thisVariance;
+			for (thisVariance=0.0, k=1; k < thisPriceSlice.size(); k++){
+				double anyDouble = thisPriceSlice[k] - thisPriceSlice[k - 1];
+				thisVariance += anyDouble*anyDouble;
+			}
+			thisVariance      = 252.0 * thisVariance / (thisPriceSlice.size() - 1);
+			double swapPayoff = (thisVariance - strike*strike) / (2.0*strike);
+			if (fabs(swapPayoff) > cap){ swapPayoff = cap * (swapPayoff < 0.0 ? -1.0 : 1.0); }
+			thisPayoff      += participation*swapPayoff;
+
 			break;
 		}
 
@@ -2421,7 +2444,8 @@ public:
 								// for post-strike deals, record if barriers have already been hit
 								if (doAccruals){ b.hasBeenHit= true; }  
 								double thisOptionPayoff;
-								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl);
+								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, 
+									finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl,startPoint,ulPrices);
 
 								// process barrier commands
 								if (b.barrierCommands != ""){
