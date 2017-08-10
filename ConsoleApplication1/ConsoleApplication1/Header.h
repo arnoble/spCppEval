@@ -1709,10 +1709,10 @@ private:
 	const std::vector<std::string>  &ulNames;
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate,&bLastDataDate;
-	const int                       daysExtant, productIndx;
+	const int                       bootstrapStride, daysExtant, productIndx;
 	const double                    benchmarkStrike,fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      forOptimisation,fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      doBootstrapStride,forOptimisation,fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 
@@ -1757,7 +1757,8 @@ public:
 		const double                    bmSwapRate, 
 		const double                    bmEarithReturn, 
 		const double                    bmVol,
-		const double                    cds5y
+		const double                    cds5y,
+		const int                       bootstrapStride
 		)
 		: lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
@@ -1767,7 +1768,7 @@ public:
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
-		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y) {};
+		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), doBootstrapStride(bootstrapStride != 0){};
 
 	// public members: DOME consider making private
 	char                           *lineBuffer;
@@ -2209,8 +2210,9 @@ public:
 					// bootstrap resampling
 					bool useNewerMethod(true);
 					bool useNewMethod(false);
-					unsigned long int _notionalIx;
-					int thisReturnIndex;
+					unsigned long int _notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
+					int thisBootstrapStride       = bootstrapStride; 
+					int thisReturnIndex;					
 
 					if (useNewerMethod){
 						// just uses balanced sampling - we can't do true antithetic sampling
@@ -2218,7 +2220,25 @@ public:
 							// ************
 							// bootstrap resampling of underlyings
 							// ************
-							_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
+							
+							// bootstrapStride
+							if (doBootstrapStride){
+								// just crawl along the returns vector, unless it ends
+								if (thisBootstrapStride > 0 && _notionalIx < (maxNpPos - 2) && returnsSeq[_notionalIx + 1] < totalNumReturns){
+									thisBootstrapStride -= 1;
+									_notionalIx         += 1;
+								}
+								else {
+									// either finished striding, or came to the last return
+									thisBootstrapStride = bootstrapStride;
+									_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
+								}
+							}
+							else {
+								// pick element from returns vector
+								_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
+							}
+
 							// SLOW: thisReturnIndex = _notionalIx % totalNumReturns;
 							thisReturnIndex = returnsSeq[_notionalIx];
 							for (i = 0; i < numUl; i++) {

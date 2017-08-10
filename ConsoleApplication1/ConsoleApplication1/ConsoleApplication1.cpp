@@ -498,7 +498,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
 				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, 
-				colProductFundingFractionFactor, colProductBenchmarkStrike,colProductLast
+				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -528,6 +528,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductBenchmarkTER]) / 100.0);
 			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
 			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
+			int bootstrapStride           = atoi(szAllPrices[colProductBootstrapStride]);
+			
 			useUserParams                 = atoi(szAllPrices[colProductUseUserParams]);
 			string forceStartDate         = szAllPrices[colProductForceStartDate];
 			if ( useProductFundingFractionFactor){
@@ -628,7 +630,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				retcode = mydb.fetch(false,"");
 			}
 
-			// get baseCurve
+			// get baseCurvet
 			sprintf(lineBuffer, "%s%s%s", "select Tenor,Rate/100 Spread from curve where ccy='", productCcy.c_str(),
 				"' order by Tenor");
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
@@ -644,26 +646,30 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// get underlyingids for this product from DB
 			// they can come in any order of UnderlyingId (this is deliberate to avoid the code becoming dependent on any ordering
-			vector<int> ulIds,ulPriceReturnUids;
+			double maxTZhrs(0.0);
+			vector<int> ulIds, ulPriceReturnUids;
 			vector<string> ulCcys;
 			vector<string> ulNames;
 			map<string, int> ccyToUidMap;
-			vector<double> ulERPs;
+			vector<double> ulERPs, ulTZhrs;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
-			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
+			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
 				productId, "' ");
 			if (benchmarkId){
-				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
+				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
 				strcat(lineBuffer, charBuffer);
 			}
-			mydb.prepare((SQLCHAR *)lineBuffer, 5);
+			mydb.prepare((SQLCHAR *)lineBuffer, 6);
 			retcode = mydb.fetch(true,lineBuffer);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 				string thisCcy            = szAllPrices[1];
 				double thisERP            = atof(szAllPrices[2]);
 				string thisName           = szAllPrices[3];
 				int    thisPriceReturnUid = atoi(szAllPrices[4]);
+				double thisTZhrs          = atof(szAllPrices[5]);
 				ulCcys.push_back(thisCcy);
+				ulTZhrs.push_back(thisTZhrs);
+				if (fabs(thisTZhrs) > maxTZhrs){ maxTZhrs = fabs(thisTZhrs); }
 				uid         = atoi(szAllPrices[0]);
 				ccyToUidMap[thisCcy] = uid;
 				if (find(ulIds.begin(), ulIds.end(), uid) == ulIds.end()) {      // build list of uids
@@ -679,6 +685,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			numUl = ulIds.size();
 			if (forOptimisation){
 				optimiseUlIdNameMap = ulIdNameMap;
+			}
+			// force stride of 2days if product has not already set a stride
+			if (maxTZhrs > 5.0 && bootstrapStride == 0){
+				bootstrapStride = 2;	
 			}
 
 			//** currencyStruck deals will have nonZero values for $crossRateUids
@@ -1267,7 +1277,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
-				bmSwapRate, bmEarithReturn, bmVol,cds5y);
+				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride);
 			numBarriers = 0;
 
 			// get barriers from DB
