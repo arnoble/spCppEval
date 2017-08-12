@@ -744,7 +744,7 @@ public:
 				std::cerr << "prepare() re-connected OK to " << dataSource << " ...continuing\n";
 			}
 			numAttempts += 1;
-		} while (!SQL_SUCCEEDED(fsts) && numAttempts<3);
+		} while (!SQL_SUCCEEDED(fsts) && numAttempts<10);
 		
 		if (numAttempts >= 3) {
 			std::cerr << "prepare() failed too many times with " << dataSource << " ...exiting\n";
