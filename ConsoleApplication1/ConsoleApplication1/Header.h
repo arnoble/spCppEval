@@ -654,7 +654,10 @@ public:
 				cptr = WcharToChar(text, &numChars);
 				// text[len] = '\0';
 				// state[5] = '\0';
-				printf("%c%c%c%c%c:%d:%s:%d\n", state[0], state[1], state[2], state[3], state[4], native, cptr, len);
+				// https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/sqlstates
+				// https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/appendix-a-odbc-error-codes
+				// eg 08S01	Communication link failure
+				printf("%s%c%c%s%c%c%c:%d:%s\n", "SQLSTATE Class:", state[0], state[1], "SQLSTATE SUBClass:", state[2], state[3], state[4], native, cptr);
 			}
 		} while (ret == SQL_SUCCESS);
 	}
@@ -683,7 +686,8 @@ public:
 	*/
 	// open connection to DataSource
 	SQLRETURN dbConn(SQLHENV hEnv, SQLHDBC* hDBC, SQLWCHAR *szDSN, SQLWCHAR *szUID, SQLWCHAR *szPasswd) {
-		SQLRETURN             fsts;
+		SQLRETURN  fsts;
+		int        numAttempts   = 0;
 
 		fsts = SQLAllocHandle(SQL_HANDLE_DBC, hEnv, hDBC);  // Allocate memory for the connection handle
 		if (!SQL_SUCCEEDED(fsts))	{
@@ -691,12 +695,15 @@ public:
 			exit(1);
 		}
 		// Connect to Data Source  
-		fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
-		// std::cerr << "Connection params " << szDSN << szUID << szPasswd << "\n";
+		do {
+			fsts         = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString			
+			numAttempts += 1;
+		} while (!SQL_SUCCEEDED(fsts) && numAttempts<10);
 		if (!SQL_SUCCEEDED(fsts))	{
-			char thisBuffer[200]; sprintf(thisBuffer,"SQLConnect for connect >>%ls<<", szDSN);
+			char thisBuffer[200]; sprintf(thisBuffer, "SQLConnect for connect >>%ls<<", szDSN);
 			extract_error(thisBuffer, "", hDBC, SQL_HANDLE_DBC);
-			exit(1);
+			// std::cerr << "Connection params " << szDSN << szUID << szPasswd << "\n";
+			exit(104);
 		}
 		return fsts;
 	}
@@ -746,7 +753,7 @@ public:
 			numAttempts += 1;
 		} while (!SQL_SUCCEEDED(fsts) && numAttempts<10);
 		
-		if (numAttempts >= 3) {
+		if (numAttempts >= 10) {
 			std::cerr << "prepare() failed too many times with " << dataSource << " ...exiting\n";
 			exit(104);
 		};
@@ -1414,6 +1421,7 @@ public:
 				if (p > cap){ p = cap; }
 				optionPayoffs.push_back(p);
 			}
+
 
 			switch (underlyingFunctionId) {
 			case uFnSmallest:
