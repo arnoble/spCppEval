@@ -1545,16 +1545,22 @@ public:
 			const SpBarrierRelation &thisBrel(brel[0]);
 			callOrPut        = 1;
 			n                = ulIdNameMap[thisBrel.underlying];
-			std::vector<double> thisPriceSlice;
+			std::vector<double> thisPriceSlice, thisPriceLevel;
 			for (k=thisPoint + thisBrel.startDays; k <= thisPoint + thisBrel.endDays; k++){
 				if (!ulPrices[n].nonTradingDay[k]){
-					thisPriceSlice.push_back(log(ulPrices[n].price[k]));
+					double thisPrice = ulPrices[n].price[k];
+					thisPriceSlice.push_back(log(thisPrice));
+					thisPriceLevel.push_back(thisPrice);
 				}
 			}
 			double thisVariance;
+			bool   param1IsZero  = param1 == 0.0;
+			double lowerBound    = thisBrel.refLevel * param1;
 			for (thisVariance=0.0, k=1; k < thisPriceSlice.size(); k++){
-				double anyDouble = thisPriceSlice[k] - thisPriceSlice[k - 1];
-				thisVariance += anyDouble*anyDouble;
+				if (param1IsZero || thisPriceLevel[k] > lowerBound){
+					double anyDouble = thisPriceSlice[k] - thisPriceSlice[k - 1];
+					thisVariance += anyDouble*anyDouble;
+				}
 			}
 			thisVariance      = 252.0 * thisVariance / (thisPriceSlice.size() - 1);
 			double swapPayoff = (thisVariance - strike*strike) / (2.0*strike);
