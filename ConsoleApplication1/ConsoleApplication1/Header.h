@@ -1877,7 +1877,8 @@ public:
 		const bool                conserveRands,
 		const bool                consumeRands,
 		bool                      &productHasMatured,
-		const bool                priipsUsingRNdrifts
+		const bool                priipsUsingRNdrifts,
+		const bool                updateCashflows
 		){
 		std::vector<bool>		 barrierDisabled;
 		const int                optMaxNumToSend = 1000;
@@ -3319,7 +3320,7 @@ public:
 				int    secsTaken      = difftime(time(0), startTime);
 
 				// if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
-				if (!getMarketData || analyseCase == 0){
+				if (updateCashflows && (!getMarketData || analyseCase == 0)){
 					sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
 					if (doPriipsStress){
 						sort(priipsStressVols.begin(), priipsStressVols.end());
