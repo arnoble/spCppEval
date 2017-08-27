@@ -1726,7 +1726,7 @@ private:
 	const int                       bootstrapStride, daysExtant, productIndx;
 	const double                    benchmarkStrike,fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      doBootstrapStride,forOptimisation,fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      silent,doBootstrapStride,forOptimisation,fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 
@@ -1772,7 +1772,8 @@ public:
 		const double                    bmEarithReturn, 
 		const double                    bmVol,
 		const double                    cds5y,
-		const int                       bootstrapStride
+		const int                       bootstrapStride,
+		const bool                      silent
 		)
 		: lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
@@ -1782,7 +1783,7 @@ public:
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
-		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), doBootstrapStride(bootstrapStride != 0){};
+		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), doBootstrapStride(bootstrapStride != 0), silent(silent){};
 
 	// public members: DOME consider making private
 	char                           *lineBuffer;
@@ -2657,7 +2658,9 @@ public:
 				int j = 1;
 			}
 			// end-this-iteration convergence test
-			if ((thisIteration + 1) % 1000 == 0){ std::cout << "."; }
+			if (!silent && ((thisIteration + 1) % 1000) == 0){
+				std::cout << ".";
+			}
 			if (thisIteration>750 && (thisIteration + 1) % 10000 == 0){
 				double thisMean       = PayoffMean(barrier);
 				double thisStdevRatio = PayoffStdev(barrier, thisMean) / thisMean;
@@ -2672,7 +2675,7 @@ public:
 					}
 					stdevRatioPctChange = sumChanges / numSigChanges;
 				} 
-				std::cout << std::endl << " MeanPayoff:" << thisMean << " StdevRatio:" << thisStdevRatio << " StdevRatioChange:" << stdevRatioPctChange;
+				if (!silent) { std::cout << std::endl << " MeanPayoff:" << thisMean << " StdevRatio:" << thisStdevRatio << " StdevRatioChange:" << stdevRatioPctChange; }
 				stdevRatio = thisStdevRatio;
 			}
 		} // END LOOP McIterations
@@ -2772,15 +2775,16 @@ public:
 
 			// check simulated drifts
 			double thisMean, thisStd, thisStderr;
-			for (i = 0; i < numUl; i++) {
-				MeanAndStdev(simulatedReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
-				std::cout << "Simulated annualised drift rate to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << std::endl;
-				MeanAndStdev(simulatedLogReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
-				std::cout << "Simulated vol to:" << ulPrices[i].date[startPoint + productDays] << " :" << thisStd / sqrt(productDays/365) << " for:" << ulNames[i] << std::endl;
-				MeanAndStdev(simulatedLevelsToMaxYears[i], thisMean, thisStd, thisStderr);
-				std::cout << "Simulated final level at:" << ulPrices[i].date[startPoint + productDays] << ":" << thisMean << " for:" << ulNames[i] << " (" << productDays / 365.0 << "y):" << std::endl;
+			if (!silent) {
+				for (i = 0; i < numUl; i++) {
+					MeanAndStdev(simulatedReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
+					std::cout << "Simulated annualised drift rate to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << std::endl;
+					MeanAndStdev(simulatedLogReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
+					std::cout << "Simulated vol to:" << ulPrices[i].date[startPoint + productDays] << " :" << thisStd / sqrt(productDays / 365) << " for:" << ulNames[i] << std::endl;
+					MeanAndStdev(simulatedLevelsToMaxYears[i], thisMean, thisStd, thisStderr);
+					std::cout << "Simulated final level at:" << ulPrices[i].date[startPoint + productDays] << ":" << thisMean << " for:" << ulNames[i] << " (" << productDays / 365.0 << "y):" << std::endl;
+				}
 			}
-
 
 
 			int    numAllEpisodes(0);
@@ -2977,7 +2981,9 @@ public:
 					double returnToAnnualise = ((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice;
 					double annReturn         = returnToAnnualise>0.0 && numInstances && b.yearsToBarrier>0 && midPrice>0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
 					// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
-					std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
+					if (!silent) {
+						std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
+					}
 					// ** SQL 
 					// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
 					if ((!getMarketData || analyseCase == 0) && !priipsUsingRNdrifts){
@@ -3411,32 +3417,34 @@ public:
 				if ( (getMarketData && analyseCase == 0)){
 					double thisMean, thisStdev, thisStderr;
 					std::string   thisDateString(allDates.at(startPoint));
-					sprintf(charBuffer, "%s", "Spot,Forward,DiscountFactor\nUIDs: ");
-					for (i = 0; i < numUl; i++){
-						sprintf(charBuffer, "%s\t%s", charBuffer, ulNames[i].c_str());
-					}
-					sprintf(charBuffer, "%s%s", charBuffer, "\tDiscountFactor");
-					std::cout << charBuffer << std::endl;
-					sprintf(charBuffer, "%s%s", "Spots on: ", thisDateString.c_str());
-					for (i = 0; i < numUl; i++){
-						sprintf(charBuffer, "%s\t%.2lf", charBuffer, spotLevels[i]);
-					}
-					std::cout << charBuffer << std::endl;
-					for (int thisMonIndx = 0; thisMonIndx < monDateIndx.size(); thisMonIndx++){
-						int thisMonPoint = startPoint + monDateIndx[thisMonIndx];
-						thisDateString = allDates.at(thisMonPoint);
-						sprintf(charBuffer, "%s%s", "Fwds(stdev)[%ofSpot] and discountFactor on: ", thisDateString.c_str());
+					if (!silent) {
+						sprintf(charBuffer, "%s", "Spot,Forward,DiscountFactor\nUIDs: ");
 						for (i = 0; i < numUl; i++){
-							MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev, thisStderr);
-							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(",thisStderr,")[",thisMean/spotLevels[i],"]");
+							sprintf(charBuffer, "%s\t%s", charBuffer, ulNames[i].c_str());
 						}
-						double yearsToBarrier   = monDateIndx[thisMonIndx]/365.25;
-						double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
-						forwardRate            += fundingFraction*interpCurve(cdsTenor,cdsSpread, yearsToBarrier);
-						double discountT        = yearsToBarrier - forwardStartT;
-						double discountFactor   = pow(forwardRate, -discountT);
-						sprintf(charBuffer, "%s\t%.5lf", charBuffer, discountFactor);
+						sprintf(charBuffer, "%s%s", charBuffer, "\tDiscountFactor");
 						std::cout << charBuffer << std::endl;
+						sprintf(charBuffer, "%s%s", "Spots on: ", thisDateString.c_str());
+						for (i = 0; i < numUl; i++){
+							sprintf(charBuffer, "%s\t%.2lf", charBuffer, spotLevels[i]);
+						}
+						std::cout << charBuffer << std::endl;
+						for (int thisMonIndx = 0; thisMonIndx < monDateIndx.size(); thisMonIndx++){
+							int thisMonPoint = startPoint + monDateIndx[thisMonIndx];
+							thisDateString = allDates.at(thisMonPoint);
+							sprintf(charBuffer, "%s%s", "Fwds(stdev)[%ofSpot] and discountFactor on: ", thisDateString.c_str());
+							for (i = 0; i < numUl; i++){
+								MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev, thisStderr);
+								sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(", thisStderr, ")[", thisMean / spotLevels[i], "]");
+							}
+							double yearsToBarrier   = monDateIndx[thisMonIndx] / 365.25;
+							double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
+							forwardRate            += fundingFraction*interpCurve(cdsTenor, cdsSpread, yearsToBarrier);
+							double discountT        = yearsToBarrier - forwardStartT;
+							double discountFactor   = pow(forwardRate, -discountT);
+							sprintf(charBuffer, "%s\t%.5lf", charBuffer, discountFactor);
+							std::cout << charBuffer << std::endl;
+						}
 					}
 					// fair value
 					MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
@@ -3456,9 +3464,10 @@ public:
 				}
 
 				// text output
-				sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf", 
+				if (!silent) {
+					sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
 						analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
-						100.0*geomReturn, ":", 
+						100.0*geomReturn, ":",
 						100.0*earithReturn, ":",
 						100.0*esVol*pow(duration, 0.5), ":",
 						100.0*productExcessReturn, ":",
@@ -3491,8 +3500,8 @@ public:
 						100.0*bmRelUnderperfPV, ":",
 						100.0*bmRelAverage
 						);
-				std::cout << charBuffer << std::endl;
-
+					std::cout << charBuffer << std::endl;
+				}
 			}
 		}
 	}

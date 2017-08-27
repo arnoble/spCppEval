@@ -21,6 +21,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["hasInventory"]            = "";
 		argWords["notStale"]                = "";
 		argWords["debug"]                   = "";
+		argWords["silent"]                  = "";
 		argWords["priips"]                  = "";
 		argWords["doAnyIdTable"]            = "";
 		argWords["getMarketData"]           = "";
@@ -81,7 +82,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false);
+		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false),silent(false);
 		bool             done,forceFullPriceRecord(false),fullyProtected, firstTime;
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -174,7 +175,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
 			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
-			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }			
+			if (strstr(thisArg, "silent"            )){ silent             = true; }
+			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }
 			if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
 			if (strstr(thisArg, "hasInventory"      )){ hasInventory       = true; }
 			if (strstr(thisArg, "showMatured"       )){ showMatured        = true; }			
@@ -1277,7 +1279,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
-				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride);
+				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride,silent);
 			numBarriers = 0;
 
 			// get barriers from DB
