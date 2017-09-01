@@ -548,7 +548,7 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 }
 
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, 
-	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff, levelsCallPayoff, outperformanceCallPayoff, outperformancePutPayoff,varianceSwapPayoff
+	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff, levelsCallPayoff, outperformanceCallPayoff, outperformancePutPayoff, varianceSwapPayoff, autocallPutPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
 
@@ -1383,6 +1383,7 @@ public:
 			callOrPut = 1;
 		case lookbackPutPayoff:
 		case putPayoff:
+		case autocallPutPayoff:
 			for (j = 0, len = brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n      = ulIdNameMap[thisBrel.underlying];
@@ -1410,7 +1411,8 @@ public:
 				}
 
 				// the typical optionPayoff = max(0,return) is done below in the 'for' loops initialised with 'optionPayoff=0'
-				if (payoffTypeId == putPayoff && (productShape == "Autocall" || productShape == "Phoenix")){
+				// if (payoffTypeId == putPayoff && (productShape == "Autocall" || productShape == "Phoenix")){
+				if (payoffTypeId == autocallPutPayoff){
 					p = callOrPut*(thisAssetReturn*thisRefLevel / thisStrike - 1);
 				}
 				else {
