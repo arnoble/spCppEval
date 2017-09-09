@@ -274,12 +274,18 @@ int _tmain(int argc, _TCHAR* argv[])
 					sprintf(lineBuffer, "%s%s%s%s%s", lineBuffer, (j == 0 ? "" : ","), "'", tokens[j].c_str(), "'");
 				}
 				// to avoid large strings of productids, store them in anyid table
+				/* better to create inline table 
 				sprintf(charBuffer, "%s%s%s", 
 					"CREATE TEMPORARY TABLE tempOnly ENGINE=MEMORY as (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid) join underlying u using (underlyingid) where u.name not in (",
 					lineBuffer, ")))");
 				mydb.prepare((SQLCHAR *)charBuffer, 1);
-
-				strcpy(onlyTheseUlsBuffer, " join tempOnly using (productid) ");
+				*/
+				
+				// strcpy(onlyTheseUlsBuffer, " join tempOnly using (productid) ");
+				sprintf(charBuffer, "%s%s%s",
+					" join (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid) join underlying u using (underlyingid) where u.name not in (",
+					lineBuffer, "))) z using (productid) ");
+				sprintf(onlyTheseUlsBuffer, "%s%s", onlyTheseUlsBuffer, charBuffer);
 			}
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer))             { strcpy(startDate, lineBuffer); }
 			if (sscanf(thisArg, "UKSPA:%s", lineBuffer))                  {
@@ -434,8 +440,10 @@ int _tmain(int argc, _TCHAR* argv[])
 				allProductIds[0]);
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
 
-			// clear productreturns table
+			// clear productreturns and simulatedunderlyings tables
 			sprintf(lineBuffer, "%s", "delete from productreturns");
+			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			sprintf(lineBuffer, "%s", "delete from simulatedunderlyings");
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
 		}
 

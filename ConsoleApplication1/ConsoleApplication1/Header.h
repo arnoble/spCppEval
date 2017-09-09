@@ -1899,7 +1899,8 @@ public:
 		std::vector< std::vector<double> > simulatedLogReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
-		std::vector<double>      stdevRatioPctChanges, optimiseAnnRets; optimiseAnnRets.reserve(numMcIterations);
+		std::vector<double>      stdevRatioPctChanges, optimiseAnnRets; optimiseAnnRets.reserve(numMcIterations); 
+		std::vector<int>         optimiseDayMatured; optimiseDayMatured.reserve(numMcIterations);
 		std::vector< std::vector<double> > someTimepoints[100];
 		std::vector<double>           someLevels[100], somePaths[100]; 
 		std::vector< std::vector<  std::vector<double> > > timepointLevels;
@@ -2592,8 +2593,14 @@ public:
 									if (forOptimisation && productIndx != 0){
 										thisAmount        = b.proportionHits*thisPayoff*baseCcyReturn;
 										double thisYears  = b.yearsToBarrier;
+										int    dayMatured = (int)floor(b.yearsToBarrier*365.25);
 										double thisAnnRet = thisYears <= 0.0 ? 0.0 : min(0.4, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
-										optimiseAnnRets.push_back(thisAnnRet);
+										double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
+										double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
+										double thisPvPayoff = thisAmount*thisDiscountFactor;
+
+										optimiseAnnRets.push_back(thisPvPayoff);
+										optimiseDayMatured.push_back(dayMatured - 1);
 									}
 								} // END of capital barrier processing
 								else { // income barrier processing
@@ -2749,8 +2756,9 @@ public:
 			}
 		} // doAccruals
 		else {
-			// send final optimisation stub
+			// save optimisation data	
 			if (forOptimisation && productIndx != 0){
+				// save product values for each iteration
 				for (optCount=0; optCount < optimiseAnnRets.size(); optCount++){
 					if (optCount % optMaxNumToSend == 0){
 						// send batch
@@ -2764,6 +2772,32 @@ public:
 					sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", productId, ",", optCount, ",", optimiseAnnRets[optCount], ")");
 					optFirstTime  = false;
 				}
+				// send final optimisation stub
+				if (strlen(lineBuffer)){
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
+				// save underlying values for each iteration
+				for (optCount=0; optCount < optimiseAnnRets.size(); optCount++){
+					if (optCount % optMaxNumToSend == 0){
+						// send batch
+						if (optCount != 0){
+							mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						}
+						// init for next batch							
+						strcpy(lineBuffer, "insert into simulatedunderlyings (UnderlyingId,Iteration,Value) values ");
+						optFirstTime = true;
+					}
+					for (i = 0; i < numUl; i++) {
+						int id = ulIds[i];
+						int ix = optimiseUlIdNameMap[id];
+						int thisDay = optimiseDayMatured[optCount];
+						double startLevel = ulPrices[i].price[startPoint];
+						double thisReturn = optimiseMcLevels[ix][thisDay][optCount] / startLevel;
+						sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", id, ",", optCount, ",", optimiseAnnRets[optCount], ")");
+						optFirstTime  = false;
+					}					
+				}
+				// send final optimisation stub
 				if (strlen(lineBuffer)){
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
