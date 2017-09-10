@@ -1886,6 +1886,7 @@ public:
 		const int                optMaxNumToSend = 1000;
 		const double             unwindPayoff    = 0.1;
 		bool                     optFirstTime;
+		bool	                 optOptimiseAnnualisedReturn(!getMarketData); 
 		bool                     matured;
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
@@ -1894,12 +1895,12 @@ public:
 		int                      optCount         = 0;
 		char                     charBuffer[1000];
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
-		double                   thisAmount,anyDouble, anyDouble1, couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
+		double                   simulatedFairValue,thisAmount,anyDouble, anyDouble1, couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		boost::gregorian::date   bFixedCouponsDate(bLastDataDate);
 		std::vector< std::vector<double> > simulatedLogReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
-		std::vector<double>      stdevRatioPctChanges, optimiseAnnRets; optimiseAnnRets.reserve(numMcIterations); 
+		std::vector<double>      stdevRatioPctChanges, optimiseProductResult; optimiseProductResult.reserve(numMcIterations); 
 		std::vector<int>         optimiseDayMatured; optimiseDayMatured.reserve(numMcIterations);
 		std::vector< std::vector<double> > someTimepoints[100];
 		std::vector<double>           someLevels[100], somePaths[100]; 
@@ -2588,8 +2589,7 @@ public:
 											}
 										}
 									}
-									// possibly save all annRets into productreturns table
-									// BEWARE
+									// possibly save optimisation results (productIndx zero is the dummy product that generates the underlyings'
 									if (forOptimisation && productIndx != 0){
 										thisAmount        = b.proportionHits*thisPayoff*baseCcyReturn;
 										double thisYears  = b.yearsToBarrier;
@@ -2598,9 +2598,9 @@ public:
 										double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
 										double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 										double thisPvPayoff = thisAmount*thisDiscountFactor;
-
-										optimiseAnnRets.push_back(thisPvPayoff);
-										optimiseDayMatured.push_back(dayMatured - 1);
+										optimiseProductResult.push_back(optOptimiseAnnualisedReturn ? thisAnnRet : thisPvPayoff);
+										// not using now
+										// optimiseDayMatured.push_back(dayMatured - 1);
 									}
 								} // END of capital barrier processing
 								else { // income barrier processing
@@ -2697,6 +2697,7 @@ public:
 		// *****************
 		// ** handle results
 		// *****************
+		// if we are doing accruals
 		if (doAccruals){
 			accruedCoupon = couponValue;  // store accrued coupon
 			/*
@@ -2754,56 +2755,10 @@ public:
 				sprintf(lineBuffer, "%s%lf%s%s%s%d%s", "update product join cashflows using (productid) set Matured=1,MaturityPayoff=", thisAmount, ",DateMatured='", b.settlementDate.c_str(), "' where productid=", productId, " and projectedreturn=1");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 			}
-		} // doAccruals
+		} // END doAccruals
+		// not doing accruals
 		else {
-			// save optimisation data	
-			if (forOptimisation && productIndx != 0){
-				// save product values for each iteration
-				for (optCount=0; optCount < optimiseAnnRets.size(); optCount++){
-					if (optCount % optMaxNumToSend == 0){
-						// send batch
-						if (optCount != 0){
-							mydb.prepare((SQLCHAR *)lineBuffer, 1);
-						}
-						// init for next batch							
-						strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet) values ");
-						optFirstTime = true;
-					}
-					sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", productId, ",", optCount, ",", optimiseAnnRets[optCount], ")");
-					optFirstTime  = false;
-				}
-				// send final optimisation stub
-				if (strlen(lineBuffer)){
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				}
-				// save underlying values for each iteration
-				for (optCount=0; optCount < optimiseAnnRets.size(); optCount++){
-					if (optCount % optMaxNumToSend == 0){
-						// send batch
-						if (optCount != 0){
-							mydb.prepare((SQLCHAR *)lineBuffer, 1);
-						}
-						// init for next batch							
-						strcpy(lineBuffer, "insert into simulatedunderlyings (UnderlyingId,Iteration,Value) values ");
-						optFirstTime = true;
-					}
-					for (i = 0; i < numUl; i++) {
-						int id = ulIds[i];
-						int ix = optimiseUlIdNameMap[id];
-						int thisDay = optimiseDayMatured[optCount];
-						double startLevel = ulPrices[i].price[startPoint];
-						double thisReturn = optimiseMcLevels[ix][thisDay][optCount] / startLevel;
-						sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", id, ",", optCount, ",", optimiseAnnRets[optCount], ")");
-						optFirstTime  = false;
-					}					
-				}
-				// send final optimisation stub
-				if (strlen(lineBuffer)){
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				}
-			}
-
-			if (0 && debugCorrelatedRandNos.size()>2) {
+			if (0 && debugCorrelatedRandNos.size() > 2) {
 				double thisMean, thisStd, thisStderr;
 				MeanAndStdev(debugCorrelatedRandNos, thisMean, thisStd, thisStderr);
 				sprintf(lineBuffer, "%s%.4lf", "Simulated average randnos:", thisMean);
@@ -2848,10 +2803,10 @@ public:
 					}
 				}
 			}
-			
+
 			// doFinalAssetReturn
 			char farBuffer[100000], farBuffer1[100000];
-			int  farCounter(0),totalFarCounter(0);
+			int  farCounter(0), totalFarCounter(0);
 			if (doFinalAssetReturn && !usingProto  && !getMarketData && !doPriips){
 				strcpy(farBuffer, "insert into finalassetreturns values ");
 				sprintf(lineBuffer, "%s%d%s", "delete from finalassetreturns where productid='", productId, "'");
@@ -2860,37 +2815,37 @@ public:
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				strcpy(farBuffer1, "insert into finalassetinfo values");
 			}
-			
+
 
 			// process results
 			const double tol = 1.0e-6;
 			std::string      lastSettlementDate = barrier.at(numBarriers - 1).settlementDate;
 			double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 			double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
-			
+			// analyse each results case
 			for (int analyseCase = 0; analyseCase < (doPriips || getMarketData ? 1 : 2); analyseCase++) {
 				if (doDebug){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 				bool     applyCredit = analyseCase == 1;
 				std::map<int, double> cashflowMap;
 				double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));
 				// ukspaCase also now have projectedReturns
-				if      (ukspaCase == "Bear"   )      { projectedReturn = 0.1; }
+				if (ukspaCase == "Bear")      { projectedReturn = 0.1; }
 				else if (ukspaCase == "Neutral")      { projectedReturn = 0.2; }
-				else if (ukspaCase == "Bull"   )      { projectedReturn = 0.3; }
+				else if (ukspaCase == "Bull")      { projectedReturn = 0.3; }
 				if (getMarketData && ukspaCase == "") { projectedReturn = 0.4; }
 
 				bool     foundEarliest = false;
 				double   probEarly(0.0), probEarliest(0.0);
-				std::vector<double> allPayoffs, allFVpayoffs,allAnnRets,allCouponRets,bmAnnRets,bmRelLogRets,pvInstances;
+				std::vector<double> allPayoffs, allFVpayoffs, allAnnRets, allCouponRets, bmAnnRets, bmRelLogRets, pvInstances;
 				std::vector<PriipsStruct> priipsInstances; priipsInstances.reserve(numMcIterations);
 				std::vector<PriipsAnnRet> priipsAnnRetInstances; priipsAnnRetInstances.reserve(numMcIterations);
-				
+
 				int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 				double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 				double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
 				// most likely barrier
 				double maxBarrierProb(0.0), maxBarrierProbMoneyness(0.0);
-				bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData && ukspaCase == "" && numMcIterations>1);
+				bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData && ukspaCase == "" && numMcIterations > 1);
 
 				// ** process barrier results
 				double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumCouponRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
@@ -2904,20 +2859,20 @@ public:
 					int                 numInstances    = b.hit.size();
 					double              sumProportion   = b.sumProportion;
 					double              thisYears       = b.yearsToBarrier;
-					double              prob            = b.hasBeenHit ? 1.0 :  sumProportion / numAllEpisodes; // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
+					double              prob            = b.hasBeenHit ? 1.0 : sumProportion / numAllEpisodes; // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
 					double              thisProbDefault = probDefault(hazardCurve, thisYears);
 					int                 yearsAsMapKey   = floor(b.yearsToBarrier * YEARS_TO_INT_MULTIPLIER);
 
 					for (i = 0; i < b.hit.size(); i++){
 						thisAmount = b.hit[i].amount;
 						// possibly apply credit adjustment
-						if (applyCredit) { 
+						if (applyCredit) {
 							double thisRecoveryRate;
 							thisRecoveryRate = ((double)rand() / (RAND_MAX)) < thisProbDefault ? actualRecoveryRate : 1.0;
 							thisAmount      *= thisRecoveryRate;
 							if (thisAmount >  midPrice){ eStrPosPayoff  += thisAmount; numStrPosInstances++; }
 							if (thisAmount >= midPrice){ ePosPayoff     += thisAmount; numPosInstances++; }
-							else{                        eNegPayoff     += thisAmount; numNegInstances++; }
+							else{ eNegPayoff     += thisAmount; numNegInstances++; }
 						}
 						thisBarrierCouponValues.push_back(b.couponValues[i]);
 						thisBarrierPayoffs.push_back(thisAmount);
@@ -2929,7 +2884,7 @@ public:
 
 					if (b.capitalOrIncome) {
 						if (!foundEarliest)                        { foundEarliest = true; probEarliest = prob; }
-						if (b.settlementDate < lastSettlementDate) {                       probEarly   += prob; }
+						if (b.settlementDate < lastSettlementDate) { probEarly   += prob; }
 						sumDuration                 += numInstances*thisYears;
 						numCapitalInstances         += numInstances;
 						sumPayoffs                  += b.sumPayoffs;
@@ -2947,22 +2902,22 @@ public:
 									const SpBarrierRelation&    thisBrel(b.brel.at(j));
 									double thisMoneyness = thisBrel.barrier / thisBrel.moneyness;
 									if (thisMoneyness>maxBarrierProbMoneyness){ maxBarrierProbMoneyness = thisMoneyness; }
-								}	
+								}
 							}
 						}
 						double avgBarrierCoupon;
 						// MeanAndStdev(thisBarrierCouponValues, avgBarrierCoupon, anyDouble, anyDouble1);
 						for (i = 0; i < b.hit.size(); i++){
 							double thisAmount      = thisBarrierPayoffs[i];
-							double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(0.4,exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+							double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(0.4, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 							if (thisAnnRet < -0.9999){ thisAnnRet = -0.9999; } // avoid later problems with log(1.0+annRets)
 							double thisCouponValue = thisBarrierCouponValues[i];
 							double thisCouponRet   = thisYears <= 0.0 || (couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue < -1.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
 
 							// maybe save finalAssetReturns
-							if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter<400000 && !doPriips){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
+							if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter < 400000 && !doPriips){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
 								if (farCounter){ strcat(farBuffer, ","); strcat(farBuffer1, ","); }
-								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i].ret,")");
+								sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i].ret, ")");
 								sprintf(farBuffer1, "%s%s%d%s%.3lf%s%.3lf%s%d%s%d%s", farBuffer1, "(", productId, ",", thisAmount, ",", b.fars[i].ret,
 									",", b.fars[i].assetIndx, ",", b.fars[i].barrierIndx, ")");
 								farCounter += 1;
@@ -2971,19 +2926,19 @@ public:
 									strcat(farBuffer, ";"); strcat(farBuffer1, ";");
 									mydb.prepare((SQLCHAR *)farBuffer, 1);
 									mydb.prepare((SQLCHAR *)farBuffer1, 1);
-									strcpy(farBuffer,  "insert into finalassetreturns values ");
+									strcpy(farBuffer, "insert into finalassetreturns values ");
 									strcpy(farBuffer1, "insert into finalassetinfo values");
 									farCounter = 0;
 								}
 							}
-							
+
 							allPayoffs.push_back(thisAmount);
-							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier ));
+							allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier));
 							allAnnRets.push_back(thisAnnRet);
 							allCouponRets.push_back(thisCouponRet);
 
 							/*
-							* update cashflow map - 
+							* update cashflow map -
 							*/
 							cashflowMap[yearsAsMapKey] += thisAmount;
 
@@ -2998,7 +2953,7 @@ public:
 								priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0 + priipsRfr, -thisT), thisT));
 								priipsAnnRetInstances.push_back(PriipsAnnRet(thisAnnRet, thisT));
 							}
-							double bmRet = thisYears <= 0.0 ? 0.0 : (benchmarkId >0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn);
+							double bmRet = thisYears <= 0.0 ? 0.0 : (benchmarkId > 0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn);
 							if (bmRet < (unwindPayoff - 1.0)){ bmRet = (unwindPayoff - 1.0); }
 							bmAnnRets.push_back(bmRet);
 							sumYearsToBarrier += thisYears;
@@ -3007,8 +2962,8 @@ public:
 							sumCouponRets += thisCouponRet;
 
 							if (thisAnnRet > -tol &&  thisAnnRet < tol) { sumParAnnRets += thisAnnRet; numParInstances++; }
-							if (thisAnnRet >  0.0 ) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
-							if (thisAnnRet > -tol ) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
+							if (thisAnnRet >  0.0) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
+							if (thisAnnRet > -tol) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
 							else                    { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
 						}
 					}
@@ -3016,7 +2971,7 @@ public:
 					double mean      = numInstances ? thisBarrierSumPayoffs / numInstances : 0.0;
 					// watch out: b.yearsToBarrier might be zero, or returnToAnnualise might be negative (if a product capital barrier was entered that way...
 					double returnToAnnualise = ((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice;
-					double annReturn         = returnToAnnualise>0.0 && numInstances && b.yearsToBarrier>0 && midPrice>0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
+					double annReturn         = returnToAnnualise > 0.0 && numInstances && b.yearsToBarrier > 0 && midPrice > 0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
 					// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
 					if (!silent) {
 						std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
@@ -3031,7 +2986,7 @@ public:
 						if (getMarketData && ukspaCase == ""){
 							sprintf(lineBuffer, "%s%s%.5lf%s%.5lf%s%.5lf", lineBuffer, "',NonCreditPayoff='", b.yearsToBarrier, "',Reason1Prob='", thisDiscountRate, "',Reason2Prob='", thisDiscountFactor);
 						}
-						sprintf(lineBuffer, "%s%s%d%s%.2lf%s",lineBuffer,"' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
+						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
 						if (doDebug){
 							FILE * pFile;
 							int n;
@@ -3039,28 +2994,28 @@ public:
 							pFile = fopen("debug.txt", "a");
 							fprintf(pFile, "%s\n", lineBuffer);
 							fclose(pFile);
-						}	
+						}
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 					// save PRIIPS-riskNeutral-drift barrierProb somewhere
 					if (priipsUsingRNdrifts && !doPriipsStress && analyseCase == 0){
 						sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "barrierprob set Reason1Prob='", prob);
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
-						mydb.prepare((SQLCHAR *)lineBuffer, 1);						
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
-					
-					
+
+
 				}
-				if (!doPriips && doMostLikelyBarrier && maxBarrierProb>0.0){
+				if (!doPriips && doMostLikelyBarrier && maxBarrierProb > 0.0){
 					sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 						"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,
 						"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 
-				if (numPosInstances    > 0)    { ePosPayoff    /= numPosInstances; }
+				if (numPosInstances > 0)    { ePosPayoff    /= numPosInstances; }
 				if (numStrPosInstances > 0)    { eStrPosPayoff /= numStrPosInstances; }
-				if (numNegInstances    > 0)    { eNegPayoff    /= numNegInstances; }
+				if (numNegInstances > 0)    { eNegPayoff    /= numNegInstances; }
 
 				int numAnnRets(allAnnRets.size());
 				double duration  = sumDuration / numAnnRets;
@@ -3075,7 +3030,7 @@ public:
 					sprintf(lineBuffer, "%s%d%s", "delete from winlose where productid='", productId, "';");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					double winLoseMinRet       =  doWinLoseAnnualised ? -0.20 : 0.9;
-					const double winLoseMaxRet =  doWinLoseAnnualised ?  0.21 : 2.0;
+					const double winLoseMaxRet =  doWinLoseAnnualised ? 0.21 : 2.0;
 					const std::vector<double> &theseWinLoseMeasures = doWinLoseAnnualised ? allAnnRets : allFVpayoffs;
 					const double thisWinLoseDivisor  = doWinLoseAnnualised ? 1.0 : midPrice;
 					const double thisWinLoseClick    = doWinLoseAnnualised ? 0.01 : 0.05;
@@ -3086,7 +3041,7 @@ public:
 						int    numWinLosePosPayoffs = 0;
 						int    numWinLoseNegPayoffs = 0;
 						for (j = 0, len=allAnnRets.size(); j<len; j++) {
-							double payoff   = theseWinLoseMeasures[j] /thisWinLoseDivisor - winLoseMinRet;
+							double payoff   = theseWinLoseMeasures[j] / thisWinLoseDivisor - winLoseMinRet;
 							if (payoff > 0){ sumWinLosePosPayoffs += payoff; numWinLosePosPayoffs += 1; }
 							else           { sumWinLoseNegPayoffs -= payoff; numWinLoseNegPayoffs += 1; }
 						}
@@ -3136,7 +3091,7 @@ public:
 				cumUnderperfPV = 0.0;
 				cumOutperfPV   = 0.0;
 				bmRelCAGR      = 0.0;
-				for (i=0; i<numAnnRets; i++) {
+				for (i=0; i < numAnnRets; i++) {
 					double anyDouble = allAnnRets[i] - bmAnnRets[i];
 					if (anyDouble < 0.0){
 						cumCount       += 1;
@@ -3160,9 +3115,9 @@ public:
 					benchmarkCondOutperf = cumValue1 / cumCount1;
 					bmRelOutperfPV       = cumOutperfPV / cumCount1;
 				}
-				bmRelCAGR = sumYearsToBarrier>0.0 ? exp(bmRelCAGR / sumYearsToBarrier) - 1.0 : 0.0;
+				bmRelCAGR = sumYearsToBarrier > 0.0 ? exp(bmRelCAGR / sumYearsToBarrier) - 1.0 : 0.0;
 
-				
+
 
 				// ** process overall product results
 				const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
@@ -3172,7 +3127,7 @@ public:
 					sort(priipsInstances.begin(), priipsInstances.end());
 					sort(priipsAnnRetInstances.begin(), priipsAnnRetInstances.end());
 				}
-				double averageReturn        = sumAnnRets    / numAnnRets;
+				double averageReturn        = sumAnnRets / numAnnRets;
 				double averageCouponReturn  = sumCouponRets / numAnnRets;
 				double vaR90                = 100.0*allAnnRets[floor(numAnnRets*(0.1))];
 				double vaR50                = 100.0*allAnnRets[floor(numAnnRets*(0.5))];
@@ -3192,10 +3147,10 @@ public:
 				// SRRI vol
 				struct srriParams { double conf, normStds, normES; };
 
-				srriParams shortfallParams[] = { // in R,normalExpectedShorfall = vol*dnorm(qnorm(prob))/prob with prob=0.05 for 95%conf
-					{ 0.975,  1.96,   2.3378 },
-					{ 0.99,   2.326,  2.665 },
-					{ 0.999,  3.09,   3.367 },
+				srriParams shortfallParams[] ={ // in R,normalExpectedShorfall = vol*dnorm(qnorm(prob))/prob with prob=0.05 for 95%conf
+					{ 0.975, 1.96, 2.3378 },
+					{ 0.99, 2.326, 2.665 },
+					{ 0.999, 3.09, 3.367 },
 				};
 				i=0;
 				double srriConf, srriStds, srriConfRet, normES, cesrStrictVol;
@@ -3207,14 +3162,14 @@ public:
 					srriConfRet   = allAnnRets[floor(numAnnRets*(1 - srriConf))];
 					if (i == 0){ cesrStrictVol = -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn) - log(1 + srriConfRet)))); }
 					i += 1;
-				} while (srriConfRet>averageReturn && i<3);
+				} while (srriConfRet > averageReturn && i<3);
 
 
 				//if(srriConfRet>historicalReturn) {srriConf = 1-1.0/numAnnRets;srriStds = -NormSInv(1.0/numAnnRets);  srriConfRet = annRetInstances[0];}
 				// replaced the following line with the next one as 'averageReturn' rather than 'historicalReturn' is how we do ESvol
 				// BUT DO NOT DELETE as 'historicalReturn' may be the better way: DOME
 				//var srriVol        = -100*(srriStds - Math.sqrt(srriStds*srriStds+4*0.5*(Math.log(1+historicalReturn/100) - Math.log(1+srriConfRet/100))));
-				double srriVol       = (1 + srriConfRet)>0.0 ?  - (srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn) - log(1 + srriConfRet)))): 1000.0;
+				double srriVol       = (1 + srriConfRet)>0.0 ? -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn) - log(1 + srriConfRet)))) : 1000.0;
 
 
 
@@ -3226,20 +3181,21 @@ public:
 
 					// pctiles
 					double bucketSize = productShape == "Supertracker" ? 0.05 : 0.01;
-					double minReturn  = 0.05*floor(allAnnRets[0]/0.05);
+					double minReturn  = 0.05*floor(allAnnRets[0] / 0.05);
 					std::vector<double>    returnBucket;
 					std::vector<double>    bucketProb;
-					for (i = j = 0; i < numAnnRets; ) {
+					for (i = j = 0; i < numAnnRets;) {
 						double thisRet = allAnnRets[i];
-						if (thisRet < minReturn || thisRet > 0.4) { 
-							j += 1; i += 1; }  // final bucket for any return above 40%pa
-						else { 
-							returnBucket.push_back(minReturn); 
-							bucketProb.push_back(((double)j) / numAnnRets); 
-							j = 0; 
-							minReturn += bucketSize; 
+						if (thisRet < minReturn || thisRet > 0.4) {
+							j += 1; i += 1;
+						}  // final bucket for any return above 40%pa
+						else {
+							returnBucket.push_back(minReturn);
+							bucketProb.push_back(((double)j) / numAnnRets);
+							j = 0;
+							minReturn += bucketSize;
 							// make sure minReturn of zero is exactly zero ... machine rounding problem
-							if ( minReturn < tol && minReturn > -tol){
+							if (minReturn < tol && minReturn > -tol){
 								minReturn = 0.0;
 							}
 						}
@@ -3251,7 +3207,7 @@ public:
 					sprintf(lineBuffer, "%s", "insert into pctiles values ");
 					for (i=0; i < returnBucket.size(); i++){
 						if (i != 0){ sprintf(lineBuffer, "%s%s", lineBuffer, ","); }
-						sprintf(lineBuffer, "%s%s%d%s%.2lf%s%.4lf%s%d%s%d%s%lf%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1,",",projectedReturn, ")");
+						sprintf(lineBuffer, "%s%s%d%s%.2lf%s%.4lf%s%d%s%d%s%lf%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1, ",", projectedReturn, ")");
 					}
 					sprintf(lineBuffer, "%s%s", lineBuffer, ";");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -3262,9 +3218,9 @@ public:
 				if (doDebug){ std::cerr << "Starting analyseResults SavingToDatabase for case \n" << analyseCase << std::endl; }
 
 				const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
-				int numShortfall(    floor(confLevel    *numAnnRets));
+				int numShortfall(floor(confLevel    *numAnnRets));
 				int numShortfallTest(floor(confLevelTest*numAnnRets));
-				double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){     eShortfall     += allAnnRets[i]; }	if (numShortfall    ){ eShortfall     /= numShortfall; }
+				double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){ eShortfall     += allAnnRets[i]; }	if (numShortfall){ eShortfall     /= numShortfall; }
 				double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allPayoffs[i]; }	if (numShortfallTest){ eShortfallTest /= numShortfallTest; }
 				double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 				double priipsImpliedCost, priipsVaR, priipsDuration;
@@ -3276,7 +3232,7 @@ public:
 						std::cerr << "Too high a percentile return " << thisPriip.pvReturn << "\n";
 						exit(1);
 					}
-					esVol = thisPriip.pvReturn>0.0 && priipsDuration>0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) / sqrt(duration) : 0.0;
+					esVol = thisPriip.pvReturn>0.0 && priipsDuration > 0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) / sqrt(duration) : 0.0;
 					if (validFairValue){
 						priipsImpliedCost  =  1.0 - fairValue / askPrice;
 					}
@@ -3287,22 +3243,22 @@ public:
 						priipsImpliedCost  = 1.0 - (sumPriipsPvs / numPriipsPvs) / askPrice;
 					}
 				}
-				double esVolTest = (1 + averageReturn)>0.0 && (1 + eShortfallTest)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest): 0.0;
+				double esVolTest = (1 + averageReturn)>0.0 && (1 + eShortfallTest) > 0.0 ? (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest) : 0.0;
 				if (averageReturn < -0.99){ esVol = 1000.0; esVolTest = 1000.0; }  // eg a product guaranteed to lose 100%
 				double scaledVol = esVol * sqrt(duration);
-				double geomReturn(0.0);	
-				for (i = 0; i < numAnnRets; i++){ 
-					double thisPayoff = allPayoffs[i]; 
+				double geomReturn(0.0);
+				for (i = 0; i < numAnnRets; i++){
+					double thisPayoff = allPayoffs[i];
 					geomReturn += log((thisPayoff<unwindPayoff ? unwindPayoff : thisPayoff) / midPrice);
 				}
 				geomReturn = exp(geomReturn / sumDuration) - 1;
 				double sharpeRatio = scaledVol > 0.0 ? (geomReturn / scaledVol>1000.0 ? 1000.0 : geomReturn / scaledVol) : 1000.0;
-				std::vector<double> cesrBuckets   = { 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
-				std::vector<double> priipsBuckets = { 0.0, 0.005, .05, .12, .2, .30, .80 };
+				std::vector<double> cesrBuckets   ={ 0.0, 0.005, .02, .05, .1, .15, .25, .4 };
+				std::vector<double> priipsBuckets ={ 0.0, 0.005, .05, .12, .2, .30, .80 };
 				std::vector<double> cubeBuckets ={ 0.0, 0.026, 0.052, 0.078, 0.104, 0.130, 0.156, 0.182, 0.208, 0.234, 0.260, 0.40 };
-				double riskCategory    = calcRiskCategory(cesrBuckets,   scaledVol, 1.0);  
+				double riskCategory    = calcRiskCategory(cesrBuckets, scaledVol, 1.0);
 				double riskScorePriips = calcRiskCategory(priipsBuckets, scaledVol, 1.0);
-				double riskScore1to10  = calcRiskCategory(cubeBuckets,   scaledVol, 0.0);
+				double riskScore1to10  = calcRiskCategory(cubeBuckets, scaledVol, 0.0);
 
 
 				/*
@@ -3312,18 +3268,18 @@ public:
 				std::vector<double> c; c.push_back(-midPrice*numCapitalInstances);
 				std::vector<double> t; t.push_back(0.0);
 				for (std::map<int, double>::iterator it=cashflowMap.begin(); it != cashflowMap.end(); ++it){
-					t.push_back(it->first/YEARS_TO_INT_MULTIPLIER);
+					t.push_back(it->first / YEARS_TO_INT_MULTIPLIER);
 					c.push_back(it->second);
 				}
-				double thisIrr = exp(irr(c,t)) - 1.0;
+				double thisIrr = exp(irr(c, t)) - 1.0;
 
 				// WinLose
-				double sumNegRet(0.0), sumPosRet(0.0),sumBelowDepo(0.0);
+				double sumNegRet(0.0), sumPosRet(0.0), sumBelowDepo(0.0);
 				int    numNegRet(0), numPosRet(0), numBelowDepo(0);
-				for (j = 0; j<numAnnRets; j++) {
+				for (j = 0; j < numAnnRets; j++) {
 					double ret = allAnnRets[j];
-					if (ret<0){           sumNegRet    += ret;  numNegRet++;    }	
-					else {                sumPosRet    += ret;  numPosRet++;    }
+					if (ret<0){ sumNegRet    += ret;  numNegRet++; }
+					else { sumPosRet    += ret;  numPosRet++; }
 					if (ret < depoRate) { sumBelowDepo += ret;  numBelowDepo++; }
 				}
 				double probBelowDepo  = (double)numBelowDepo / (double)numAnnRets;
@@ -3331,12 +3287,12 @@ public:
 				double esVolBelowDepo = (1 + averageReturn)>0.0 && (1 + eShortfallDepo)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfallDepo)) / ESnorm(probBelowDepo) : 0.0;
 				double eNegRet        = numNegRet ? sumNegRet / (double)numNegRet : 0.0;
 				double probNegRet     = (double)numNegRet / (double)numAnnRets;
-				double esVolNegRet    = (1 + averageReturn)>0.0 && (1 + eNegRet)>0.0 ? (log(1 + averageReturn) - log(1 + eNegRet)) / ESnorm(probNegRet) : 0.0;
+				double esVolNegRet    = (1 + averageReturn) > 0.0 && (1 + eNegRet) > 0.0 ? (log(1 + averageReturn) - log(1 + eNegRet)) / ESnorm(probNegRet) : 0.0;
 				double strPosDuration(sumStrPosDurations / numStrPosPayoffs), posDuration(sumPosDurations / numPosPayoffs), negDuration(sumNegDurations / numNegPayoffs);
 				double ecGain         = 100.0*(numPosPayoffs ? exp(log(sumPosPayoffs / midPrice / numPosPayoffs) / posDuration) - 1.0 : 0.0);
-				
+
 				double ecStrictGain   = 100.0*(numStrPosPayoffs ? exp(log(sumStrPosPayoffs / midPrice / numStrPosPayoffs) / strPosDuration) - 1.0 : 0.0);
-				double ecLoss         = -100.0*(numNegPayoffs && sumNegPayoffs>0.0 ? exp(log(sumNegPayoffs / midPrice / numNegPayoffs) / negDuration) - 1.0 : 0.0);
+				double ecLoss         = -100.0*(numNegPayoffs && sumNegPayoffs > 0.0 ? exp(log(sumNegPayoffs / midPrice / numNegPayoffs) / negDuration) - 1.0 : 0.0);
 				double probGain       = numPosRet ? ((double)numPosRet) / numAnnRets : 0;
 				double probStrictGain = numStrPosPayoffs ? ((double)numStrPosPayoffs) / numCapitalInstances : 0;
 				double probLoss       = 1 - probGain;
@@ -3348,7 +3304,7 @@ public:
 				else { winLose        = numNegPayoffs ? -(sumPosPayoffs / midPrice - numPosPayoffs*1.0) / (sumNegPayoffs / midPrice - numNegPayoffs*1.0) : 1000.0; }
 				if (winLose > 1000.0){ winLose = 1000.0; }
 				double expectedPayoff = (applyCredit ? sumPossiblyCreditAdjPayoffs : sumPayoffs) / numAnnRets;
-				double earithReturn   = sumPossiblyCreditAdjPayoffs<=0.0 ? -1.0 : pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
+				double earithReturn   = sumPossiblyCreditAdjPayoffs <= 0.0 ? -1.0 : pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
 				double bmRelAverage   = bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf;
 				double productBmReturn     = bmSwapRate + cds5y / 2.0 + (esVol*pow(duration, 0.5) / bmVol)*(bmEarithReturn - bmSwapRate);
 				double productExcessReturn = earithReturn - productBmReturn;
@@ -3360,7 +3316,7 @@ public:
 					sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
 					if (doPriipsStress){
 						sort(priipsStressVols.begin(), priipsStressVols.end());
-						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer,   "PriipsStressInflationMin='", priipsStressVols[0]);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "PriipsStressInflationMin='", priipsStressVols[0]);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMax='", priipsStressVols[priipsStressVols.size() - 1]);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressYears='", priipsStressYears);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressVar='", priipsStressVar);
@@ -3443,7 +3399,7 @@ public:
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkReturn='", productBmReturn);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProductExcessReturn='", productExcessReturn);
 						}
-											}
+					}
 					sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 					std::cout << lineBuffer << std::endl;
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -3453,7 +3409,7 @@ public:
 					}
 				}
 				// report fair value things
-				if ( (getMarketData && analyseCase == 0)){
+				if ((getMarketData && analyseCase == 0)){
 					double thisMean, thisStdev, thisStderr;
 					std::string   thisDateString(allDates.at(startPoint));
 					if (!silent) {
@@ -3487,6 +3443,7 @@ public:
 					}
 					// fair value
 					MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
+					simulatedFairValue = thisMean;
 					sprintf(charBuffer, "%s\t%.2lf%s%.2lf", "FairValueResults(stdev):", thisMean*issuePrice, ":", thisStderr*issuePrice);
 					std::cout << charBuffer << std::endl;
 					thisFairValue = thisMean*issuePrice;
@@ -3501,6 +3458,8 @@ public:
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 				}
+
+
 
 				// text output
 				if (!silent) {
@@ -3540,9 +3499,65 @@ public:
 						100.0*bmRelAverage
 						);
 					std::cout << charBuffer << std::endl;
+				} // !silent
+			} // for analyseCase
+			// save optimisation data	
+			if (forOptimisation){
+				if (productIndx == 0){
+					// save underlying values for each iteration
+					for (optCount=0; optCount < numMcIterations; optCount++){
+						if (optCount % optMaxNumToSend == 0){
+							// send batch
+							if (optCount != 0){
+								mydb.prepare((SQLCHAR *)lineBuffer, 1);
+							}
+							// init for next batch							
+							strcpy(lineBuffer, "insert into simulatedunderlyings (UnderlyingId,Iteration,Value) values ");
+							optFirstTime = true;
+						}
+						for (i = 0; i < numUl; i++) {
+							int id = ulIds[i];
+							int ix = optimiseUlIdNameMap[id];
+							double startLevel = ulPrices[i].price[startPoint];
+							/* to use underlying return to date product matured
+							int thisDay = optimiseDayMatured[optCount];
+							*/
+							int thisDay = 7; // to calc 1-week deltas
+							double thisReturn = optimiseMcLevels[ix][thisDay][optCount] / startLevel;
+							sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", id, ",", optCount, ",", thisReturn, ")");
+							optFirstTime  = false;
+						}
+					}
+					// send final optimisation stub
+					if (strlen(lineBuffer)){
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
 				}
-			}
-		}
-	}
-};
+				else{
+					// save product values for each iteration
+					double thisNormalisation = optOptimiseAnnualisedReturn ? 1.0 : 1.0 / simulatedFairValue;
+					for (optCount=0; optCount < optimiseProductResult.size(); optCount++){
+						if (optCount % optMaxNumToSend == 0){
+							// send batch
+							if (optCount != 0){
+								mydb.prepare((SQLCHAR *)lineBuffer, 1);
+							}
+							// init for next batch							
+							strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet) values ");
+							optFirstTime = true;
+						}
+						sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", productId, ",", optCount, ",",
+							optimiseProductResult[optCount] * thisNormalisation, ")");
+						optFirstTime  = false;
+					}
+					// send final optimisation stub
+					if (strlen(lineBuffer)){
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
+				}
+			}  // forOptimisation
+		}  // not doAccruals
+	}  // evaluate()
+
+}; // class SProduct
 	

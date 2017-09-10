@@ -334,7 +334,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		} else{
 			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
 		}
-		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s", "select p.ProductId from ", useProto, "product p join ", useProto,
+		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s", "select distinct p.ProductId from ", useProto, "product p join ", useProto,
 			"cashflows c using (ProductId) join institution i on (p.counterpartyid=i.institutionid) ",
 			(onlyTheseUls      ? onlyTheseUlsBuffer : ""),
 			charBuffer,
@@ -414,11 +414,17 @@ int _tmain(int argc, _TCHAR* argv[])
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
 			retcode = mydb.fetch(true, lineBuffer);
 			string concatUlIds = szAllPrices[0];
-			sprintf(lineBuffer, "%s%s%s", "select max(Date) from prices where underlyingid in (", concatUlIds.c_str(), ")");
-			mydb.prepare((SQLCHAR *)lineBuffer, 1);
-			retcode = mydb.fetch(true, lineBuffer);
-			string thisLastDate = szAllPrices[0];
-
+			string thisLastDate; 
+			if (strlen(endDate)){
+				thisLastDate = endDate;
+			}
+			else{
+				sprintf(lineBuffer, "%s%s%s", "select max(Date) from prices where underlyingid in (", concatUlIds.c_str(), ")");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(true, lineBuffer);
+				thisLastDate = szAllPrices[0];
+			}
+			
 			
 			// calc #days of underlyings simulated levels we will need to store
 			boost::gregorian::date bLastDataDate(boost::gregorian::from_simple_string(thisLastDate));
