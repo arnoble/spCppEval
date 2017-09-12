@@ -51,6 +51,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["arithReturn"]             = "<number - number, or just number(min)>";
 		argWords["CAGR"]                    = "<number - number, or just number(min)>";
 		argWords["CAGRsharpe"]              = "<number - number, or just number(min)>";
+		argWords["CAGRtoCVAR95loss"]        = "<number - number, or just number(min)>";
 		argWords["couponReturn"]            = "<number - number, or just number(min)>";
 
 		if (argc < 3){ 
@@ -100,14 +101,6 @@ int _tmain(int argc, _TCHAR* argv[])
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 		vector<string>   rangeFilterStrings;
-		// commandLineName: sql to select corresponding quantity from cashflows table
-		map<string,string> rangeVerbs;  // key:sql
-		rangeVerbs["duration"    ] = "duration"; 
-		rangeVerbs["volatility"  ] = "100*EsVol*sqrt(duration)";
-		rangeVerbs["arithReturn" ] = "100*EarithReturn";
-		rangeVerbs["CAGR"        ] = "100*ExpectedReturn";
-		rangeVerbs["CAGRsharpe"  ] = "ExpectedReturn/(EsVol*sqrt(duration))";
-		rangeVerbs["couponReturn"] = "100*couponReturn";
 		const int        maxUls(100);
 		const int        bufSize(1000);
 		RETCODE          retcode;
@@ -185,6 +178,18 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
 
 			// parse range strings, of the form <name>:<number or number-number>
+			// commandLineName: sql to select corresponding quantity from cashflows table
+			map<string, string> rangeVerbs;  // key:sql
+			rangeVerbs["duration"] = "duration";
+			rangeVerbs["volatility"] = "100*EsVol*sqrt(duration)";
+			rangeVerbs["arithReturn"] = "100*EarithReturn";
+			rangeVerbs["CAGR"] = "100*ExpectedReturn";
+			rangeVerbs["CAGRsharpe"] = "ExpectedReturn/(EsVol*sqrt(duration))";
+			// give FairValue precedence over BidAsk if we will run the IPR fairValue simulator
+			sprintf(charBuffer, "%s%s", "ExpectedReturn/(1.0 - EShortfallTest/", getMarketData ? "if(FairValueDate != LastDataDate,if((BidAskDate != LastDataDate) or StalePrice,IssuePrice,Ask),FairValue))" : "if((BidAskDate != LastDataDate) or StalePrice,if(FairValueDate != LastDataDate,IssuePrice,FairValue),Ask))");
+			rangeVerbs["CAGRtoCVAR95loss"] = charBuffer;
+			rangeVerbs["couponReturn"] = "100*couponReturn";
+
 			strcpy(charBuffer, thisArg);
 			char *thisVerb = std::strtok(charBuffer, ":");
 			if (rangeVerbs.find(thisVerb) != rangeVerbs.end()){
