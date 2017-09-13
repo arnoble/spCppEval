@@ -41,6 +41,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["fundingFractionFactor"]   = "x.x";
 		argWords["forceFundingFraction"]    = "x.x";
 		argWords["useThisPrice"]            = "x.x";
+		argWords["planSelect"]              = "only|none";		
 		argWords["eqFx"]                    = "eqUid:fxId:x.x  eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
 		argWords["stickySmile"]             = "";
@@ -96,7 +97,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		int              optimiseNumUls(0),deltaBumps(1), vegaBumps(1), thetaBumps(1);
 		boost::gregorian::date lastDate;
-		string           anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), lastOptimiseDate;
+		string           anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), planSelect(""),lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
@@ -177,6 +178,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "stickySmile"       )){ doStickySmile      = true; }
 			if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
 
+
 			// parse range strings, of the form <name>:<number or number-number>
 			// commandLineName: sql to select corresponding quantity from cashflows table
 			map<string, string> rangeVerbs;  // key:sql
@@ -186,7 +188,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			rangeVerbs["CAGR"] = "100*ExpectedReturn";
 			rangeVerbs["CAGRsharpe"] = "ExpectedReturn/(EsVol*sqrt(duration))";
 			// give FairValue precedence over BidAsk if we will run the IPR fairValue simulator
-			sprintf(charBuffer, "%s%s", "ExpectedReturn/(1.0 - EShortfallTest/", getMarketData ? "if(FairValueDate != LastDataDate,if((BidAskDate != LastDataDate) or StalePrice,IssuePrice,Ask),FairValue))" : "if((BidAskDate != LastDataDate) or StalePrice,if(FairValueDate != LastDataDate,IssuePrice,FairValue),Ask))");
+			sprintf(charBuffer, "%s%s", "ExpectedReturn/(1.0 - IssuePrice*EShortfallTest/100/", getMarketData ? "if(FairValueDate != LastDataDate,if((BidAskDate != LastDataDate) or StalePrice,IssuePrice,Ask),FairValue))" : "if((BidAskDate != LastDataDate) or StalePrice,if(FairValueDate != LastDataDate,IssuePrice,FairValue),Ask))");
 			rangeVerbs["CAGRtoCVAR95loss"] = charBuffer;
 			rangeVerbs["couponReturn"] = "100*couponReturn";
 
@@ -218,7 +220,12 @@ int _tmain(int argc, _TCHAR* argv[])
 					deltaBumpStep   =  0.05;
 					deltaBumps      = 3;
 			}
-			
+
+			if (sscanf(thisArg, "planSelect:%s", lineBuffer)){
+				if (strcmp(lineBuffer, "only") == 0 || strcmp(lineBuffer, "none") == 0){
+					planSelect = lineBuffer;
+			 	}
+			}
 			if (sscanf(thisArg, "eqFx:%s", lineBuffer)){
 				forceEqFxCorr = true;
 				char *token = std::strtok(lineBuffer, ":");
@@ -340,7 +347,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
 		}
 		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s", "select distinct p.ProductId from ", useProto, "product p join ", useProto,
-			"cashflows c using (ProductId) join institution i on (p.counterpartyid=i.institutionid) ",
+			"cashflows c using (ProductId) join wrappertype w using (wrappertypeid) join institution i on (p.counterpartyid=i.institutionid) ",
 			(onlyTheseUls      ? onlyTheseUlsBuffer : ""),
 			charBuffer,
 			showMatured        ? "" : " and Matured=0 ",
@@ -355,6 +362,9 @@ int _tmain(int argc, _TCHAR* argv[])
 		
 		if (minSecsTaken){
 			sprintf(lineBuffer, "%s%s%d",lineBuffer, " and SecsTaken>=", minSecsTaken);
+		}
+		if (planSelect != ""){
+			sprintf(lineBuffer, "%s%s%s%s", lineBuffer, " and w.Name", planSelect == "only" ? "" : "!","='Plan' ");
 		}
 		if (maxSecsTaken){
 			sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " and (WhenEvaluated is null or SecsTaken<=", maxSecsTaken,")");
