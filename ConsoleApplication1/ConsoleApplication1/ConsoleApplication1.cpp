@@ -914,13 +914,16 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 			}
 
-			totalNumDays       = ulOriginalPrices.at(0).price.size();
-			lastDataDateString = ulOriginalPrices.at(0).date[totalNumDays - 1];
-			totalNumReturns    = totalNumDays - 1;
+			totalNumDays         = ulOriginalPrices.at(0).price.size();
+			lastDataDateString   = ulOriginalPrices.at(0).date[totalNumDays - 1];
+			totalNumReturns      = totalNumDays - 1;
 			// change to ASK; to use MID do: (bidPrice + askPrice) / (2.0*issuePrice)
-			midPrice           = productStartDateString < lastDataDateString && ((bidAskDateString < lastDataDateString) || stalePrice) && (fairValueDateString == lastDataDateString) ? fairValuePrice / issuePrice : (askPrice) / (issuePrice);
+			bool ignoreBidAsk    = ((bidAskDateString < lastDataDateString) || stalePrice);
+			bool validFairValue  = (fairValueDateString == lastDataDateString);
+			bool isPostStrike    = productStartDateString < lastDataDateString;
+			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue ? fairValuePrice : issuePrice) : askPrice)) / issuePrice;
 			if (doUseThisPrice){ midPrice = useThisPrice / issuePrice; }
-			ulPrices           = ulOriginalPrices; // copy constructor called
+			ulPrices             = ulOriginalPrices; // copy constructor called
 			// save spots
 			vector<double> spots;
 			for (i=0; i < numUl; i++){ spots.push_back(ulPrices[i].price[totalNumDays-1]); }
