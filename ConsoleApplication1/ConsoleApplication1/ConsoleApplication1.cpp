@@ -20,6 +20,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["hasISIN"]                 = "";
 		argWords["hasInventory"]            = "";
 		argWords["notStale"]                = "";
+		argWords["incomeProducts"]          = "";
+		argWords["capitalProducts"]         = "";
 		argWords["debug"]                   = "";
 		argWords["silent"]                  = "";
 		argWords["priips"]                  = "";
@@ -46,15 +48,16 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >";
-		argWords["duration"]                = "<number-number, or just number(min)>";
 		argWords["forOptimisation"]         = "";
-		argWords["volatility"]              = "<number - number, or just number(min)>";
-		argWords["arithReturn"]             = "<number - number, or just number(min)>";
-		argWords["CAGR"]                    = "<number - number, or just number(min)>";
-		argWords["CAGRsharpe"]              = "<number - number, or just number(min)>";
-		argWords["CAGRtoCVAR95loss"]        = "<number - number, or just number(min)>";
-		argWords["couponReturn"]            = "<number - number, or just number(min)>";
-
+		argWords["duration"]                = "<number : number, or just number(min)>";
+		argWords["volatility"]              = "<number : number, or just number(min) PERCENT>";
+		argWords["arithReturn"]             = "<number : number, or just number(min) PERCENT>";
+		argWords["CAGR"]                    = "<number : number, or just number(min) PERCENT>";
+		argWords["CAGRsharpe"]              = "<number : number, or just number(min)>";
+		argWords["CAGRtoCVAR95loss"]        = "<number : number, or just number(min)>";
+		argWords["couponReturn"]            = "<number : number, or just number(min) PERCENT>";
+		argWords["tailReturn"]              = "<number : number, or just number(min) PERCENT>";
+		
 		if (argc < 3){ 
 			std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' "
 			<< "'hasISIN' 'hasInventory' 'notStale' 'debug' 'priips' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   "
@@ -84,7 +87,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false),silent(false);
+		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false);
 		bool             done,forceFullPriceRecord(false),fullyProtected, firstTime;
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -175,6 +178,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "hasInventory"      )){ hasInventory       = true; }
 			if (strstr(thisArg, "showMatured"       )){ showMatured        = true; }			
 			if (strstr(thisArg, "notStale"          )){ notStale           = true; }
+			if (strstr(thisArg, "incomeProducts"    )){ doIncomeProducts   = true; }			
+			if (strstr(thisArg, "capitalProducts"   )){ doCapitalProducts  = true; }
 			if (strstr(thisArg, "stickySmile"       )){ doStickySmile      = true; }
 			if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
 
@@ -182,11 +187,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			// parse range strings, of the form <name>:<number or number-number>
 			// commandLineName: sql to select corresponding quantity from cashflows table
 			map<string, string> rangeVerbs;  // key:sql
-			rangeVerbs["duration"] = "duration";
-			rangeVerbs["volatility"] = "100*EsVol*sqrt(duration)";
+			rangeVerbs["duration"   ] = "duration";
+			rangeVerbs["volatility" ] = "100*EsVol*sqrt(duration)";
 			rangeVerbs["arithReturn"] = "100*EarithReturn";
-			rangeVerbs["CAGR"] = "100*ExpectedReturn";
-			rangeVerbs["CAGRsharpe"] = "ExpectedReturn/(EsVol*sqrt(duration))";
+			rangeVerbs["CAGR"       ] = "100*ExpectedReturn";
+			rangeVerbs["CAGRsharpe" ] = "ExpectedReturn/(EsVol*sqrt(duration))";
+			rangeVerbs["tailReturn" ] = "eShortfall";
 			// give FairValue precedence over BidAsk if we will run the IPR fairValue simulator
 			sprintf(charBuffer, "%s%s", "ExpectedReturn/(1.0 - IssuePrice*EShortfallTest/100/", getMarketData ? "if(FairValueDate != LastDataDate,if((BidAskDate != LastDataDate) or StalePrice,IssuePrice,Ask),FairValue))" : "if((BidAskDate != LastDataDate) or StalePrice,if(FairValueDate != LastDataDate,IssuePrice,FairValue),Ask))");
 			rangeVerbs["CAGRtoCVAR95loss"] = charBuffer;
@@ -198,10 +204,10 @@ int _tmain(int argc, _TCHAR* argv[])
 				char *arg = std::strtok(NULL, ":");
 				strcpy(lineBuffer, arg);
 				// number-number, or just number(min)
-				char *token = std::strtok(lineBuffer, "-");
+				char *token = std::strtok(lineBuffer, "&");
 				std::vector<std::string> tokens;
 				while (token != NULL) { 
-					tokens.push_back(token); token = std::strtok(NULL, ":"); 
+					tokens.push_back(token); token = std::strtok(NULL, "&"); 
 				}
 				int numTokens = tokens.size();
 				if (numTokens > 0){
@@ -346,15 +352,18 @@ int _tmain(int argc, _TCHAR* argv[])
 		} else{
 			sprintf(charBuffer, "%s%d%s%d%s", " where p.ProductId >= '", startProductId, "' and p.ProductId <= '", stopProductId, "'");
 		}
-		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s", "select distinct p.ProductId from ", useProto, "product p join ", useProto,
-			"cashflows c using (ProductId) join wrappertype w using (wrappertypeid) join institution i on (p.counterpartyid=i.institutionid) ",
+		sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s", "select distinct p.ProductId from ", useProto, "product p join ", useProto,
+			"cashflows c using (ProductId) join wrappertype w using (wrappertypeid) join producttype pt using (ProductTypeId) join institution i on (p.counterpartyid=i.institutionid) ",
 			(onlyTheseUls      ? onlyTheseUlsBuffer : ""),
 			charBuffer,
 			showMatured        ? "" : " and Matured=0 ",
 			(notIllustrative   ? " and Illustrative=0 " : ""),
 			(hasISIN           ? " and ISIN != '' " : ""),
 			(hasInventory      ? " and p.Inventory > 0 " : ""),
-			(notStale          ? " and StalePrice=0 " : ""));
+			(notStale          ? " and StalePrice=0 " : ""),
+			(doIncomeProducts  ? " and pt.name like '%income%' " : ""),
+			(doCapitalProducts ? " and pt.name not like '%income%' " : "")
+			);
 		for (int i=0; i < rangeFilterStrings.size();i++){
 			sprintf(lineBuffer, "%s%s", lineBuffer, rangeFilterStrings[i].c_str());
 		}

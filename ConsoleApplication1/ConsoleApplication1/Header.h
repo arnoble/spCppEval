@@ -548,7 +548,8 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 }
 
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, 
-	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff, levelsCallPayoff, outperformanceCallPayoff, outperformancePutPayoff, varianceSwapPayoff, autocallPutPayoff
+	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff, levelsCallPayoff, outperformanceCallPayoff, outperformancePutPayoff, varianceSwapPayoff, 
+	autocallPutPayoff, autocallCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
 
@@ -1380,6 +1381,7 @@ public:
 		case levelsCallPayoff:
 		case lookbackCallPayoff:
 		case twinWinPayoff:
+		case autocallCallPayoff:
 			callOrPut = 1;
 		case lookbackPutPayoff:
 		case putPayoff:
@@ -1412,7 +1414,7 @@ public:
 
 				// the typical optionPayoff = max(0,return) is done below in the 'for' loops initialised with 'optionPayoff=0'
 				// if (payoffTypeId == putPayoff && (productShape == "Autocall" || productShape == "Phoenix")){
-				if (payoffTypeId == autocallPutPayoff){
+				if (payoffTypeId == autocallPutPayoff || payoffTypeId == autocallCallPayoff){
 					p = callOrPut*(thisAssetReturn*thisRefLevel / thisStrike - 1);
 				}
 				else {
@@ -2389,7 +2391,7 @@ public:
 					for (unsigned int uI = 0; uI < numBrel; uI++){
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
 						int thisName = ulIdNameMap.at(thisBrel.underlying);
-						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint, ulPrices.at(thisName));
+						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint + (!doAccruals && (getMarketData || useUserParams) ? monDateIndx[numMonDates-1]: 0), ulPrices.at(thisName));
 						
 						
 						if (b.isStrikeReset && (thisBrel.startDays>0 || b.isStopLoss)){
