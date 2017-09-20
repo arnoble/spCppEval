@@ -917,20 +917,20 @@ int _tmain(int argc, _TCHAR* argv[])
 			totalNumDays         = ulOriginalPrices.at(0).price.size();
 			lastDataDateString   = ulOriginalPrices.at(0).date[totalNumDays - 1];
 			totalNumReturns      = totalNumDays - 1;
+			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
+			int daysExtant = (bLastDataDate - bProductStartDate).days();
 			// change to ASK; to use MID do: (bidPrice + askPrice) / (2.0*issuePrice)
 			bool ignoreBidAsk    = ((bidAskDateString < lastDataDateString) || stalePrice);
-			bool validFairValue  = (fairValueDateString == lastDataDateString);
+			bool validFairValue  = (fairValueDateString == lastDataDateString) && (daysExtant > 14);
 			bool isPostStrike    = productStartDateString < lastDataDateString;
-			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue ? fairValuePrice : issuePrice) : askPrice)) / issuePrice;
+			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue && isPostStrike ? fairValuePrice : issuePrice) : askPrice)) / issuePrice;
 			if (doUseThisPrice){ midPrice = useThisPrice / issuePrice; }
 			ulPrices             = ulOriginalPrices; // copy constructor called
+			cout << "NumPrices:\t" << totalNumDays << "  FirstDataDate:\t" << ulOriginalPrices.at(0).date[0] << "  MidPriceUsed:\t" << midPrice << endl;
 			// save spots
 			vector<double> spots;
 			for (i=0; i < numUl; i++){ spots.push_back(ulPrices[i].price[totalNumDays-1]); }
 
-			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
-			cout << "NumPrices:\t" << totalNumDays << "FirstDataDate:\t" << ulOriginalPrices.at(0).date[0] << endl;
-			int daysExtant = (bLastDataDate - bProductStartDate).days(); 
 			double forwardStartT(0.0);
 			if (daysExtant < 0){
 				if (!doUKSPA && !doPriips){ forwardStartT = daysExtant / 365.25; }
