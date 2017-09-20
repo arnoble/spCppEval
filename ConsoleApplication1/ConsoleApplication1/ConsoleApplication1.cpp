@@ -49,14 +49,14 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >";
 		argWords["forOptimisation"]         = "";
-		argWords["duration"]                = "<number : number, or just number(min)>";
-		argWords["volatility"]              = "<number : number, or just number(min) PERCENT>";
-		argWords["arithReturn"]             = "<number : number, or just number(min) PERCENT>";
-		argWords["CAGR"]                    = "<number : number, or just number(min) PERCENT>";
-		argWords["CAGRsharpe"]              = "<number : number, or just number(min)>";
-		argWords["CAGRtoCVAR95loss"]        = "<number : number, or just number(min)>";
-		argWords["couponReturn"]            = "<number : number, or just number(min) PERCENT>";
-		argWords["tailReturn"]              = "<number : number, or just number(min) PERCENT>";
+		argWords["duration"]                = "<number ~ number, or just number(min)>";
+		argWords["volatility"]              = "<number ~ number, or just number(min) PERCENT>";
+		argWords["arithReturn"]             = "<number ~ number, or just number(min) PERCENT>";
+		argWords["CAGR"]                    = "<number ~ number, or just number(min) PERCENT>";
+		argWords["CAGRsharpe"]              = "<number ~ number, or just number(min)>";
+		argWords["CAGRtoCVAR95loss"]        = "<number ~ number, or just number(min)>";
+		argWords["couponReturn"]            = "<number ~ number, or just number(min) PERCENT>";
+		argWords["tailReturn"]              = "<number ~ number, or just number(min) PERCENT>";
 		
 		if (argc < 3){ 
 			std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' "
@@ -204,10 +204,10 @@ int _tmain(int argc, _TCHAR* argv[])
 				char *arg = std::strtok(NULL, ":");
 				strcpy(lineBuffer, arg);
 				// number-number, or just number(min)
-				char *token = std::strtok(lineBuffer, "&");
+				char *token = std::strtok(lineBuffer, "~");
 				std::vector<std::string> tokens;
 				while (token != NULL) { 
-					tokens.push_back(token); token = std::strtok(NULL, "&"); 
+					tokens.push_back(token); token = std::strtok(NULL, "~"); 
 				}
 				int numTokens = tokens.size();
 				if (numTokens > 0){
