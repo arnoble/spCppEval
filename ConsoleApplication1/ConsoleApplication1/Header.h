@@ -2391,7 +2391,7 @@ public:
 					for (unsigned int uI = 0; uI < numBrel; uI++){
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
 						int thisName = ulIdNameMap.at(thisBrel.underlying);
-						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint + (!doAccruals && (getMarketData || useUserParams) ? monDateIndx[numMonDates-1]: 0), ulPrices.at(thisName));
+						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint + (!doAccruals ? monDateIndx[numMonDates-1]: 0), ulPrices.at(thisName));
 						
 						
 						if (b.isStrikeReset && (thisBrel.startDays>0 || b.isStopLoss)){
