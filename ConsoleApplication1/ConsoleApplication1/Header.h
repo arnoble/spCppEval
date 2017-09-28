@@ -2909,7 +2909,7 @@ public:
 					double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 					double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
 					// most likely barrier
-					double maxBarrierProb(0.0), maxBarrierProbMoneyness(0.0);
+					double maxBarrierProb(0.0), maxBarrierProbMoneyness, maxFirstKoMoneyness;
 					bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData && ukspaCase == "" && numMcIterations > 1);
 
 					// ** process barrier results
@@ -2948,7 +2948,26 @@ public:
 						double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 
 						if (b.capitalOrIncome) {
-							if (!foundEarliest)                        { foundEarliest = true; probEarliest = prob; }
+							// first-hit capital barrier
+							if (!foundEarliest){ 
+								foundEarliest = true; 
+								probEarliest  = prob; 
+								// calc distance to first non-negative-participation barrier for each underlying
+								// ... MAX Barrier as %spot if Nature=AND, to see how far the laggard has to go
+								// ... MIN Barrier as %spot if Nature=OR,  to see how far the leader has to go
+								if (doMostLikelyBarrier && b.participation>=0.0){
+									double direction = b.isAnd ? -1.0 : 1.0;
+									maxFirstKoMoneyness = 100.0*direction;
+									for (int j = 0, len=b.brel.size(); j < len; j++){
+										const SpBarrierRelation&    thisBrel(b.brel.at(j));
+										double thisMoneyness = thisBrel.barrier / thisBrel.moneyness;
+										if (direction*(thisMoneyness - maxFirstKoMoneyness) < 0.0){ maxFirstKoMoneyness = thisMoneyness; }
+									}
+									sprintf(lineBuffer, "%s%s%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxFirstKoMoneyness='", maxFirstKoMoneyness - 1.0,
+										"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
+									mydb.prepare((SQLCHAR *)lineBuffer, 1);
+								}
+							}
 							if (b.settlementDate < lastSettlementDate) { probEarly   += prob; }
 							sumDuration                 += numInstances*thisYears;
 							numCapitalInstances         += numInstances;
@@ -2959,10 +2978,11 @@ public:
 								ePosPayoff       += b.sumPosPayoffs;    numPosInstances    += b.numPosPayoffs;
 								eNegPayoff       += b.sumNegPayoffs;    numNegInstances    += b.numNegPayoffs;
 							}
-							if (doMostLikelyBarrier && b.participation<0.0){
+							if (doMostLikelyBarrier && b.participation<0.0 && !b.isAnd){
 								if (prob>maxBarrierProb){
 									maxBarrierProb          = prob;
-									maxBarrierProbMoneyness = 0.0;
+									maxBarrierProbMoneyness = -100.0;
+									// want the HIGHEST barrier as %spot
 									for (int j = 0, len=b.brel.size(); j < len; j++){
 										const SpBarrierRelation&    thisBrel(b.brel.at(j));
 										double thisMoneyness = thisBrel.barrier / thisBrel.moneyness;
@@ -3073,7 +3093,7 @@ public:
 					}
 					if (!doPriips && doMostLikelyBarrier && maxBarrierProb > 0.0){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
-							"',MaxBarrierProbMoneyness='", maxBarrierProbMoneyness,
+							"',MaxBarrierProbMoneyness='", 1.0 - maxBarrierProbMoneyness,
 							"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
