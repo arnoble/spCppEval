@@ -72,6 +72,64 @@ struct fAndDf	{
 */
 
 /*
+* evalAlgebra
+*/
+// ** handle AvgInAlgebra
+// ... parse algebra and evaluate it on data   eg    min_-1.0_add_abs   would calculate min(data), subtract 1.0 and take its abs()
+// ... rerurns a number
+double evalAlgebra(const std::vector<double> data, std::string algebra){
+	if (data.size() == 0 || algebra.length() == 0){ return 0.0; }
+
+	// algebra, once tokenised, is evaluated in reverse polish
+	int i, len, j;
+	int numValues = data.size();
+	char buffer[100]; sprintf(buffer, "%s", algebra.c_str());
+	char *token = std::strtok(buffer, "_");
+	std::vector<std::string> tokens;
+	while (token != NULL) {
+		tokens.push_back(token);
+		token = std::strtok(NULL, "_");
+	}
+
+	int numTokens = tokens.size();
+	double result = 0.0;
+	std::vector<double> stack;    for (i=0; i<numValues; i++){ stack.push_back(data[i]); }
+	double extremum;
+
+	for (i=0; i < numTokens; i++){
+		if (tokens[i] == "min"){
+			extremum = +INFINITY;
+			for (j=0, len=stack.size(); j < len; j++){
+				if (stack[j] < extremum){ extremum = stack[j]; }
+			}
+			stack.clear();
+			stack.push_back(extremum);
+		}
+		else if (tokens[i] == "max"){
+			extremum = -INFINITY;
+			for (j=0, len=stack.size(); j < len; j++){
+				if (stack[j] > extremum){ extremum = stack[j]; }
+			}
+			stack.clear();
+			stack.push_back(extremum);
+		}
+		else if (tokens[i] == "add"){
+			stack[0] = stack[1] + stack[0];
+			stack.pop_back();
+		}
+		else if (tokens[i] == "abs"){
+			stack[0] = abs(stack[0]);
+		}
+		else {
+			stack.push_back(atof(tokens[i].c_str()));
+		}
+	}
+	return stack[0];
+}
+
+
+
+/*
 * irr
 */
 
@@ -935,53 +993,6 @@ public:
 		strike       = originalStrike/moneyness;
 	}
 
-	// ** handle AvgInAlgebra
-	// ... parse algebra and evaluate it on data
-	// ... rerurns a number
-	double evalAlgebra(const std::vector<double> data, std::string algebra){
-		if (data.size() == 0 || algebra.length() == 0){ return 0.0; }
-
-		// algebra, once tokenised, is evaluated in reverse polish
-		int i,len,j;
-		int numValues = data.size();
-		char buffer[100]; sprintf(buffer,"%s", algebra.c_str());
-		char *token = std::strtok(buffer, "_");
-		std::vector<std::string> tokens;
-		while (token != NULL) {
-			tokens.push_back(token);
-			token = std::strtok(NULL, "_");
-		}
-
-		int numTokens = tokens.size();
-		double result = 0.0;
-		std::vector<double> stack;    for (i=0; i<numValues; i++){ stack.push_back(data[i]); }
-		double extremum;
-
-		for (i=0; i < numTokens; i++){
-			if (tokens[i] == "min"){
-				extremum = +INFINITY;
-				for (j=0,len=stack.size(); j < len; j++){
-					if (stack[j] < extremum){ extremum = stack[j]; }
-				}
-				stack.clear();
-				stack.push_back(extremum);
-			}
-			else if (tokens[i] == "max"){
-				extremum = -INFINITY;
-				for (j=0, len=stack.size(); j < len; j++){
-					if (stack[j] > extremum){ extremum = stack[j]; }
-				}
-				stack.clear();
-				stack.push_back(extremum);
-			}
-			else {
-				stack.push_back(atof(tokens[i].c_str()));
-			}
-		}
-		return stack[0];
-	}
-
-
 
 
 	// do any averagingIn
@@ -1624,7 +1635,15 @@ public:
 						}
 					}
 					// calculate some value for these observations
-					if (payoffType == "lookbackCall"){
+					// hacky: if there is no averagingIn use any algebra here
+					if (thisBrel.avgInDays == 0 && avgObs.size() && thisBrel.avgInAlgebra.length()) {
+						// convert to returns
+						std::vector<double> thesePerfs;
+						for (int k = 0, len1 = avgObs.size(); k<len1; k++) { thesePerfs.push_back(avgObs[k] / thisBrel.refLevel); }
+						double thisAlgebraLevel =	evalAlgebra(thesePerfs, thisBrel.avgInAlgebra);
+						lookbackLevel[n] = thisAlgebraLevel * thisBrel.refLevel;
+					}
+					else if (payoffType == "lookbackCall"){
 						double anyValue(0.0);
 						anyValue = *max_element(avgObs.begin(), avgObs.end());
 						// DOME remove for loop if it gives the same value
