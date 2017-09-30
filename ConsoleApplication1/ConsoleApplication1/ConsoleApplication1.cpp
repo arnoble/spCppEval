@@ -633,7 +633,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			// clean bid,ask
 			if (bidPrice <= 0.0 && askPrice > 0.0){ bidPrice=askPrice; }
 			if (bidPrice > 0.0  && askPrice <= 0.0){ askPrice=bidPrice; }
-			if (strlen(szAllPrices[colProductFrequency])){ couponFrequency = szAllPrices[colProductFrequency]; }
+			if (strlen(szAllPrices[colProductFrequency])){ 
+				couponFrequency = szAllPrices[colProductFrequency]; 
+				if (couponFrequency.length() == 1){
+					couponFrequency = "1" + couponFrequency;
+				}
+			}
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty..." << endl; continue; }
 			cout << endl << endl << productIndx << " of " << numProducts << "\nIterations:" << thisNumIterations << " ProductId:" << productId << endl << endl;
