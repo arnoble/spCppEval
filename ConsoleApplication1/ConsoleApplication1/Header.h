@@ -2929,7 +2929,7 @@ public:
 					double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
 					// most likely barrier
 					double maxBarrierProb(0.0), maxBarrierProbMoneyness, maxFirstKoMoneyness;
-					bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData);
+					bool doMostLikelyBarrier(analyseCase == 0);
 
 					// ** process barrier results
 					double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumCouponRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
@@ -3110,10 +3110,10 @@ public:
 
 
 					}
-					if (!doPriips && doMostLikelyBarrier && maxBarrierProb >= 0.0){
-						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
+					if (doMostLikelyBarrier && maxBarrierProb >= 0.0){
+						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s%.5lf", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 							"',MaxBarrierProbMoneyness='", 1.0 - maxBarrierProbMoneyness,
-							"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
+							"' where ProductId='", productId, "' and ProjectedReturn=", projectedReturn);
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 
