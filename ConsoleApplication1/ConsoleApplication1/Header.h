@@ -2929,7 +2929,7 @@ public:
 					double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
 					// most likely barrier
 					double maxBarrierProb(0.0), maxBarrierProbMoneyness, maxFirstKoMoneyness;
-					bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData && ukspaCase == "" && numMcIterations > 1);
+					bool doMostLikelyBarrier(analyseCase == 0 && !getMarketData);
 
 					// ** process barrier results
 					double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumCouponRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
@@ -2998,7 +2998,7 @@ public:
 								eNegPayoff       += b.sumNegPayoffs;    numNegInstances    += b.numNegPayoffs;
 							}
 							if (doMostLikelyBarrier && b.participation<0.0 && !b.isAnd){
-								if (prob>maxBarrierProb){
+								if (prob >= maxBarrierProb){
 									maxBarrierProb          = prob;
 									maxBarrierProbMoneyness = -100.0;
 									// want the HIGHEST barrier as %spot
@@ -3110,7 +3110,7 @@ public:
 
 
 					}
-					if (!doPriips && doMostLikelyBarrier && maxBarrierProb > 0.0){
+					if (!doPriips && doMostLikelyBarrier && maxBarrierProb >= 0.0){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 							"',MaxBarrierProbMoneyness='", 1.0 - maxBarrierProbMoneyness,
 							"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
