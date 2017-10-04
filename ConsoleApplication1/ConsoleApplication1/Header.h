@@ -2928,7 +2928,7 @@ public:
 					double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
 					double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
 					// most likely barrier
-					double maxBarrierProb(0.0), maxBarrierProbMoneyness, maxFirstKoMoneyness;
+					double maxBarrierProb(0.0), maxBarrierProbMoneyness(0.0), maxFirstKoMoneyness(0.0), maxFirstKoReturn(0.0);
 					bool doMostLikelyBarrier(analyseCase == 0);
 
 					// ** process barrier results
@@ -2980,10 +2980,14 @@ public:
 									for (int j = 0, len=b.brel.size(); j < len; j++){
 										const SpBarrierRelation&    thisBrel(b.brel.at(j));
 										double thisMoneyness = thisBrel.barrier / thisBrel.moneyness;
-										if (direction*(thisMoneyness - maxFirstKoMoneyness) < 0.0){ maxFirstKoMoneyness = thisMoneyness; }
+										if (direction*(thisMoneyness - maxFirstKoMoneyness) < 0.0){ 
+											maxFirstKoMoneyness = thisMoneyness; 
+											maxFirstKoReturn    = b.payoff / midPrice - 1.0;
+										}
 									}
-									sprintf(lineBuffer, "%s%s%s%.5lf%s%d%s", "update ", useProto, "cashflows set MaxFirstKoMoneyness='", maxFirstKoMoneyness - 1.0,
-										"' where ProductId='", productId, "' and ProjectedReturn in (1.0,0.02)");
+									sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s%.5lf", "update ", useProto, "cashflows set MaxFirstKoMoneyness='", maxFirstKoMoneyness - 1.0,
+										"',MaxFirstKoReturn='", maxFirstKoReturn,
+										"' where ProductId='", productId, "' and ProjectedReturn=",projectedReturn);
 									mydb.prepare((SQLCHAR *)lineBuffer, 1);
 								}
 							}
