@@ -19,8 +19,15 @@
 #define MAX_SP_BUF                         500000
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
 #define YEARS_TO_INT_MULTIPLIER           1000000.0
+#define ARTS_MAX_RAND                     4294967296.0   // 2^32
 
 // structs
+union ArtsRandomNumber {
+	long unsigned int bucket;
+	unsigned int      bits[2];
+};
+
+
 struct PriipsStruct	{
 	double pvReturn, yearsToPayoff;
 
@@ -70,7 +77,13 @@ struct fAndDf	{
 /*
 * functions
 */
-
+double ArtsRan(){
+	static ArtsRandomNumber randomNumber;
+	static const double normalizer(1.0 / ARTS_MAX_RAND);
+	randomNumber.bucket = randomNumber.bucket * 1664525 + 1013904223;
+	double answer = randomNumber.bits[0] * normalizer;
+	return(answer);
+}
 /*
 * evalAlgebra
 */
@@ -488,7 +501,7 @@ void GenerateCorrelatedNormal(const int numUnderlyings,
 				thisRandno = randnosStore[randnoIndx++];
 			}
 			else{
-				thisRandno = (double)rand() / RAND_MAX;
+				thisRandno = /*(double)rand() / RAND_MAX*/ ArtsRan();
 				if (conserveRands){
 					randnosStore.push_back(thisRandno);
 				}
@@ -1940,6 +1953,13 @@ public:
 		RETCODE                  retcode;
 		
 		// init
+		/*		
+		for (i=0; i < 100;i++){
+			double x = ArtsRan();
+			int j = 1;
+		}
+		*/
+
 		if (!doAccruals){
 			initBarriers();
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
@@ -1993,7 +2013,7 @@ public:
 					if (bootSample % 2 == 0) {
 						std::vector<int> oneBootstrapSample; oneBootstrapSample.reserve(maxProductDays);
 						for (j=0; j<maxProductDays; j++, concatenatedLength--) {
-							int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(concatenatedLength - 1));
+							int thisIndx; thisIndx = (int)floor( /*((double)rand() / RAND_MAX ) */ ArtsRan()*(concatenatedLength - 1));
 							oneBootstrapSample.push_back(concatenatedSample[thisIndx]);
 						}
 						resampledIndexs.push_back(oneBootstrapSample);
@@ -2251,7 +2271,7 @@ public:
 					// bootstrap resampling
 					bool useNewerMethod(true);
 					bool useNewMethod(false);
-					unsigned long int _notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
+					unsigned long int _notionalIx = (unsigned long int)floor( /*((double)rand() / RAND_MAX)*/ ArtsRan()*(npPos - 1));
 					int thisBootstrapStride       = bootstrapStride; 
 					int thisReturnIndex;					
 
@@ -2272,12 +2292,12 @@ public:
 								else {
 									// either finished striding, or came to the last return
 									thisBootstrapStride = bootstrapStride;
-									_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
+									_notionalIx = (unsigned long int)floor( /*((double)rand() / RAND_MAX)*/ ArtsRan() *(npPos - 1));
 								}
 							}
 							else {
 								// pick element from returns vector
-								_notionalIx = (unsigned long int)floor(((double)rand() / (RAND_MAX))*(npPos - 1));
+								_notionalIx = (unsigned long int)floor( /*((double)rand() / RAND_MAX)*/ ArtsRan()*(npPos - 1));
 							}
 
 							// SLOW: thisReturnIndex = _notionalIx % totalNumReturns;
@@ -2305,7 +2325,7 @@ public:
 						}
 						else{   // OLD method KEEP
 							for (j = 1; j < totalNumReturns; j++){
-								int thisIndx; thisIndx = (int)floor(((double)rand() / (RAND_MAX))*(totalNumReturns - 1));
+								int thisIndx; thisIndx = (int)floor( /*((double)rand() / RAND_MAX)*/ ArtsRan()*(totalNumReturns - 1));
 								for (i = 0; i < numUl; i++) {
 									double thisReturn; thisReturn = ulReturns[i][thisIndx];
 									ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
@@ -2952,7 +2972,7 @@ public:
 							// possibly apply credit adjustment
 							if (applyCredit) {
 								double thisRecoveryRate;
-								thisRecoveryRate = ((double)rand() / (RAND_MAX)) < thisProbDefault ? actualRecoveryRate : 1.0;
+								thisRecoveryRate = /*((double)rand() / RAND_MAX)*/ ArtsRan() < thisProbDefault ? actualRecoveryRate : 1.0;
 								thisAmount      *= thisRecoveryRate;
 								if (thisAmount >  midPrice){ eStrPosPayoff  += thisAmount; numStrPosInstances++; }
 								if (thisAmount >= midPrice){ ePosPayoff     += thisAmount; numPosInstances++; }
