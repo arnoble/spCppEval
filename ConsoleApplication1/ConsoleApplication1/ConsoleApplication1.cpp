@@ -244,8 +244,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			if (sscanf(thisArg, "bump:%s", lineBuffer)){
 				if (doDeltas){ cerr << "cannot do deltas and bumps together" << endl; exit(1); }
-				doBumps = true;
-				char *token = std::strtok(lineBuffer, ":");
+				doBumps       = true;
+				getMarketData = true;
+				char *token   = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
 				if (tokens.size() != 4){ cerr << "bump: incorrect syntax" << endl; exit(1); }
@@ -498,7 +499,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			maxBarrierDays = 0.0;
 			startTime      = time(0);
 			productId      = allProductIds.at(productIndx);
-		
+			cds5y          = 0.0;
+
 			// get general info:  productType, productShape, barrierType
 			// ...productType
 			map<int, string> productTypeMap;
