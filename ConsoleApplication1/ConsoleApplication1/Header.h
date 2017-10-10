@@ -1762,7 +1762,7 @@ private:
 	const int                       bootstrapStride, daysExtant, productIndx;
 	const double                    benchmarkStrike,fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      silent,doBootstrapStride,forOptimisation,fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      doBumps,silent, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 
@@ -1809,7 +1809,8 @@ public:
 		const double                    bmVol,
 		const double                    cds5y,
 		const int                       bootstrapStride,
-		const bool                      silent
+		const bool                      silent,
+		const bool                      doBumps
 		)
 		: lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
@@ -1819,7 +1820,7 @@ public:
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
-		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), doBootstrapStride(bootstrapStride != 0), silent(silent){};
+		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps){};
 
 	// public members: DOME consider making private
 	char                           *lineBuffer;
@@ -3531,7 +3532,7 @@ public:
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 						std::cout << lineBuffer << std::endl;
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
-						if (analyseCase == 0){
+						if (!doBumps && analyseCase == 0){
 							sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 						}

@@ -1327,7 +1327,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
-				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride,silent);
+				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride,silent,doBumps);
 			numBarriers = 0;
 
 			// get barriers from DB
