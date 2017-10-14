@@ -35,6 +35,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["historyStep"]             = "nnn";
 		argWords["startDate"]               = "YYYY-mm-dd";
 		argWords["endDate"]                 = "YYYY-mm-dd";
+		argWords["bumpUserId"]              = "nnn";
 		argWords["minSecsTaken"]            = "nnn";
 		argWords["maxSecsTaken"]            = "nnn";
 		argWords["only"]                    = "<comma-sep list of underlyings names>";
@@ -84,7 +85,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
-		int              thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
+		int              bumpUserId(3),thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false);
@@ -316,11 +317,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (sscanf(thisArg, "fundingFractionFactor:%s", lineBuffer))  { fundingFractionFactor	= atof(lineBuffer);	}
 			if (sscanf(thisArg, "forceFundingFraction:%s", lineBuffer))   { forceFundingFraction	= lineBuffer; }
 		
-			else if (sscanf(thisArg, "endDate:%s",      lineBuffer)){ strcpy(endDate, lineBuffer); }
+			else if (sscanf(thisArg, "endDate:%s",       lineBuffer)){ strcpy(endDate, lineBuffer); }
+			else if (sscanf(thisArg, "bumpUserId:%s",    lineBuffer)){ bumpUserId    = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "minnSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "maxSecsTaken:%s", lineBuffer)){ maxSecsTaken  = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "historyStep:%s",  lineBuffer)){ historyStep   = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "useThisPrice:%s", lineBuffer)){ useThisPrice  = atof(lineBuffer); doUseThisPrice = true; }
+			else if (sscanf(thisArg, "maxSecsTaken:%s",  lineBuffer)){ maxSecsTaken  = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "historyStep:%s",   lineBuffer)){ historyStep   = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "useThisPrice:%s",  lineBuffer)){ useThisPrice  = atof(lineBuffer); doUseThisPrice = true; }
 		}
 		if (doPriips){
 			if (strlen(startDate)){
@@ -1679,7 +1681,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 					else if (doBumps){
-						sprintf(lineBuffer, "%s%d%s%d", "delete from bump where ProductId=", productId," and userId=",userId);
+						sprintf(lineBuffer, "%s%d%s%d", "delete from bump where ProductId=", productId," and userId=",bumpUserId);
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 					for (int vegaBump=0; vegaBump < vegaBumps; vegaBump++){
@@ -1767,7 +1769,7 @@ int _tmain(int argc, _TCHAR* argv[])
 									}
 									else {
 										sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
-										sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", userId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
+										sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 										mydb.prepare((SQLCHAR *)lineBuffer, 1);
 									}
 									// cerr << lineBuffer << endl;
@@ -1821,16 +1823,18 @@ int _tmain(int argc, _TCHAR* argv[])
 										sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
 										sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", 0, ",", productId, ")");
 										mydb.prepare((SQLCHAR *)lineBuffer, 1);
-										sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", deltaBump == 0 ? "DeltaDown" : "DeltaUp", "=", delta, ",DeltaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
-										mydb.prepare((SQLCHAR *)lineBuffer, 1);
+										if (bumpUserId == 3){
+											sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", deltaBump == 0 ? "DeltaDown" : "DeltaUp", "=", delta, ",DeltaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
+											mydb.prepare((SQLCHAR *)lineBuffer, 1);
+										}
 									}
 								}
 								else {
 									sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
-									sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", userId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
+									sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 									mydb.prepare((SQLCHAR *)lineBuffer, 1);
 									// save vegas to product table
-									if (vegaBumpAmount != 0.0 && deltaBumpAmount == 0.0 && thetaBumpAmount == 0.0){
+									if (bumpUserId == 3 && vegaBumpAmount != 0.0 && deltaBumpAmount == 0.0 && thetaBumpAmount == 0.0){
 										double  vega = (bumpedFairValue - thisFairValue) / (100.0*vegaBumpAmount);
 										sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", vegaBump == 0 ? "Vega" : "VegaUp", "=", vega, ",VegaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
 										mydb.prepare((SQLCHAR *)lineBuffer, 1);
