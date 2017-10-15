@@ -2995,7 +2995,7 @@ public:
 								// calc distance to first non-negative-participation barrier for each underlying
 								// ... MAX Barrier as %spot if Nature=AND, to see how far the laggard has to go
 								// ... MIN Barrier as %spot if Nature=OR,  to see how far the leader has to go
-								if (doMostLikelyBarrier && b.participation>=0.0){
+								if (updateCashflows && doMostLikelyBarrier && b.participation>=0.0){
 									double direction = b.isAnd ? -1.0 : 1.0;
 									maxFirstKoMoneyness = 100.0*direction;
 									for (int j = 0, len=b.brel.size(); j < len; j++){
@@ -3107,7 +3107,7 @@ public:
 						}
 						// ** SQL 
 						// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
-						if ((!getMarketData || analyseCase == 0) && !priipsUsingRNdrifts){
+						if (updateCashflows && (!getMarketData || analyseCase == 0) && !priipsUsingRNdrifts){
 							sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d", "update ", useProto, "barrierprob set Prob='", prob,
 								"',AnnReturn='", annReturn,
 								"',CondPayoff='", mean,
@@ -3135,7 +3135,7 @@ public:
 
 
 					}
-					if (doMostLikelyBarrier && maxBarrierProb >= 0.0){
+					if (updateCashflows && doMostLikelyBarrier && maxBarrierProb >= 0.0){
 						sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s%.5lf", "update ", useProto, "cashflows set MaxBarrierProb='", maxBarrierProb,
 							"',MaxBarrierProbMoneyness='", 1.0 - maxBarrierProbMoneyness,
 							"' where ProductId='", productId, "' and ProjectedReturn=", projectedReturn);
