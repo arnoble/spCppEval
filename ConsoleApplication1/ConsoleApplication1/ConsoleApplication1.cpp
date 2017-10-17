@@ -22,6 +22,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["notStale"]                = "";
 		argWords["incomeProducts"]          = "";
 		argWords["capitalProducts"]         = "";
+		argWords["ignoreBenchmark"]         = "";
 		argWords["debug"]                   = "";
 		argWords["silent"]                  = "";
 		argWords["priips"]                  = "";
@@ -81,7 +82,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false);
-		bool             done,forceFullPriceRecord(false),fullyProtected, firstTime;
+		bool             ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -173,6 +174,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "notStale"          )){ notStale           = true; }
 			if (strstr(thisArg, "incomeProducts"    )){ doIncomeProducts   = true; }			
 			if (strstr(thisArg, "capitalProducts"   )){ doCapitalProducts  = true; }
+			if (strstr(thisArg, "ignoreBenchmark"   )){ ignoreBenchmark    = true; }
 			if (strstr(thisArg, "stickySmile"       )){ doStickySmile      = true; }
 			if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
 
@@ -561,7 +563,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			double fairValuePrice         = atof(szAllPrices[colProductFairValue]);
 			fairValueDateString           = szAllPrices[colProductFairValueDate];
 			bidAskDateString              = szAllPrices[colProductBidAskDate];
-			int  benchmarkId              = atoi(szAllPrices[colProductBenchmarkId]);
+			int  benchmarkId              = ignoreBenchmark ? 0 : atoi(szAllPrices[colProductBenchmarkId]);
 			benchmarkStrike               = benchmarkId > 0 ? atof(szAllPrices[colProductBenchmarkStrike]) : 0.0;
 			if (benchmarkId != 0 && !doUKSPA && getMarketData){ benchmarkId = 0; } // do not need (possibly-not-market-data-tracked) benchmark for a fairvalue calc
 			double hurdleReturn           = atof(szAllPrices[colProductHurdleReturn])/100.0;
