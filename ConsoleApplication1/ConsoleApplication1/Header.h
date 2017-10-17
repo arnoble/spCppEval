@@ -265,6 +265,12 @@ void MeanAndStdev(T&v, double &mean, double &stdev, double &stdErr){
 	stdev  = std::sqrt(sq_sum / N);
 	stdErr = std::sqrt(sq_sum) / N;
 }
+template<typename T>
+double Mean(T&v){
+	int N = v.size();
+	double sum = std::accumulate(v.begin(), v.end(), 0.0);
+	return(sum / N);
+}
 
 // convert date wchar to char
 // ...consult this: http://msdn.microsoft.com/en-us/library/ms235631.aspx
@@ -2775,11 +2781,8 @@ public:
 				// save product values for each iteration
 				double thisNormalisation = 1.0;
 				if (!optOptimiseAnnualisedReturn){ 
-					double thisSum=0.0;
-					for (optCount=0; optCount < optimiseProductResult.size(); optCount++){
-						thisSum += optimiseProductResult[optCount];
-					}
-					thisNormalisation =  (double)(optimiseProductResult.size()) / thisSum;
+					// here we want product return = simulatedPV / averageSimulatedPV   ... so here we calc 1 / averageSimulatedPV
+					thisNormalisation =  Mean(optimiseProductResult);
 				}
 				for (optCount=0; optCount < optimiseProductResult.size(); optCount++){
 					if (optCount % optMaxNumToSend == 0){

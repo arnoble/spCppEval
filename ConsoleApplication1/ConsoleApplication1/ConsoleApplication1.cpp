@@ -38,6 +38,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["bumpUserId"]              = "nnn";
 		argWords["minSecsTaken"]            = "nnn";
 		argWords["maxSecsTaken"]            = "nnn";
+		argWords["userParameters"]          = "userId";
 		argWords["only"]                    = "<comma-sep list of underlyings names>";
 		argWords["UKSPA"]                   = "Bear|Neutral|Bull";
 		argWords["Issuer"]                  = "partName";
@@ -60,15 +61,6 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["tailReturn"]              = "<number ~ number, or just number(min) PERCENT>";
 		
 		if (argc < 3){ 
-			std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments: 'doFAR' 'doDeltas' 'notIllustrative' "
-			<< "'hasISIN' 'hasInventory' 'notStale' 'debug' 'priips' 'doAnyIdTable'  'getMarketData' 'proto' 'dbServer:'spCloud|newSp|spIPRL   "
-			<< "'forceIterations' ' useProductFundingFractionFactor' 'showMatured' 'historyStep:'nnn 'startDate:'YYYY-mm-dd 'endDate:'YYYY-mm-dd "
-			<< "'minSecsTaken:'nnn  'maxSecsTaken:'nnn 'only:'<comma-sep list of underlyings names>  'UKSPA:'Bear|Neutral|Bull 'Issuer:'partName 'fundingFractionFactor:'x.x   "
-			<< "'forceFundingFraction:'x.x  'useThisPrice':x.x 'eqFx:'eqUid:fxId:x.x  eg 3:1:-0.5  'eqEq:'eqUid:eqUid:x.x  eg 3:1:-0.5  'stickySmile' "
-			<< "'bump:'bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >  'duration:'<number-number, or just number(min)>  'forOptimisation' " 
-			<< "'volatility:'<number - number, or just number(min)> " << "'arithReturn:'<number - number, or just number(min)> " 
-			<< "'couponReturn:'<number - number, or just number(min)> " << endl; 
-
 			std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments:>";
 			for (std::map<string,string>::iterator iter = argWords.begin(); iter != argWords.end(); ++iter) {
 				std::cout << iter->first.c_str();
@@ -78,13 +70,13 @@ int _tmain(int argc, _TCHAR* argv[])
 				std::cout << "\n";
 			}
 			std::cout << endl;  
-			exit(0);
+			exit(100);
 		}
 		
 		
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
-		int              startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
+		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
@@ -157,7 +149,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			char *token = std::strtok(charBuffer, ":");
 			if (argWords.find(token) == argWords.end()){
 				cerr << "Unknown argument: " << thisArg << endl;
-				exit(1);
+				exit(101);
 			}
 		}
 		
@@ -238,19 +230,19 @@ int _tmain(int argc, _TCHAR* argv[])
 				char *token = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
-				if (tokens.size() != 3){ cerr << "eqFx: incorrect syntax" << endl; exit(1); }
+				if (tokens.size() != 3){ cerr << "eqFx: incorrect syntax" << endl; exit(102); }
 				fxCorrelationUid        = atoi(tokens[0].c_str());
 				fxCorrelationOtherId    = atoi(tokens[1].c_str());
 				forceEqFxCorrelation    = atof(tokens[2].c_str());
 			}
 			if (sscanf(thisArg, "bump:%s", lineBuffer)){
-				if (doDeltas){ cerr << "cannot do deltas and bumps together" << endl; exit(1); }
+				if (doDeltas){ cerr << "cannot do deltas and bumps together" << endl; exit(103); }
 				doBumps       = true;
 				getMarketData = true;
 				char *token   = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
-				if (tokens.size() != 4){ cerr << "bump: incorrect syntax" << endl; exit(1); }
+				if (tokens.size() != 4){ cerr << "bump: incorrect syntax" << endl; exit(104); }
 				double start, step;
 				int     num;
 				start = atof(tokens[1].c_str());
@@ -279,7 +271,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				char *token = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
-				if (tokens.size() != 3){ cerr << "eqEq: incorrect syntax" << endl; exit(1); }
+				if (tokens.size() != 3){ cerr << "eqEq: incorrect syntax" << endl; exit(105); }
 				eqCorrelationUid        = atoi(tokens[0].c_str());
 				eqCorrelationOtherId    = atoi(tokens[1].c_str());
 				forceEqEqCorrelation    = atof(tokens[2].c_str());
@@ -317,12 +309,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (sscanf(thisArg, "fundingFractionFactor:%s", lineBuffer))  { fundingFractionFactor	= atof(lineBuffer);	}
 			if (sscanf(thisArg, "forceFundingFraction:%s", lineBuffer))   { forceFundingFraction	= lineBuffer; }
 		
-			else if (sscanf(thisArg, "endDate:%s",       lineBuffer)){ strcpy(endDate, lineBuffer); }
-			else if (sscanf(thisArg, "bumpUserId:%s",    lineBuffer)){ bumpUserId    = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "minnSecsTaken:%s", lineBuffer)){ minSecsTaken  = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "maxSecsTaken:%s",  lineBuffer)){ maxSecsTaken  = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "historyStep:%s",   lineBuffer)){ historyStep   = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "useThisPrice:%s",  lineBuffer)){ useThisPrice  = atof(lineBuffer); doUseThisPrice = true; }
+			else if (sscanf(thisArg, "endDate:%s",        lineBuffer)){ strcpy(endDate, lineBuffer); }
+			else if (sscanf(thisArg, "bumpUserId:%s",     lineBuffer)){ bumpUserId       = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "minnSecsTaken:%s",  lineBuffer)){ minSecsTaken     = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "maxSecsTaken:%s",   lineBuffer)){ maxSecsTaken     = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "userParameters:%s", lineBuffer)){ userParametersId = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "historyStep:%s",    lineBuffer)){ historyStep      = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "useThisPrice:%s",   lineBuffer)){ useThisPrice     = atof(lineBuffer); doUseThisPrice = true; }
 		}
 		if (doPriips){
 			if (strlen(startDate)){
@@ -337,7 +330,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			pFile = fopen("debug.txt", "w");
 			fclose(pFile);
 		}
-	
+		if (getMarketData && userParametersId>0){
+			cout << "getMarketData analysis cannot be run with userParameters" << endl;
+			exit(106);
+		}
 
 
 		// get list of productIds
@@ -549,7 +545,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			retcode = mydb.fetch(true,lineBuffer);
 			if (thisNumIterations<1) { thisNumIterations = 1; }
 			int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
-			int  userId             = getMarketData ? 3 : atoi(szAllPrices[colProductUserId]);
+			int  userId             = getMarketData ? 3 : userParametersId > 0 ? userParametersId : atoi(szAllPrices[colProductUserId]);
 			bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]) == 1;
 			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
 			bool collateralised     = atoi(szAllPrices[colProductCollateralised]) == 1;
@@ -574,7 +570,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
 			int bootstrapStride           = atoi(szAllPrices[colProductBootstrapStride]);
 			
-			useUserParams                 = atoi(szAllPrices[colProductUseUserParams]);
+			useUserParams                 = userParametersId > 0 ? 1 : atoi(szAllPrices[colProductUseUserParams]);
 			string forceStartDate         = szAllPrices[colProductForceStartDate];
 			if ( useProductFundingFractionFactor){
 				fundingFraction = defaultFundingFraction*atof(szAllPrices[colProductFundingFractionFactor]);;
@@ -704,7 +700,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
 			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
 				productId, "' ");
-			if (benchmarkId){
+			if (benchmarkId && !getMarketData && !forOptimisation){
 				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
 				strcat(lineBuffer, charBuffer);
 			}
@@ -874,7 +870,6 @@ int _tmain(int argc, _TCHAR* argv[])
 						numGaps += 1;
 						if (numGaps>10){
 							std::cerr << "gaps in underlying prices at " << bDate << " compared to lastDate " << lastDate << endl;
-							// problematical in batch mode exit(34);
 						}						
 					}
 				}
@@ -1292,11 +1287,11 @@ int _tmain(int argc, _TCHAR* argv[])
 				for (i = 0; i < numUl; i++) {
 					if (ulVolsTenor[i].size() == 0){ 
 						cerr << "No volatilities found for " << ulNames[i] << endl; 
-						exit(1); 
+						exit(107); 
 					}
 					if (divYieldsTenor[i].size() == 0){
 						cerr << "No dividends found for " << ulNames[i] << endl;
-						exit(1);
+						exit(108);
 					}
 				}
 			}
@@ -1316,7 +1311,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			// enough data?
 			if (totalNumDays - 1 < daysExtant){
 				cerr << "Not enough data to determine strike for product#:" << productId << endl;
-				if (doDebug){ exit(1); }
+				if (doDebug){ exit(109); }
 				continue;
 			}
 
@@ -1597,7 +1592,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			// enough data?
 			if (totalNumDays<2 || (thisNumIterations<2 && totalNumDays < spr.maxProductDays)){
 				cerr << "Not enough data for product#:" << productId << endl;
-				if (doDebug){ exit(1); }
+				if (doDebug){ exit(110); }
 				continue;
 			}
 			double maxYears = 0; for (i = 0; i<numBarriers; i++) { double t = spr.barrier.at(i).yearsToBarrier;   if (t > maxYears){ maxYears = t; } }
@@ -1905,7 +1900,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					// calc vol from 21-day window of daily continuous returns
 					if (originalUlReturns[0].size() < rollingWindowSize){
 						cerr << "Not enough data for PRIIPS stress test" << endl;
-						exit(1);
+						exit(111);
 					}
 					// load the window
 					for (j = 0; thisSlice.size() < rollingWindowSize; j++) {
