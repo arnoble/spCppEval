@@ -941,7 +941,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue && isPostStrike ? fairValuePrice : issuePrice) : askPrice)) / issuePrice;
 			if (doUseThisPrice){ midPrice = useThisPrice / issuePrice; }
 			ulPrices             = ulOriginalPrices; // copy constructor called
-			cout << "NumPrices:\t" << totalNumDays << "  FirstDataDate:\t" << ulOriginalPrices.at(0).date[0] << "  MidPriceUsed:\t" << midPrice << endl;
+			cout << "NumPrices: " << totalNumDays << "  FirstDataDate: " << ulOriginalPrices.at(0).date[0] << " LastDataDate: " << lastDataDateString << "  MidPriceUsed: " << midPrice << endl;
 			// save spots
 			vector<double> spots;
 			for (i=0; i < numUl; i++){ spots.push_back(ulPrices[i].price[totalNumDays-1]); }
