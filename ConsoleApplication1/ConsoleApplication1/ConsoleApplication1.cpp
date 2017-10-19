@@ -939,6 +939,15 @@ int _tmain(int argc, _TCHAR* argv[])
 			bool validFairValue  = (fairValueDateString == lastDataDateString) && (daysExtant > 14);
 			bool isPostStrike    = productStartDateString < lastDataDateString;
 			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue && isPostStrike ? fairValuePrice : issuePrice) : askPrice)) / issuePrice;
+			if (strlen(endDate)){
+				// get ASK from productprices if exists
+				sprintf(lineBuffer, "%s%d%s%s%s", "select Ask from productprices where ProductId=", productId," and date<='",endDate,"' order by Date desc limit 1");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(false, lineBuffer);
+				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+					midPrice  = atof(szAllPrices[0]);
+				}
+			}
 			if (doUseThisPrice){ midPrice = useThisPrice / issuePrice; }
 			ulPrices             = ulOriginalPrices; // copy constructor called
 			cout << "NumPrices: " << totalNumDays << "  FirstDataDate: " << ulOriginalPrices.at(0).date[0] << " LastDataDate: " << lastDataDateString << "  MidPriceUsed: " << midPrice << endl;
