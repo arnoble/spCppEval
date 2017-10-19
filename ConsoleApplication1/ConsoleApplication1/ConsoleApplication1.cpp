@@ -945,7 +945,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				retcode = mydb.fetch(false, lineBuffer);
 				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-					midPrice  = atof(szAllPrices[0]);
+					midPrice  = atof(szAllPrices[0]) / issuePrice;
 				}
 			}
 			if (doUseThisPrice){ midPrice = useThisPrice / issuePrice; }
