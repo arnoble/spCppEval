@@ -1815,6 +1815,7 @@ public:
 		const double                    bmVol,
 		const double                    cds5y,
 		const int                       bootstrapStride,
+		const int                       settleDays,
 		const bool                      silent,
 		const bool                      doBumps
 		)
@@ -1826,13 +1827,14 @@ public:
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
-		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps){};
+		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), 
+		settleDays(settleDays),doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps){};
 
 	// public members: DOME consider making private
 	char                           *lineBuffer;
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips,notUKSPA;
-	int                             maxProductDays, productDays, numUls;
+	int                             settleDays,maxProductDays, productDays, numUls;
 	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
@@ -2659,8 +2661,8 @@ public:
 										barrierWasHit[thisBarrier] = true;
 									}
 									
-									if (!couponPaidOut || b.endDays >= 0) {
-										if (!couponPaidOut){
+									if (!couponPaidOut || b.endDays >= 0 || (doAccruals && b.endDays >= -settleDays)) {
+										if (!couponPaidOut || doAccruals){  // barrier coupons only accrued, so no need to forwardCouponValue
 											couponValue += b.proportionHits*thisPayoff;
 										}
 										else if (b.payoffTypeId != fixedPayoff){  // paid-out variable coupon

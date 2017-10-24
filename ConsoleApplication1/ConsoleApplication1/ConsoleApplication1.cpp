@@ -540,7 +540,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
 				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, 
-				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductLast
+				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -571,7 +571,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
 			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
 			int bootstrapStride           = atoi(szAllPrices[colProductBootstrapStride]);
-			
+			int settleDays                = atoi(szAllPrices[colProductSettleDays]);
+
 			useUserParams                 = userParametersId > 0 ? 1 : atoi(szAllPrices[colProductUseUserParams]);
 			string forceStartDate         = szAllPrices[colProductForceStartDate];
 			if ( useProductFundingFractionFactor){
@@ -1337,7 +1338,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
-				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride,silent,doBumps);
+				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, doBumps);
 			numBarriers = 0;
 
 			// get barriers from DB
