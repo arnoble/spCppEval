@@ -626,7 +626,7 @@ double calcRiskCategory(const std::vector<double> &buckets,const double scaledVo
 
 enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, basketCallPayoff, lookbackCallPayoff, lookbackPutPayoff, basketPutPayoff, 
 	basketCallQuantoPayoff, basketPutQuantoPayoff, cappuccinoPayoff, levelsCallPayoff, outperformanceCallPayoff, outperformancePutPayoff, varianceSwapPayoff, 
-	autocallPutPayoff, autocallCallPayoff
+	autocallPutPayoff, autocallCallPayoff, lockinCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
 
@@ -1397,7 +1397,8 @@ public:
 		const std::vector<int>                 &ulIds,
 		std::vector<bool>                      &useUl,
 		const int                               thisPoint,
-		std::vector<UlTimeseries>              &ulPrices) {
+		std::vector<UlTimeseries>              &ulPrices,
+		const double                            lockedIn) {
 		double              thisPayoff(payoff), p, thisRefLevel, thisFinalLevel, thisAssetReturn, thisStrike;
 		double              cumReturn,w, basketFinal, basketStart, basketRef;
 		std::vector<double> basketPerfs,basketWeights,uPerfs,optionPayoffs; optionPayoffs.reserve(10);
@@ -1412,6 +1413,7 @@ public:
 		case lookbackCallPayoff:
 		case twinWinPayoff:
 		case autocallCallPayoff:
+		case lockinCallPayoff:
 			callOrPut = 1;
 		case lookbackPutPayoff:
 		case putPayoff:
@@ -1450,7 +1452,9 @@ public:
 				else {
 					p = callOrPut*(thisAssetReturn - thisStrike / thisRefLevel);
 				}
-				
+				if (payoffTypeId == lockinCallPayoff && p < lockedIn){
+					p = lockedIn;
+				}
 				if (payoffTypeId == twinWinPayoff) { p = fabs(p); }
 				if (p > cap){ p = cap; }
 				optionPayoffs.push_back(p);
@@ -1835,7 +1839,7 @@ public:
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips,notUKSPA;
 	int                             settleDays,maxProductDays, productDays, numUls;
-	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
+	double                          lockedIn,cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl,doShiftPrices;
@@ -1864,6 +1868,9 @@ public:
 
 		// UKSPA init
 		notUKSPA = ukspaCase == "";
+
+		// sundry
+		lockedIn = 0.0;
 	}
 
 	// re-initialise barriers
@@ -2535,7 +2542,7 @@ public:
 								if (doAccruals){ b.hasBeenHit= true; }  
 								double thisOptionPayoff;
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, 
-									finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl,thisPoint,ulPrices);
+									finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl,thisPoint,ulPrices,lockedIn);
 
 								// process barrier commands
 								if (b.barrierCommands != ""){
@@ -2552,6 +2559,10 @@ public:
 											int targetBarrierId = atoi(bCommandArgs[0].c_str()) - 1;
 											barrierDisabled[targetBarrierId] = true;
 											numDisables++;
+										}
+										else if (thisBcommand == "lockIn"){
+											double lock = atof(bCommandArgs[0].c_str()) ;
+											if (lock > lockedIn){ lockedIn = lock; }
 										}
 										else if (thisBcommand == "decreaseBudget"){
 											// initialise budget if there is an argument
