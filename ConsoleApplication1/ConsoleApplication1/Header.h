@@ -56,11 +56,12 @@ struct finalAssetInfo	{
 };
 
 struct postStrikeState	{
-	double initialBudget,budgetUsed;
+	double initialBudget,budgetUsed,lockedIn;
 
 	void init(){
 		initialBudget = 0.0;
 		budgetUsed    = 0.0;
+		lockedIn      = 0.0;
 	}
 
 	postStrikeState() {
@@ -1839,7 +1840,7 @@ public:
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips,notUKSPA;
 	int                             settleDays,maxProductDays, productDays, numUls;
-	double                          lockedIn,cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
+	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl,doShiftPrices;
@@ -1870,7 +1871,7 @@ public:
 		notUKSPA = ukspaCase == "";
 
 		// sundry
-		lockedIn = 0.0;
+		
 	}
 
 	// re-initialise barriers
@@ -2377,7 +2378,7 @@ public:
 					if (thisPoint >= lastPoint){ continue; }
 				}
 				
-				// possibly track timepoints ulIds
+				// possiblcy track timepoints ulIds
 				if (doTimepoints){
 					for (i=0; i < numTimepoints; i++){
 						int thisTpDays = timepointDays[i];
@@ -2419,7 +2420,7 @@ public:
 				boost::gregorian::date &bStartDate(allBdates.at(thisPoint));
 				// init budget things: postStrike deals will initialise .budgetUsed and .initialBudget
 				double budget     = thisPostStrikeState.initialBudget - thisPostStrikeState.budgetUsed;
-
+				double lockedIn   = thisPostStrikeState.lockedIn;
 
 				for (i=0; i < numUls; i++){ useUl[i] = true; }
 				matured                                = false;
@@ -2563,6 +2564,9 @@ public:
 										else if (thisBcommand == "lockIn"){
 											double lock = atof(bCommandArgs[0].c_str()) ;
 											if (lock > lockedIn){ lockedIn = lock; }
+											if (doAccruals){
+												thisPostStrikeState.lockedIn    = lockedIn;
+											}
 										}
 										else if (thisBcommand == "decreaseBudget"){
 											// initialise budget if there is an argument
