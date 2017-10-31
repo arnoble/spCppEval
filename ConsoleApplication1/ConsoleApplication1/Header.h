@@ -374,6 +374,19 @@ void bootstrapCDS(const std::vector<double> r, std::vector<double> &dpCurve, con
 	}
 }
 
+void buildHazardCurve(const std::vector<double> cdsSpread, const std::vector<double> cdsTenor,const double maxYears, const double recoveryRate,std::vector<double> &hazardCurve){
+	std::vector<double> dpCurve, fullCurve;             // populate a full annual CDS curve
+	for (int j = 0; j<maxYears + 1; j++) {
+		fullCurve.push_back(interpCurve(cdsTenor, cdsSpread, j + 1));
+	}
+
+	bootstrapCDS(fullCurve, dpCurve, recoveryRate);
+	hazardCurve.empty();
+	for (int j = 0, len = fullCurve.size(); j<len; j++) {
+		hazardCurve.push_back(dpCurve[j]);
+	}
+}
+
 
 // regex functions
 void splitCommaSepName(std::vector<std::string> &out, std::string s){
@@ -2562,6 +2575,7 @@ public:
 											numDisables++;
 										}
 										else if (thisBcommand == "lockIn"){
+											// lockin some level
 											double lock = atof(bCommandArgs[0].c_str()) ;
 											if (lock > lockedIn){ lockedIn = lock; }
 											if (doAccruals){
@@ -3278,6 +3292,7 @@ public:
 					}
 					double averageReturn        = sumAnnRets / numAnnRets;
 					double averageCouponReturn  = sumCouponRets / numAnnRets;
+					double vaR99                = 100.0*allAnnRets[floor(numAnnRets*(0.01))];
 					double vaR90                = 100.0*allAnnRets[floor(numAnnRets*(0.1))];
 					double vaR50                = 100.0*allAnnRets[floor(numAnnRets*(0.5))];
 					double vaR10                = 100.0*allAnnRets[floor(numAnnRets*(0.9))];
@@ -3489,6 +3504,7 @@ public:
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaRyears='", varYears);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1years='", var1Years);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2years='", var2Years);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR99='", vaR99);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR='", vaR90);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR1='", vaR50);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',VaR2='", vaR10);
