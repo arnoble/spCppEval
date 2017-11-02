@@ -551,7 +551,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
 				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, 
-				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductLast
+				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -581,8 +581,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductBenchmarkTER]) / 100.0);
 			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
 			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
-			int bootstrapStride           = atoi(szAllPrices[colProductBootstrapStride]);
-			int settleDays                = atoi(szAllPrices[colProductSettleDays]);
+			int    bootstrapStride        = atoi(szAllPrices[colProductBootstrapStride]);
+			int    settleDays             = atoi(szAllPrices[colProductSettleDays]);
+			double barrierBend            = atof(szAllPrices[colProductBarrierBend])  * (getMarketData && !doUKSPA && !doBumps && !doDeltas ? 1.0 : 0.0);
 
 			useUserParams                 = userParametersId > 0 ? 1 : atoi(szAllPrices[colProductUseUserParams]);
 			string forceStartDate         = szAllPrices[colProductForceStartDate];
@@ -1379,23 +1380,34 @@ int _tmain(int argc, _TCHAR* argv[])
 				int barrierId          = atoi(szAllPrices[colProductBarrierId]);
 				int avgType            = atoi(szAllPrices[colAvgType]);
 				string barrierCommands = szAllPrices[colCommands];
-				bool isAbsolute        = atoi(szAllPrices[colIsAbsolute]) == 1;
-				bool isStrikeReset     = atoi(szAllPrices[colStrikeReset]) == 1;
-				bool isStopLoss        = atoi(szAllPrices[colStopLoss]) == 1;
-				bool isForfeitCoupons  = atoi(szAllPrices[colForfeitCoupons]) == 1;
-				capitalOrIncome = atoi(szAllPrices[colCapitalOrIncome]) == 1;
-				nature = szAllPrices[colNature];
-				payoff = atof(szAllPrices[colPayoff]) / 100.0;
-				settlementDate = szAllPrices[colSettlementDate];
-				description = szAllPrices[colDescription];
-				avgInAlgebra = szAllPrices[colAvgInAlgebra];
-				thisPayoffId = atoi(szAllPrices[colPayoffId]); thisPayoffType = payoffType[thisPayoffId];
-				participation = atof(szAllPrices[colParticipation]);
-				strike = atof(szAllPrices[colStrike]);
-				cap = atof(szAllPrices[colCap]);
+				bool isAbsolute        = atoi(szAllPrices[colIsAbsolute]     ) == 1;
+				bool isStrikeReset     = atoi(szAllPrices[colStrikeReset]    ) == 1;
+				bool isStopLoss        = atoi(szAllPrices[colStopLoss]       ) == 1;
+				bool isForfeitCoupons  = atoi(szAllPrices[colForfeitCoupons] ) == 1;
+				capitalOrIncome        = atoi(szAllPrices[colCapitalOrIncome]) == 1;
+				nature          = szAllPrices[colNature];
+				payoff          = atof(szAllPrices[colPayoff]) / 100.0;
+				settlementDate  = szAllPrices[colSettlementDate];
+				description     = szAllPrices[colDescription];
+				avgInAlgebra    = szAllPrices[colAvgInAlgebra];
+				thisPayoffId    = atoi(szAllPrices[colPayoffId]); 
+				thisPayoffType  = payoffType[thisPayoffId];
+				participation   = atof(szAllPrices[colParticipation]);
+				// barrier bend
+				string ucPayoffType(thisPayoffType);
+				transform(ucPayoffType.begin(), ucPayoffType.end(), ucPayoffType.begin(), toupper);
+				double bendCallPut       = ucPayoffType.find("CALL") != std::string::npos ? -1.0 : ucPayoffType.find("PUT") != std::string::npos ?  1.0 : 0.0;
+				double bendParticipation = participation > 0.0                            ?  1.0 : participation < 0.0                           ? -1.0 : 0.0;
+				double bendDirection     = bendCallPut * bendParticipation;
+				if (ucPayoffType.find("FIXED") != std::string::npos) { bendDirection  = -1.0; }
+				strike          = max(0.0,atof(szAllPrices[colStrike]) + barrierBend*bendDirection);
+				cap             = max(0.0,atof(szAllPrices[colCap])    - barrierBend*bendDirection);
 				int     underlyingFunctionId = atoi(szAllPrices[colUnderlyingFunctionId]);
 				double  param1 = atof(szAllPrices[colParam1]);
-
+				if (ucPayoffType.find("BASKET") != std::string::npos){
+					param1 = max(0.0, param1 + barrierBend*bendDirection);
+				}
+				
 				/*
 				* barrier creation
 				*/
@@ -1420,17 +1432,18 @@ int _tmain(int argc, _TCHAR* argv[])
 					double strikeOverride   = atof(szAllPrices[brcolStrikeOverride]);
 					bool   isAbsolute       = atoi(szAllPrices[brcolIsAbsolute]) == 1;
 					uid      = atoi(szAllPrices[brcolUnderlyingId]);
-					barrier  = atof(szAllPrices[brcolBarrier]);
-					uBarrier = atof(szAllPrices[brcolUpperBarrier]);
+					barrier  = max(0.0,atof(szAllPrices[brcolBarrier]) + barrierBend*bendDirection);
+					uBarrier = atof(szAllPrices[brcolUpperBarrier])   ;
 					if (uBarrier > 999999 && uBarrier < 1000001.0) { uBarrier = NULL; } // using 1000000 as a quasiNULL, since C++ SQLFetch ignores NULL columns
+					if (uBarrier != NULL){ uBarrier = max(0.0, uBarrier + barrierBend*bendDirection); }
 					above                         = atoi(szAllPrices[brcolAbove]) == 1;
 					at                            = atoi(szAllPrices[brcolAt]) == 1;
 					startDateString               = szAllPrices[brcolStartDate];
 					endDateString                 = szAllPrices[brcolEndDate];
 					anyTypeId                     = atoi(szAllPrices[brcolBarrierTypeId]);
-					bool   isContinuousALL        = _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuousall"  ) == 0;
+					bool   isContinuousALL        = _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuousall") == 0;
 					thisBarrier.isContinuousGroup = thisBarrier.isContinuousGroup || _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuousgroup") == 0;
-					thisBarrier.isContinuous      = thisBarrier.isContinuous      || _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuous") == 0;
+					thisBarrier.isContinuous      = thisBarrier.isContinuous || _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuous") == 0;
 					// express absolute levels as %ofSpot
 					double thisStrikeDatePrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
 					// ...DOME only works with single underlying, for now...the issue is whether to add FixedStrike fields to each brel
@@ -1440,10 +1453,11 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 					if (isAbsolute){
 						barrier /= thisStrikeDatePrice;
-						if (uBarrier       != NULL) { uBarrier       /= thisStrikeDatePrice; }
+						if (uBarrier != NULL) { uBarrier       /= thisStrikeDatePrice; }
 						if (strikeOverride != 0.0)  { strikeOverride /= thisStrikeDatePrice; }
 					}
-
+					if (strikeOverride != 0.0)  { strikeOverride = max(0.0,strikeOverride + barrierBend*bendDirection); }
+				
 					if (uid) {
 						// create barrierRelation
 						thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
