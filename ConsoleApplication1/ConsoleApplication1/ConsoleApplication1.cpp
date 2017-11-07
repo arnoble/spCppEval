@@ -106,7 +106,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		SomeCurve        anyCurve;
 		time_t           startTime = time(0);
 		char             **szAllPrices = new char*[maxUls];
-		vector<int>      allProductIds; allProductIds.reserve(1000);
+		vector<int>      optimiseProductIds,allProductIds; allProductIds.reserve(1000);
 		vector<int>::iterator intIterator, intIterator1;
 		for (int i = 0; i < maxUls; i++){
 			szAllPrices[i] = new char[bufSize];
@@ -352,8 +352,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		// get list of productIds
 		// ... but first deal with any optimisation demands
 		if (forOptimisation){
-			allProductIds.push_back(1);  // special product id=1 with UK100,SX5E,SPX
-			notIllustrative = true;
+			if (!getMarketData && userParametersId <1){
+				cout << "Optimiser needs scenario-generation from either getMarketData or userParameters" << endl;
+				exit(106);
+			}
+			allProductIds.push_back(1);  // special product id=1 with UK100,SX5E,SPX			
+			notIllustrative = !commaSepList;
 		}
 
 		if (commaSepList == 1) {
@@ -427,11 +431,15 @@ int _tmain(int argc, _TCHAR* argv[])
 		// deal with any optimisation demands
 		if (forOptimisation){
 			// find #underlyings
-			sprintf(lineBuffer, "%s%d%s", "select count(*) from (select distinct underlyingid from barrierrelation join productbarrier using (productbarrierid) where productid in (",
-				allProductIds[0], "))x");
-			mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			sprintf(lineBuffer, "%s%d%s", "select UnderlyingId from (select distinct underlyingid from barrierrelation join productbarrier using (productbarrierid) where productid in (",
+				allProductIds[0], "))x");			
+			mydb.prepare((SQLCHAR *)lineBuffer, 1); 	
 			retcode = mydb.fetch(true, lineBuffer);
-			optimiseNumUls     = atoi(szAllPrices[0]);
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+				optimiseProductIds.push_back(atoi(szAllPrices[0]));
+				retcode = mydb.fetch(false, "");
+			}
+			optimiseNumUls     = optimiseProductIds.size();
 			// find max date for these products
 			strcpy(charBuffer, "");
 			for (int i=1; i < numProducts; i++){
@@ -731,6 +739,10 @@ int _tmain(int argc, _TCHAR* argv[])
 				ulTZhrs.push_back(thisTZhrs);
 				if (fabs(thisTZhrs) > maxTZhrs){ maxTZhrs = fabs(thisTZhrs); }
 				uid         = atoi(szAllPrices[0]);
+				if (forOptimisation && find(optimiseProductIds.begin(), optimiseProductIds.end(), uid) == optimiseProductIds.end()){
+					cerr << "cannot optimise with this underlyingId:" << uid << endl;
+					exit(107);
+				}
 				ccyToUidMap[thisCcy] = uid;
 				if (find(ulIds.begin(), ulIds.end(), uid) == ulIds.end()) {      // build list of uids
 					ulIds.push_back(uid);
