@@ -2277,7 +2277,7 @@ public:
 									//... calculate return for thisDt  for this underlying
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
 									currentLevels[i]       = currentLevels[i] * thisReturn;
-									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0);
+									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.18 * dt) : 1.0);
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 									// debugCorrelatedRandNos.push_back(currentQuantoLevels[i]/spotLevels[i]);
 									if (forOptimisation && productIndx == 0){
@@ -2909,11 +2909,11 @@ public:
 				if (!silent) {
 					for (i = 0; i < numUl; i++) {
 						MeanAndStdev(simulatedReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
-						std::cout << "Simulated annualised drift rate to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << std::endl;
+						std::cout << "Simulated annualised drift rate (inc. quanto) to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << std::endl;
 						MeanAndStdev(simulatedLogReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
 						std::cout << "Simulated vol to:" << ulPrices[i].date[startPoint + productDays] << " :" << thisStd / sqrt(productDays / 365) << " for:" << ulNames[i] << std::endl;
 						MeanAndStdev(simulatedLevelsToMaxYears[i], thisMean, thisStd, thisStderr);
-						std::cout << "Simulated final level at:" << ulPrices[i].date[startPoint + productDays] << ":" << thisMean << " for:" << ulNames[i] << " (" << productDays / 365.0 << "y):" << std::endl;
+						std::cout << "Simulated final level (inc. quanto) at:" << ulPrices[i].date[startPoint + productDays] << ":" << thisMean << " for:" << ulNames[i] << " (" << productDays / 365.0 << "y):" << std::endl;
 					}
 				}
 
