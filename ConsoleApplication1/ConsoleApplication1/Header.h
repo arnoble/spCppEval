@@ -3487,6 +3487,8 @@ public:
 						}
 						else{
 							sprintf(lineBuffer, "%s%s%.5lf%s", lineBuffer, "ESvol='", priipsUsingRNdrifts ? scaledVol : esVol, priipsUsingRNdrifts ? "'/sqrt(duration) +'0" : "");   // pesky way to pick up previously saved realWorld duration						
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkReturn='", productBmReturn);
+							sprintf(lineBuffer, "%s%s%s%.5lf%s", lineBuffer, "',ProductExcessReturn=", priipsUsingRNdrifts ? "EArithReturn - " : "", priipsUsingRNdrifts ? productBmReturn:productExcessReturn,"+'0");
 							if (priipsUsingRNdrifts){
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
@@ -3561,8 +3563,6 @@ public:
 								sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
 								sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='", secsTaken);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',IRR='", thisIrr);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkReturn='", productBmReturn);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProductExcessReturn='", productExcessReturn);
 							}
 						}
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
