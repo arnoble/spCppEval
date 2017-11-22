@@ -1895,6 +1895,7 @@ public:
 			// clear un-accrued hits ... where we call evaluate() several times eg PRIIPs and PRIIPsStresstest, or doing bumps
 			if (!b.hasBeenHit){
 				b.hit.clear();
+				b.sumProportion = 0.0;
 			}
 		}
 	}
@@ -3141,7 +3142,7 @@ public:
 						}
 						// ** SQL 
 						// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
-						if (updateCashflows && (!getMarketData || analyseCase == 0) && !priipsUsingRNdrifts){
+						if (updateCashflows && (!getMarketData || analyseCase == 0) && (!doPriips || (priipsUsingRNdrifts && !doPriipsStress))){
 							sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d", "update ", useProto, "barrierprob set Prob='", prob,
 								"',AnnReturn='", annReturn,
 								"',CondPayoff='", mean,

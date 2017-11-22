@@ -1872,6 +1872,7 @@ int _tmain(int argc, _TCHAR* argv[])
 												}
 											}
 											// re-initialise barriers
+											
 											for (j=0; j < numBarriers; j++){
 												SpBarrier& b(spr.barrier.at(j));
 												// clear hits
