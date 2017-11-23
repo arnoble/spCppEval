@@ -38,12 +38,12 @@ struct PriipsStruct	{
 	}
 };
 
-struct PriipsAnnRet	{
+struct AnnRet	{
 	double annRet, yearsToPayoff;
 
-	PriipsAnnRet(double annRet, double yearsToPayoff) : annRet(annRet), yearsToPayoff(yearsToPayoff) {}
+	AnnRet(double annRet, double yearsToPayoff) : annRet(annRet), yearsToPayoff(yearsToPayoff) {}
 
-	bool operator < (const PriipsAnnRet& other) const	{
+	bool operator < (const AnnRet& other) const	{
 		return (annRet < other.annRet);
 	}
 };
@@ -670,12 +670,13 @@ public:
 		std::vector<std::vector<double>>                    &oisRatesRate,
 		std::vector<std::vector<double>>                    &divYieldsTenor,
 		std::vector<std::vector<double>>                    &divYieldsRate,
+		std::vector<std::vector<double>>                    &divYieldsStdErr,
 		std::vector<std::vector<int>>                       &corrsOtherId,
 		std::vector<std::vector<double>>                    &corrsCorrelation,
 		std::vector<std::vector<int>>                       &fxcorrsOtherId,
 		std::vector<std::vector<double>>                    &fxcorrsCorrelation
 		) :ulVolsTenor(ulVolsTenor), ulVolsStrike(ulVolsStrike), ulVolsFwdVol(ulVolsFwdVol), oisRatesTenor(oisRatesTenor), oisRatesRate(oisRatesRate),
-		divYieldsTenor(divYieldsTenor), divYieldsRate(divYieldsRate), corrsOtherId(corrsOtherId), corrsCorrelation(corrsCorrelation), fxcorrsOtherId(fxcorrsOtherId), fxcorrsCorrelation(fxcorrsCorrelation)
+		divYieldsTenor(divYieldsTenor), divYieldsRate(divYieldsRate), divYieldsStdErr(divYieldsStdErr),corrsOtherId(corrsOtherId), corrsCorrelation(corrsCorrelation), fxcorrsOtherId(fxcorrsOtherId), fxcorrsCorrelation(fxcorrsCorrelation)
 		{
 		}
 	std::vector< std::vector<double> >                  &ulVolsTenor;
@@ -685,6 +686,7 @@ public:
 	std::vector<std::vector<double>>                    &oisRatesRate;
 	std::vector<std::vector<double>>                    &divYieldsTenor;
 	std::vector<std::vector<double>>                    &divYieldsRate;
+	std::vector<std::vector<double>>                    &divYieldsStdErr;
 	std::vector<std::vector<int>>                       &corrsOtherId;
 	std::vector<std::vector<double>>                    &corrsCorrelation;
 	std::vector<std::vector<int>>                       &fxcorrsOtherId;
@@ -1835,7 +1837,8 @@ public:
 		const int                       bootstrapStride,
 		const int                       settleDays,
 		const bool                      silent,
-		const bool                      doBumps
+		const bool                      doBumps,
+		const bool                      stochasticDrift
 		)
 		: lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency), 
@@ -1846,12 +1849,12 @@ public:
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), 
-		settleDays(settleDays),doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps){};
+		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps), stochasticDrift(stochasticDrift) {};
 
 	// public members: DOME consider making private
 	char                           *lineBuffer;
 	const unsigned int              longNumOfSequences=1000;
-	bool                            doPriips,notUKSPA;
+	bool                            doPriips, notUKSPA, stochasticDrift;
 	int                             settleDays,maxProductDays, productDays, numUls;
 	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
@@ -1965,7 +1968,11 @@ public:
 		std::vector< std::vector<double> > simulatedLogReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
-		std::vector<double>      stdevRatioPctChanges, optimiseProductResult; optimiseProductResult.reserve(numMcIterations); 
+		std::vector<double>      stdevRatioPctChanges;
+		std::vector<double>      optimiseProductResult;   optimiseProductResult.reserve(numMcIterations);
+		std::vector<double>      optimiseProductPayoff;   optimiseProductPayoff.reserve(numMcIterations);
+		std::vector<double>      optimiseProductDuration; optimiseProductDuration.reserve(numMcIterations);
+
 		std::vector<int>         optimiseDayMatured; optimiseDayMatured.reserve(numMcIterations);
 		std::vector< std::vector<double> > someTimepoints[100];
 		std::vector<double>           someLevels[100], somePaths[100]; 
@@ -2210,7 +2217,7 @@ public:
 						int thisMonPoint    = startPoint + thatNumDays;
 						double lognormalAdj = 0.5;
 						const std::string   thatDateString(allDates.at(thisMonPoint));
-						double thisReturn, thisSig, thisValue, thatValue;
+						double thisReturn, thisSig, thisValue, thatValue,thisStdErr;
 
 						// what is the time now
 						thatT   = thatNumDays / 365.25;
@@ -2230,7 +2237,13 @@ public:
 							thisValue           = interpVector(theseRates, theseTenors, thisT);
 							thatValue           = interpVector(theseRates, theseTenors, thatT);
 							thisDivYieldRate[i] = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
-
+							if (stochasticDrift){
+								theseRates          = md.divYieldsStdErr[i];
+								thisValue           = interpVector(theseRates, theseTenors, thisT);
+								thatValue           = interpVector(theseRates, theseTenors, thatT);
+								double thisAdj      = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
+								thisDivYieldRate[i] += thisAdj*NormSInv(ArtsRan());
+							}
 							//... any Quanto drift: LEAVE HERE IN CASE correlations become time-dependent
 							// DOME: this assumes all payoffs are quanto
 							// DOME: assumes all fx vols are 10% ...
@@ -2678,7 +2691,10 @@ public:
 										double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
 										double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 										double thisPvPayoff = thisAmount*thisDiscountFactor;
+
+										optimiseProductPayoff.push_back(thisAmount);
 										optimiseProductResult.push_back(optOptimiseAnnualisedReturn ? thisAnnRet : thisPvPayoff);
+										optimiseProductDuration.push_back(thisYears);
 										// not using now
 										// optimiseDayMatured.push_back(dayMatured - 1);
 									}
@@ -2823,12 +2839,26 @@ public:
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 						}
 						// init for next batch							
-						strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet) values ");
+						strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet,Duration,Payoff) values ");
 						optFirstTime = true;
 					}
-					sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", productId, ",", optCount, ",",
-						optimiseProductResult[optCount] * thisNormalisation, ")");
+					sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s%.4lf%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", productId, ",", optCount, ",",
+						optimiseProductResult[optCount] * thisNormalisation, ",", optimiseProductDuration[optCount], ",", optimiseProductPayoff[optCount], ")");
 					optFirstTime  = false;
+				}
+
+				//	 debug only
+				if (0){
+					double geomReturn(0.0);
+					double sumDuration(0.0);
+					for (i = 0; i < optimiseProductPayoff.size(); i++){
+						double thisPayoff = optimiseProductPayoff[i];
+						geomReturn += log((thisPayoff<unwindPayoff ? unwindPayoff : thisPayoff) / midPrice);
+						sumDuration += optimiseProductDuration[i];
+						// if (i<10){ std::cerr << "\n\tIteration:" << i << "Payoff:" << thisPayoff << "Duration:" << optimiseProductDuration[i] << "AnnRet:" << optimiseProductResult[i] << std::endl; }
+					}
+					geomReturn = exp(geomReturn / sumDuration) - 1;
+					std::cerr << "\n\tCAGR:" << geomReturn << "off midPrice:" << midPrice << std::endl;
 				}
 				// send final optimisation stub
 				if (strlen(lineBuffer)){
@@ -2978,7 +3008,7 @@ public:
 					double   probEarly(0.0), probEarliest(0.0);
 					std::vector<double> allPayoffs, allFVpayoffs, allAnnRets, allCouponRets, bmAnnRets, bmRelLogRets, pvInstances;
 					std::vector<PriipsStruct> priipsInstances; priipsInstances.reserve(numMcIterations);
-					std::vector<PriipsAnnRet> priipsAnnRetInstances; priipsAnnRetInstances.reserve(numMcIterations);
+					std::vector<AnnRet> priipsAnnRetInstances; priipsAnnRetInstances.reserve(numMcIterations);
 
 					int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 					double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
@@ -3115,7 +3145,7 @@ public:
 									double thisT      = b.yearsToBarrier;
 									double thisReturn = thisAmount / midPrice;
 									priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0 + priipsRfr, -thisT), thisT));
-									priipsAnnRetInstances.push_back(PriipsAnnRet(thisAnnRet, thisT));
+									priipsAnnRetInstances.push_back(AnnRet(thisAnnRet, thisT));
 								}
 								double bmRet = thisYears <= 0.0 ? 0.0 : (benchmarkId > 0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn);
 								if (bmRet < (unwindPayoff - 1.0)){ bmRet = (unwindPayoff - 1.0); }

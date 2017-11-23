@@ -29,6 +29,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["doAnyIdTable"]            = "";
 		argWords["getMarketData"]           = "";
 		argWords["proto"]                   = "";
+		argWords["stochasticDrift"]         = "";
 		argWords["dbServer"]                = "spCloud|newSp|spIPRL";
 		argWords["forceIterations"]         = "";
 		argWords["useProductFundingFractionFactor"] = "";
@@ -82,7 +83,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false);
-		bool             ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
+		bool             stochasticDrift(false),ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -164,6 +165,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "useProductFundingFractionFactor")){  useProductFundingFractionFactor  = true; }
 			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
+			if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }				
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
 			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
@@ -1028,6 +1030,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<vector<double>>            oisRatesRate(numUl);
 			vector<vector<double>>            divYieldsTenor(numUl);
 			vector<vector<double>>            divYieldsRate(numUl);
+			vector<vector<double>>            divYieldsStdErr(numUl);
 			vector<vector<int>>               corrsOtherId(numUl);
 			vector<vector<double>>            corrsCorrelation(numUl);
 			vector<vector<int>>               fxcorrsOtherId(numUl);
@@ -1038,7 +1041,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				//  divYields
 				sprintf(ulSql, "%s%s%s%s%s%d", "select d.underlyingid,",
 					doUKSPA || doPriips ? "100 Tenor,(d.divyield+dd.divyield)/2.0" : "Tenor,impdivyield",
-					" Rate,IsTotalReturn from ",
+					" Rate,IsTotalReturn,StdErr from ",
 					doUKSPA || doPriips ? "divyield dd join divyield d using (underlyingid,userid)" : "impdivyield d",
 					" join underlying u using (underlyingid) where d.UnderlyingId in (", ulIds[0]);
 				for (i = 1; i < numUl; i++) {
@@ -1048,7 +1051,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					doUKSPA || doPriips ? " and dd.tenor=1 and d.tenor=5 " : "",
 					" order by UnderlyingId,Tenor ");
 				// .. parse each record <Date,price0,...,pricen>
-				mydb.prepare((SQLCHAR *)ulSql, 4);
+				mydb.prepare((SQLCHAR *)ulSql, 5);
 				retcode = mydb.fetch(false, ulSql);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					int    thisUidx      = ulIdNameMap.at(atoi(szAllPrices[0]));
@@ -1056,6 +1059,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					double thisYield     = atof(szAllPrices[2]);
 					bool   isTotalReturn = atoi(szAllPrices[3]) == 1;
 					double thisRate      = thisYield;
+					double thisStdErr    = atof(szAllPrices[4]);					
 
 					if (ukspaCase != ""){
 						thisRate       =  ulERPs[thisUidx] - thisYield;
@@ -1070,6 +1074,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 					divYieldsTenor[thisUidx].push_back(thisTenor);
 					divYieldsRate[thisUidx].push_back(thisRate);
+					divYieldsStdErr[thisUidx].push_back(thisStdErr);
 					retcode = mydb.fetch(false, "");
 				}
 				// add dummy records for underlyings for which there are no divs (will include, for example total return indices)
@@ -1092,6 +1097,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						}
 						divYieldsTenor[i].push_back(10.0);
 						divYieldsRate[i].push_back(driftAdj);
+						divYieldsStdErr[i].push_back(0.0);
 					}
 				}
 			}
@@ -1340,6 +1346,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			oisRatesRate,
 			divYieldsTenor,
 			divYieldsRate,
+			divYieldsStdErr,
 			corrsOtherId,
 			corrsCorrelation,
 			fxcorrsOtherId,
@@ -1362,7 +1369,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
-				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, doBumps);
+				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, doBumps, stochasticDrift);
 			numBarriers = 0;
 
 			// get barriers from DB
