@@ -1041,7 +1041,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				//  divYields
 				sprintf(ulSql, "%s%s%s%s%s%d", "select d.underlyingid,",
 					doUKSPA || doPriips ? "100 Tenor,(d.divyield+dd.divyield)/2.0" : "Tenor,impdivyield",
-					" Rate,IsTotalReturn,StdErr from ",
+					" Rate,IsTotalReturn,d.StdErr from ",
 					doUKSPA || doPriips ? "divyield dd join divyield d using (underlyingid,userid)" : "impdivyield d",
 					" join underlying u using (underlyingid) where d.UnderlyingId in (", ulIds[0]);
 				for (i = 1; i < numUl; i++) {
