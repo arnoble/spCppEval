@@ -95,7 +95,7 @@ double evalAlgebra(const std::vector<double> data, std::string algebra){
 	if (data.size() == 0 || algebra.length() == 0){ return 0.0; }
 
 	// algebra, once tokenised, is evaluated in reverse polish
-	int i, len, j;
+	int i, len, pos, j;
 	int numValues = data.size();
 	char buffer[100]; sprintf(buffer, "%s", algebra.c_str());
 	char *token = std::strtok(buffer, "_");
@@ -111,6 +111,7 @@ double evalAlgebra(const std::vector<double> data, std::string algebra){
 	double extremum;
 
 	for (i=0; i < numTokens; i++){
+		pos = stack.size() - 1;
 		if (tokens[i] == "min"){
 			extremum = +INFINITY;
 			for (j=0, len=stack.size(); j < len; j++){
@@ -128,11 +129,25 @@ double evalAlgebra(const std::vector<double> data, std::string algebra){
 			stack.push_back(extremum);
 		}
 		else if (tokens[i] == "add"){
-			stack[0] = stack[1] + stack[0];
+			stack[pos-1] = stack[pos] + stack[pos-1];
+			stack.pop_back();
+		}
+		else if (tokens[i] == "multiply"){
+			stack[pos - 1] =  stack[pos - 1] * stack[pos];
+			stack.pop_back();
+		}
+		else if (tokens[i] == "divide"){
+			stack[pos - 1] =  stack[pos - 1] / stack[pos];
 			stack.pop_back();
 		}
 		else if (tokens[i] == "abs"){
-			stack[0] = abs(stack[0]);
+			stack[pos] = abs(stack[pos]);
+		}
+		else if (tokens[i] == "floor"){
+			stack[pos] = floor(stack[pos]);
+		}
+		else if (tokens[i] == "latest"){
+			stack.push_back(data[0]);
 		}
 		else {
 			stack.push_back(atof(tokens[i].c_str()));
@@ -1663,7 +1678,7 @@ public:
 					int n = ulIdNameMap[thisBrel.underlying];
 					double thisStartLevel = startLevels[n];
 					std::vector<double> avgObs;
-					// create vector of observations
+					// create DECREASING DATE ORDER (most recent is at index 0) avgObs vector of observations
 					for (k = 0; k < thisBrel.runningAverage.size(); k++) {
 						avgObs.push_back(thisBrel.runningAverage[k] * thisStartLevel);
 					}
@@ -1677,6 +1692,7 @@ public:
 					// hacky: if there is no averagingIn use any algebra here
 					if (thisBrel.avgInDays == 0 && avgObs.size() && thisBrel.avgInAlgebra.length()) {
 						// convert to returns
+						//  NOTE avgObs is in DECREASING DATE ORDER
 						std::vector<double> thesePerfs;
 						for (int k = 0, len1 = avgObs.size(); k<len1; k++) { thesePerfs.push_back(avgObs[k] / thisBrel.refLevel); }
 						double thisAlgebraLevel =	evalAlgebra(thesePerfs, thisBrel.avgInAlgebra);
@@ -3428,15 +3444,16 @@ public:
 							exit(1);
 						}
 						esVol = thisPriip.pvReturn>0.0 && priipsDuration > 0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) / sqrt(duration) : 0.0;
-						if (validFairValue){
-							priipsImpliedCost  =  1.0 - fairValue / askPrice;
+						// calc PRIIPs PV
+						double sumPriipsPvs(0.0);
+						int    numPriipsPvs = priipsInstances.size();
+						for (int i=0; i < numPriipsPvs; i++){ sumPriipsPvs += priipsInstances[i].pvReturn; }
+						double priipsPV = sumPriipsPvs / numPriipsPvs;
+						if (priipsUsingRNdrifts && !doPriipsStress){
+							sprintf(lineBuffer, "%s%lf%s%d%s", "update product set PRIIPsPV=",priipsPV," where productid='", productId,"';");
+							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 						}
-						else {
-							double sumPriipsPvs(0.0);
-							int    numPriipsPvs = priipsInstances.size();
-							for (int i=0; i < numPriipsPvs; i++){ sumPriipsPvs += priipsInstances[i].pvReturn; }
-							priipsImpliedCost  = 1.0 - (sumPriipsPvs / numPriipsPvs) / askPrice;
-						}
+						priipsImpliedCost  =  1.0 - (validFairValue ? fairValue : priipsPV) / askPrice;
 					}
 					double esVolTest = (1 + averageReturn)>0.0 && (1 + eShortfallTest) > 0.0 ? (log(1 + averageReturn) - log(1 + eShortfallTest)) / ESnorm(confLevelTest) : 0.0;
 					if (averageReturn < -0.99){ esVol = 1000.0; esVolTest = 1000.0; }  // eg a product guaranteed to lose 100%

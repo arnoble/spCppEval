@@ -1407,6 +1407,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				nature          = szAllPrices[colNature];
 				payoff          = atof(szAllPrices[colPayoff]) / 100.0;
 				settlementDate  = szAllPrices[colSettlementDate];
+				// PRIIPs Intermediate Scenario?
 				description     = szAllPrices[colDescription];
 				avgInAlgebra    = szAllPrices[colAvgInAlgebra];
 				thisPayoffId    = atoi(szAllPrices[colPayoffId]); 
@@ -1458,7 +1459,9 @@ int _tmain(int argc, _TCHAR* argv[])
 					above                         = atoi(szAllPrices[brcolAbove]) == 1;
 					at                            = atoi(szAllPrices[brcolAt]) == 1;
 					startDateString               = szAllPrices[brcolStartDate];
+					// PRIIPs Intermediate Scenario?
 					endDateString                 = szAllPrices[brcolEndDate];
+					// PRIIPs Intermediate Scenario?
 					anyTypeId                     = atoi(szAllPrices[brcolBarrierTypeId]);
 					bool   isContinuousALL        = _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuousall") == 0;
 					thisBarrier.isContinuousGroup = thisBarrier.isContinuousGroup || _stricmp(barrierTypeMap[anyTypeId].c_str(), "continuousgroup") == 0;
@@ -1958,7 +1961,10 @@ int _tmain(int argc, _TCHAR* argv[])
 					double thisVariance               = calendarDailyVariance[i];
 					double thisDailyVol               = pow(thisVariance, .5);
 					// calculate ACTUAL drift rates	
-					double thisDivYield               = 0.0; // interpVector(divYieldsRate[i], divYieldsTenor[i], maxYears);
+					// ... DO NOT subtract divYield: evident from CornishFisherVaR that the PRIIPSreturnsDistribution has mean=zero (minus the convexity term)
+					//     ... so PRIIPs is only trying to measure dispersion and does not care about the PRIIPs' drift, so may as well force it to drift and discount at rfr
+					//     ... so as to achieve a mean=zero distribution of pvs
+					double thisDivYield               = 0.0; // interpVector(divYieldsRate[i], divYieldsTenor[i], maxYears); // NOTE PRIIPs divYieldsRate are NEGATIVE
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
 					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
 					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr + thisDivYield) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
