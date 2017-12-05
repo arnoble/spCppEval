@@ -27,6 +27,11 @@ union ArtsRandomNumber {
 	unsigned int      bits[2];
 };
 
+struct EvalResult	{
+	double value, stdErr;
+	EvalResult(double value, double stdErr) : value(value), stdErr(stdErr) {}
+};
+
 
 struct PriipsStruct	{
 	double pvReturn, yearsToPayoff;
@@ -1163,13 +1168,13 @@ public:
 	// public members: DOME consider making private, in case we implement their content some other way
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons;
-	const double                    payoff,participation, param1,midPrice;
+	const double                    participation, param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
 	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
-	double                          variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
+	double                          payoff, variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          proportionHits, sumProportion, forwardRate;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <finalAssetInfo>    fars; // final asset returns
@@ -1918,10 +1923,19 @@ public:
 			}
 		}
 	}
-
+	// multiply each coupon amount by factor
+	void couponMultiply(const double factor){
+		int numBarriers = barrier.size();
+		for (int j=0; j < numBarriers; j++){
+			SpBarrier& b(barrier.at(j));
+			if (b.brel.size()>1  && b.payoffTypeId == fixedPayoff){
+				b.payoff *= factor;
+			}			
+		}
+	}
 
 	// evaluate product at this point in time
-	void evaluate(const int       totalNumDays,
+	EvalResult evaluate(const int       totalNumDays,
 		const int                 startPoint,
 		const int                 lastPoint,
 		const int                 numMcIterations,
@@ -1966,6 +1980,7 @@ public:
 		const bool                priipsUsingRNdrifts,
 		const bool                updateCashflows
 		){
+		EvalResult               evalResult(0.0,0.0);
 		std::vector<bool>		 barrierDisabled;
 		const int                optMaxNumToSend = 1000;
 		const double             unwindPayoff    = 0.01; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
@@ -3660,6 +3675,8 @@ public:
 						sprintf(charBuffer, "%s\t%.2lf%s%.2lf", "FairValueResults(stdev):", thisMean*issuePrice, ":", thisStderr*issuePrice);
 						std::cout << charBuffer << std::endl;
 						thisFairValue = thisMean*issuePrice;
+						evalResult.value  = thisFairValue;
+						evalResult.stdErr = thisStderr*issuePrice;
 
 						// update db
 						sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisMean*issuePrice);
@@ -3716,6 +3733,7 @@ public:
 				} // for analyseCase
 			}  // not doAccruals
 		} // not forOptimisation
+		return(evalResult);
 	}  // evaluate()
 
 }; // class SProduct

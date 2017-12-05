@@ -50,6 +50,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["planSelect"]              = "only|none";		
 		argWords["eqFx"]                    = "eqUid:fxId:x.x  eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
+		argWords["solveFor"]                = "targetFairValue:whatToSolveFor  eg 98.0:coupon"; 
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >";
 		argWords["forOptimisation"]         = "";
@@ -82,7 +83,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		int              bumpUserId(3),thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false);
+		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false),solveFor(false);
 		bool             stochasticDrift(false),ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -91,12 +92,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           useThisPrice,thisFairValue, bumpedFairValue;
+		double           targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0);
 		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1);
 		boost::gregorian::date lastDate;
-		string           anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), planSelect(""),lastOptimiseDate;
+		string           anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), planSelect(""),whatToSolveFor(""),lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3; bumpIds["rho"] = 4; bumpIds["credit"] = 5;
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
@@ -280,6 +281,15 @@ int _tmain(int argc, _TCHAR* argv[])
 						creditBumps      = num;
 						break;
 				}
+			}
+			if (sscanf(thisArg, "solveFor:%s", lineBuffer)){
+				solveFor = true;
+				char *token = std::strtok(lineBuffer, ":");
+				std::vector<std::string> tokens;
+				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
+				if (tokens.size() != 2){ cerr << "solveFor: incorrect syntax" << endl; exit(105); }
+				targetFairValue   = atof(tokens[0].c_str());
+				whatToSolveFor    = tokens[1];
 			}
 			if (sscanf(thisArg, "eqEq:%s", lineBuffer)){
 				forceEqEqCorr = true;
@@ -1713,12 +1723,121 @@ int _tmain(int argc, _TCHAR* argv[])
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
 			if (!doPriips){
+				EvalResult evalResult(0.0,0.0);
 				// first-time we set conserveRande=true and consumeRande=false
-				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+				evalResult = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false /* doPriipsStress */, 
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
 					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+				if (solveFor){
+					// Newton-Raphson		
+					int maxit    = 100;
+					double xacc  = 0.001;     // 10bp accuracy
+					double x1    =  0.5;       // lower bound guess
+					double x2    =  2.0;       // upper bound guess
+					double solverStep = 0.03;
+					int  i, j;
+					double  dx, dxold, f,f2, df, fh, fl, temp, xh, xl, rts;
+					EvalResult evalResult1(0.0, 0.0), evalResult2(0.0, 0.0);
+
+					// initial values at upper/lower bound
+					spr.couponMultiply(x1);
+					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+						numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
+						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+					fl = evalResult1.value - targetFairValue;
+					if (fl == 0.0) {
+						std::cout << "OK:lowerBound" << std::endl;
+						return(0);
+					}
+					spr.couponMultiply(x2/x1);
+					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+						numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
+						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+					fh = evalResult2.value - targetFairValue;
+					if (fh == 0.0) {
+						std::cout << "OK:upperBound" << std::endl;
+						return(0);
+					}
+					spr.couponMultiply(1.0 / x2);
+					// handle when not bracketed
+					if ((fl>0.0 && fh>0.0) || (fl<0.0 && fh<0.0)){
+						std::cout << "NoSolution" << std::endl;
+					}
+					// orient the search so that f(x1)<0
+					if (fl<0.0){ xl=x1; xh=x2; }
+					else      { xh=x1; xl=x2; }
+					rts   = 0.5*(x1 + x2);      // initial guess for root
+					dxold = abs(x2 - x1);       // stepsize before last
+					dx    = dxold;              // last stepsize
+					// initial f and df
+					spr.couponMultiply(rts);
+					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+						numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
+						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+					f = evalResult1.value - targetFairValue;
+					spr.couponMultiply((rts+solverStep)/rts);
+					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+						numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
+						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+					f2 = evalResult2.value - targetFairValue;
+					spr.couponMultiply(1.0/(rts + solverStep));
+					df = (f - f2) / solverStep;
+					// iterate
+					for (j=0; j<maxit; j++){
+						if ((((rts - xh)*df - f)*((rts - xl)*df - f) > 0.0) ||  	// bisect if Newton out of range 
+							(abs(f*2.0) > abs(dxold*df))){           // or not decreasing fast enough
+							dxold = dx; dx = 0.5*(xh - xl); rts = xl + dx;
+							if (xl == rts){
+								return(rts);
+							}                       // finish if change in root negligible
+						}
+						else {                                                // Newton step acceptable. Take it
+							dxold=dx; dx=f / df; temp=rts; rts -= dx;
+							if (temp == rts){
+								return(rts);
+							}                     // finish if change in root negligible
+						}
+						if (abs(dx) < xacc){
+							return(rts);
+						}                 // convergence criterion
+						// initial f and df
+						spr.couponMultiply(rts);
+						evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+							numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
+							useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+						f = evalResult1.value - targetFairValue;
+						
+						spr.couponMultiply((rts + solverStep)/rts);
+						evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+							numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
+							useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+						f2 = evalResult2.value - targetFairValue;
+						spr.couponMultiply(1.0/(rts + solverStep));
+						df = (f - f2) / solverStep;
+						if (f<0.0){ xl=rts; }
+						else { xh=rts; } // maintain the bracket on the root
+					}
+					{ //alert("IRR root-finding: iterations exhausted"); 
+						return(0.0);
+					}
+				}  // END solveFor
+
+
+				
 				
 				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), thetaBumpAmount(0.0), rhoBumpAmount(0.0), creditBumpAmount(0.0);
 				if (doBumps && (deltaBumps || vegaBumps || thetaBumps || rhoBumps || creditBumps)  /* && daysExtant>0 */){
