@@ -663,6 +663,8 @@ enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, 
 	autocallPutPayoff, autocallCallPayoff, lockinCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
+enum { solveForCoupon, solveForPutBarrier };
+
 
 
 
@@ -1138,6 +1140,7 @@ public:
 		endDays                = (bEndDate - bProductStartDate).days() - daysExtant;
 		startDays              = endDays;
 		yearsToBarrier         = endDays / 365.25;
+		totalBarrierYears      = (endDays + daysExtant)/ 365.25;
 		sumPayoffs             = 0.0;
 		variableCoupon         = 0.0;
 		isExtremum             = false;
@@ -1174,7 +1177,7 @@ public:
 	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
-	double                          payoff, variableCoupon, strike, cap, yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
+	double                          payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          proportionHits, sumProportion, forwardRate;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <finalAssetInfo>    fars; // final asset returns
@@ -1876,7 +1879,7 @@ public:
 	char                           *lineBuffer;
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips, notUKSPA, stochasticDrift;
-	int                             settleDays,maxProductDays, productDays, numUls;
+	int                             numIncomeBarriers, settleDays, maxProductDays, productDays, numUls;
 	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
@@ -1913,9 +1916,11 @@ public:
 
 	// re-initialise barriers
 	void initBarriers(){
+		numIncomeBarriers = 0;
 		int numBarriers = barrier.size();
 		for (int j=0; j < numBarriers; j++){
 			SpBarrier& b(barrier.at(j));
+			if (!b.capitalOrIncome){ numIncomeBarriers += 1; }
 			// clear un-accrued hits ... where we call evaluate() several times eg PRIIPs and PRIIPsStresstest, or doing bumps
 			if (!b.hasBeenHit){
 				b.hit.clear();
@@ -1923,15 +1928,32 @@ public:
 			}
 		}
 	}
-	// multiply each coupon amount by factor
-	void couponMultiply(const double factor){
+	// set some product param
+	void solverSet(const int solveForThis,const double paramValue){
 		int numBarriers = barrier.size();
-		for (int j=0; j < numBarriers; j++){
-			SpBarrier& b(barrier.at(j));
-			if (b.brel.size()>1  && b.payoffTypeId == fixedPayoff){
-				b.payoff *= factor;
-			}			
-		}
+		switch (solveForThis){
+		case solveForCoupon:
+			// set each coupon to an annualised rate
+			for (int j=0; j < numBarriers; j++){
+				SpBarrier& b(barrier.at(j));
+				if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && b.brel.size()>0)){
+					b.payoff  =  (b.capitalOrIncome ? 1.0 : 0.0) + paramValue * b.totalBarrierYears;
+				}
+			}
+			break;
+		case solveForPutBarrier:
+			// set put barrier
+			for (int j=0; j < numBarriers; j++){
+				SpBarrier& b(barrier.at(j));
+				int numBrels = b.brel.size();
+				if (b.capitalOrIncome && b.participation < 0.0 && numBrels>0){					
+					for (int k=0; k < numBrels; k++){
+						b.brel[k].barrier = paramValue;
+					}
+				}
+			}
+			break;
+		} // switch
 	}
 
 	// evaluate product at this point in time

@@ -50,7 +50,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["planSelect"]              = "only|none";		
 		argWords["eqFx"]                    = "eqUid:fxId:x.x  eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
-		argWords["solveFor"]                = "targetFairValue:whatToSolveFor  eg 98.0:coupon"; 
+		argWords["solveFor"]                = "targetFairValue:whatToSolveFor  eg 98.0:coupon|putBarrier"; 
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >";
 		argWords["forOptimisation"]         = "";
@@ -95,7 +95,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		double           targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0);
-		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1);
+		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1),solveForThis(0);
 		boost::gregorian::date lastDate;
 		string           anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), planSelect(""),whatToSolveFor(""),lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
@@ -290,6 +290,15 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (tokens.size() != 2){ cerr << "solveFor: incorrect syntax" << endl; exit(105); }
 				targetFairValue   = atof(tokens[0].c_str());
 				whatToSolveFor    = tokens[1];
+				if (whatToSolveFor == "coupon"){
+					solveForThis = solveForCoupon;
+				}
+				else if (whatToSolveFor == "putBarrier"){
+					solveForThis = solveForPutBarrier;
+				}
+				else {
+					cerr << "solveFor: incorrect solveFor" << endl; exit(105);
+				}
 			}
 			if (sscanf(thisArg, "eqEq:%s", lineBuffer)){
 				forceEqEqCorr = true;
@@ -1733,41 +1742,95 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (solveFor){
 					// Newton-Raphson		
 					int maxit    = 100;
-					double xacc  = 0.001;     // 10bp accuracy
+					double xacc  = 0.002;      // 20bp accuracy
 					double x1    =  0.5;       // lower bound guess
 					double x2    =  2.0;       // upper bound guess
 					double solverStep = 0.03;
+					double solverParam(0.0);
 					int  i, j;
 					double  dx, dxold, f,f2, df, fh, fl, temp, xh, xl, rts;
 					EvalResult evalResult1(0.0, 0.0), evalResult2(0.0, 0.0);
+					
+					// check product has some starting data
+					bool couponFound(false);
+					int numIncomeBarriers(0);
+					double coupon(0.0);
+					bool putFound(false);
+					double solveBarrier;
+
+					switch (solveForThis){
+					case solveForCoupon:
+						// first see if there are any income barriers
+						for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+							if (!spr.barrier.at(thisBarrier).capitalOrIncome) { numIncomeBarriers  += 1; }
+						}
+						// now get an ANNUAL coupon
+						for (j=0; !couponFound && j < numBarriers; j++){
+							SpBarrier& b(spr.barrier.at(j));
+							if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && b.brel.size()>0)){
+								couponFound = true;
+								coupon      = (b.payoff - (b.capitalOrIncome ? 1.0 : 0.0)) / b.totalBarrierYears;
+							}
+						}
+						if (!couponFound){
+							sprintf(lineBuffer, "%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ":no coupons found");
+							std::cout << lineBuffer << std::endl;
+							return(105);
+						}
+						if (coupon == 0.0){
+							coupon = 0.1; // default 10%pa 
+						}
+						solverParam = coupon;
+						break;
+					case solveForPutBarrier:
+						for (j=0; !putFound && j < numBarriers; j++){
+							SpBarrier& b(spr.barrier.at(j));
+							if (b.capitalOrIncome && b.participation < 0.0 && b.brel.size()>0){
+								putFound = true;
+								solveBarrier = b.brel[0].barrier;
+							}
+						}
+						if (!putFound){
+							sprintf(lineBuffer, "%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ":no put barrier found");
+							std::cout << lineBuffer << std::endl;
+							return(105);
+						}
+						solverParam = solveBarrier;
+						break;
+					} // switch
+
 
 					// initial values at upper/lower bound
-					spr.couponMultiply(x1);
+					spr.solverSet(solveForThis,solverParam*x1);
 					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
-						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					fl = evalResult1.value - targetFairValue;
 					if (fl == 0.0) {
-						std::cout << "OK:lowerBound" << std::endl;
+						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*x1);
+						std::cout << lineBuffer << std::endl;
 						return(0);
 					}
-					spr.couponMultiply(x2/x1);
+					spr.solverSet(solveForThis, solverParam*x2);
 					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
-						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					fh = evalResult2.value - targetFairValue;
 					if (fh == 0.0) {
-						std::cout << "OK:upperBound" << std::endl;
+						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(),":", solverParam*x2);
+						std::cout << lineBuffer << std::endl;
 						return(0);
 					}
-					spr.couponMultiply(1.0 / x2);
+					
 					// handle when not bracketed
 					if ((fl>0.0 && fh>0.0) || (fl<0.0 && fh<0.0)){
-						std::cout << "NoSolution" << std::endl;
+						sprintf(lineBuffer, "%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ":noSolution");
+						std::cout << lineBuffer << std::endl;
+						return(0);
 					}
 					// orient the search so that f(x1)<0
 					if (fl<0.0){ xl=x1; xh=x2; }
@@ -1776,21 +1839,20 @@ int _tmain(int argc, _TCHAR* argv[])
 					dxold = abs(x2 - x1);       // stepsize before last
 					dx    = dxold;              // last stepsize
 					// initial f and df
-					spr.couponMultiply(rts);
+					spr.solverSet(solveForThis, solverParam*rts);
 					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
-						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					f = evalResult1.value - targetFairValue;
-					spr.couponMultiply((rts+solverStep)/rts);
+					spr.solverSet(solveForThis, solverParam*(rts + solverStep));
 					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
-						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					f2 = evalResult2.value - targetFairValue;
-					spr.couponMultiply(1.0/(rts + solverStep));
 					df = (f - f2) / solverStep;
 					// iterate
 					for (j=0; j<maxit; j++){
@@ -1798,41 +1860,48 @@ int _tmain(int argc, _TCHAR* argv[])
 							(abs(f*2.0) > abs(dxold*df))){           // or not decreasing fast enough
 							dxold = dx; dx = 0.5*(xh - xl); rts = xl + dx;
 							if (xl == rts){
-								return(rts);
+								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
+								std::cout << lineBuffer << std::endl;
+								return(0);
 							}                       // finish if change in root negligible
 						}
-						else {                                                // Newton step acceptable. Take it
+						else {                      // Newton step acceptable. Take it
 							dxold=dx; dx=f / df; temp=rts; rts -= dx;
 							if (temp == rts){
-								return(rts);
+								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
+								std::cout << lineBuffer << std::endl;
+								return(0);
 							}                     // finish if change in root negligible
 						}
 						if (abs(dx) < xacc){
-							return(rts);
+							sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
+							std::cout << lineBuffer << std::endl;
+							return(0);
 						}                 // convergence criterion
 						// initial f and df
-						spr.couponMultiply(rts);
+						spr.solverSet(solveForThis, solverParam*rts);
 						evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 							numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 							useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
-							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 						f = evalResult1.value - targetFairValue;
 						
-						spr.couponMultiply((rts + solverStep)/rts);
+						spr.solverSet(solveForThis, solverParam*(rts + solverStep));
 						evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 							numBarriers, numUl, ulIdNameMap, monDateIndx, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 							useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
-							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps);
+							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 						f2 = evalResult2.value - targetFairValue;
-						spr.couponMultiply(1.0/(rts + solverStep));
 						df = (f - f2) / solverStep;
 						if (f<0.0){ xl=rts; }
 						else { xh=rts; } // maintain the bracket on the root
 					}
 					{ //alert("IRR root-finding: iterations exhausted"); 
-						return(0.0);
+						sprintf(lineBuffer, "%s%s%s", "solveFor:0:",whatToSolveFor.c_str(),":exhausted");
+						std::cout << lineBuffer << std::endl;
+						return(0);
 					}
 				}  // END solveFor
 
