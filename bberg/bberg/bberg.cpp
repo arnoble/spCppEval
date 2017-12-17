@@ -7,6 +7,8 @@ using namespace BloombergLP;
 using namespace blpapi;
 using namespace std;
 
+
+
 // convert date wchar to char
 // ...consult this: http://msdn.microsoft.com/en-us/library/ms235631.aspx
 char *WcharToChar(const WCHAR* orig, size_t* convertedChars) {

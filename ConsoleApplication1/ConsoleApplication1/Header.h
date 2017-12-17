@@ -1664,7 +1664,9 @@ public:
 		if (amount >= midPrice){ sumPosPayoffs    += amount; numPosPayoffs++; }
 		else{                    sumNegPayoffs    += amount; numNegPayoffs++; }
 		sumProportion  += proportion;
-		if (doAccruals) { hitWithDate.push_back(SpPayoffAndDate(thisDateString, amount)); }
+		if (doAccruals) { 
+			hitWithDate.push_back(SpPayoffAndDate(thisDateString, amount)); 
+		}
 		else {            
 			hit.push_back( SpPayoff(thisDateString, amount) );
 		}
@@ -2582,7 +2584,9 @@ public:
 						}
 						else { barrierWasHit.at(thisBarrier) = b.hasBeenHit || (b .* (b.isHit))(k, ulPrices, theseExtrema, false, startLevels); }
 						// for post-strike deals, record if barriers have already been hit
-						if (doAccruals && b.yearsToBarrier <= 0.0){ b.hasBeenHit = barrierWasHit[thisBarrier]; }
+						if (doAccruals && b.yearsToBarrier <= 0.0){ 
+							b.hasBeenHit = barrierWasHit[thisBarrier]; 
+						}
 					}
 				} // END set up barriers
 
@@ -2620,7 +2624,9 @@ public:
 								barrierWasHit[thisBarrier] = true;
 
 								// for post-strike deals, record if barriers have already been hit
-								if (doAccruals){ b.hasBeenHit= true; }  
+								if (doAccruals){ 
+									b.hasBeenHit= true; 
+								}  
 								double thisOptionPayoff;
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, 
 									finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl,thisPoint,ulPrices,lockedIn);
@@ -3221,7 +3227,7 @@ public:
 						double annReturn         = returnToAnnualise > 0.0 && numInstances && b.yearsToBarrier > 0 && midPrice > 0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
 						// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
 						if (!silent) {
-							std::cout << b.description << " Prob:" << prob << " ExpectedPayoff:" << mean << std::endl;
+							std::cout << "EventProbabilityAndPayoff: " << b.description << ": Prob:" << prob << " ConditionalPayoff:" << mean << " ExpectedPayoff:" << mean*prob << " DiscountFactor:" << thisDiscountFactor << " PV:" << mean*prob*thisDiscountFactor << std::endl;
 						}
 						// ** SQL 
 						// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
@@ -3472,6 +3478,7 @@ public:
 					double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allPayoffs[i]; }	if (numShortfallTest){ eShortfallTest /= numShortfallTest; }
 					double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 					double priipsImpliedCost, priipsVaR, priipsDuration;
+			
 					if (doPriips){
 						PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
 						priipsVaR          = thisPriip.pvReturn;
