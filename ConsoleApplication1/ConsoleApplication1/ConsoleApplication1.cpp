@@ -114,7 +114,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		for (int i = 0; i < maxUls; i++){
 			szAllPrices[i] = new char[bufSize];
 		}
-		srand(time(0)); // reseed rand
+		srand((unsigned int)time(0)); // reseed rand
 
 
 		// open database
@@ -209,7 +209,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				while (token != NULL) { 
 					tokens.push_back(token); token = std::strtok(NULL, "~"); 
 				}
-				int numTokens = tokens.size();
+				int numTokens = (int)tokens.size();
 				if (numTokens > 0){
 					sprintf(lineBuffer, " and %s > %s", rangeVerbs[thisVerb].c_str(), tokens[0].c_str());
 					if (numTokens > 1){
@@ -237,7 +237,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				char *token = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
-				if (tokens.size() != 3){ cerr << "eqFx: incorrect syntax" << endl; exit(102); }
+				if ((int)tokens.size() != 3){ cerr << "eqFx: incorrect syntax" << endl; exit(102); }
 				fxCorrelationUid        = atoi(tokens[0].c_str());
 				fxCorrelationOtherId    = atoi(tokens[1].c_str());
 				forceEqFxCorrelation    = atof(tokens[2].c_str());
@@ -249,7 +249,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				char *token   = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
-				if (tokens.size() != 4){ cerr << "bump: incorrect syntax" << endl; exit(104); }
+				if ((int)tokens.size() != 4){ cerr << "bump: incorrect syntax" << endl; exit(104); }
 				double start, step;
 				int     num;
 				start = atof(tokens[1].c_str());
@@ -288,7 +288,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				char *token = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
-				if (tokens.size() != 2){ cerr << "solveFor: incorrect syntax" << endl; exit(105); }
+				if ((int)tokens.size() != 2){ cerr << "solveFor: incorrect syntax" << endl; exit(105); }
 				targetFairValue   = atof(tokens[0].c_str());
 				whatToSolveFor    = tokens[1];
 				if (whatToSolveFor == "coupon"){
@@ -306,7 +306,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				char *token = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
-				if (tokens.size() != 3){ cerr << "eqEq: incorrect syntax" << endl; exit(105); }
+				if ((int)tokens.size() != 3){ cerr << "eqEq: incorrect syntax" << endl; exit(105); }
 				eqCorrelationUid        = atoi(tokens[0].c_str());
 				eqCorrelationOtherId    = atoi(tokens[1].c_str());
 				forceEqEqCorrelation    = atof(tokens[2].c_str());
@@ -317,7 +317,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ","); }
 				strcpy(lineBuffer,"");
-				for (int j=0; j < tokens.size();j++){
+				for (int j=0; j < (int)tokens.size(); j++){
 					sprintf(lineBuffer, "%s%s%s%s%s", lineBuffer, (j == 0 ? "" : ","), "'", tokens[j].c_str(), "'");
 				}
 				// to avoid large strings of productids, store them in anyid table
@@ -360,8 +360,6 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		if (doDebug){
 			FILE * pFile;
-			int n;
-			char name[100];
 			pFile = fopen("debug.txt", "w");
 			fclose(pFile);
 		}
@@ -402,7 +400,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			(doIncomeProducts  ? " and pt.name like '%income%' " : ""),
 			(doCapitalProducts ? " and pt.name not like '%income%' " : "")
 			);
-		for (int i=0; i < rangeFilterStrings.size();i++){
+		for (int i=0; i < (int)rangeFilterStrings.size(); i++){
 			sprintf(lineBuffer, "%s%s", lineBuffer, rangeFilterStrings[i].c_str());
 		}
 		sprintf(lineBuffer, "%s%s", lineBuffer, " and ProjectedReturn=1 ");
@@ -429,7 +427,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int x(atoi(szAllPrices[0])); allProductIds.push_back(x);
 			retcode = mydb.fetch(false,"");
 		}
-		int numProducts = allProductIds.size();
+		int numProducts = (int)allProductIds.size();
 		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
 		/*
@@ -461,7 +459,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				optimiseProductIds.push_back(atoi(szAllPrices[0]));
 				retcode = mydb.fetch(false, "");
 			}
-			optimiseNumUls     = optimiseProductIds.size();
+			optimiseNumUls     = (int)optimiseProductIds.size();
 			// find max date for these products
 			strcpy(charBuffer, "");
 			for (int i=1; i < numProducts; i++){
@@ -527,9 +525,9 @@ int _tmain(int argc, _TCHAR* argv[])
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
 			int              oldProductBarrierId = 0, productBarrierId = 0;
 			int              numBarriers = 0, thisIteration = 0;
-			int              i, j, k, len, len1, anyInt, anyInt1, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
-			int              productId, anyTypeId, thisPayoffId;
-			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, productShapeId, protectionLevelId, issuePrice, bidPrice, askPrice, midPrice, baseCcyReturn, benchmarkStrike;
+			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
+			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId;
+			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice, baseCcyReturn, benchmarkStrike;
 			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, productBaseCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
@@ -615,7 +613,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			int    settleDays             = atoi(szAllPrices[colProductSettleDays]);
 			double barrierBend            = atof(szAllPrices[colProductBarrierBend])  * (getMarketData && !doUKSPA && !doBumps && !doDeltas ? 1.0 : 0.0);
 
-			useUserParams                 = userParametersId > 0 ? 1 : atoi(szAllPrices[colProductUseUserParams]);
+			useUserParams                 = userParametersId > 0 ? true : atoi(szAllPrices[colProductUseUserParams]) == 1;
 			string forceStartDate         = szAllPrices[colProductForceStartDate];
 			if ( useProductFundingFractionFactor){
 				fundingFraction = defaultFundingFraction*atof(szAllPrices[colProductFundingFractionFactor]);;
@@ -645,9 +643,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<string> timepoints;
 			vector<int>    tempTimepointDays;
 			splitCommaSepName(timepoints, productTimepoints);
-			if (timepoints.size() > 0) {
-				for (i=0, len=timepoints.size(); i<len; i++){
-					len1               = timepoints[i].size() - 1;
+			if ((int)timepoints.size() > 0) {
+				for (i=0, len=(int)timepoints.size(); i<len; i++){
+					len1               = (int)timepoints[i].size() - 1;
 					char tenorChar     = tolower(timepoints[i].at(len1));
 					string tenorLength = timepoints[i].substr(0, len1);
 					anyInt = atoi(tenorLength.c_str()) * avgTenor[tenorChar];
@@ -660,14 +658,14 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<string> uPercentiles;
 			vector<double> simPercentiles;
 			splitCommaSepName(uPercentiles, productPercentiles);
-			if (uPercentiles.size() > 0) {
-				for (i=0, len=uPercentiles.size(); i<len; i++){
+			if ((int)uPercentiles.size() > 0) {
+				for (i=0, len=(int)uPercentiles.size(); i<len; i++){
 					anyDouble = atof(uPercentiles[i].c_str())/100.0;
 					if (std::find(simPercentiles.begin(), simPercentiles.end(), anyDouble) == simPercentiles.end()) { simPercentiles.push_back(anyDouble); }
 				}
 			}
 			
-			if (doTimepoints && simPercentiles.size() > 0 && tempTimepointDays.size() > 0){
+			if (doTimepoints && (int)simPercentiles.size() > 0 && (int)tempTimepointDays.size() > 0){
 				if (std::find(simPercentiles.begin(), simPercentiles.end(), 0.0)   == simPercentiles.end())  simPercentiles.push_back(0.0);
 				if (std::find(simPercentiles.begin(), simPercentiles.end(), 0.999) == simPercentiles.end())  simPercentiles.push_back(0.999);
 				sort(simPercentiles.begin(), simPercentiles.end());
@@ -699,7 +697,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<string> counterpartyNames;
 			splitCommaSepName(counterpartyNames, counterpartyName);
 			sprintf(charBuffer, "%s%s%s", "'", counterpartyNames.at(0).c_str(), "'");
-			for (i = 1; i < counterpartyNames.size(); i++){
+			for (i = 1; i < (int)counterpartyNames.size(); i++){
 				sprintf(charBuffer, "%s%s%s%s", charBuffer, ",'", counterpartyNames.at(i).c_str(), "'");
 			}
 			sprintf(lineBuffer, "%s%s%s", "select Maturity,avg(Spread) Spread from cdsspread join institution using (institutionid) where EntityName in (", charBuffer,
@@ -772,11 +770,11 @@ int _tmain(int argc, _TCHAR* argv[])
 					ulNames.push_back(thisName);
 					ulPriceReturnUids.push_back(thisPriceReturnUid);
 				}
-				ulIdNameMap.at(uid) = ulIds.size() - 1;
+				ulIdNameMap.at(uid) = (int)ulIds.size() - 1;
 				// next record
 				retcode = mydb.fetch(false,"");
 			}
-			numUl = ulIds.size();
+			numUl = (int)ulIds.size();
 			if (forOptimisation){
 				optimiseUlIdNameMap = ulIdNameMap;
 			}
@@ -840,7 +838,7 @@ int _tmain(int argc, _TCHAR* argv[])
 									retcode = mydb.fetch(false, "");
 								}
 								// compute correlation (currently daily returns, but might be better with stride=2 say, and dailyVol
-								if (theseReturns[0].size()>25){
+								if ((int)theseReturns[0].size()>25){
 									quantoCorrelations[i] = MyCorrelation(theseReturns[0], theseReturns[1]);
 									double mean, stdev, stdErr;
 									MeanAndStdev(theseReturns[1], mean, stdev, stdErr);
@@ -901,8 +899,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<double> minPrices, maxPrices, shiftPrices;
 			vector<bool>   doShiftPrices;
 			for (i = 0; i < numUl; i++) {
-				minPrices.push_back(INFINITY);
-				maxPrices.push_back(-INFINITY);
+				minPrices.push_back(DBL_MAX);
+				maxPrices.push_back(-DBL_MAX);
 				shiftPrices.push_back(0.0);
 				doShiftPrices.push_back(false);
 			}
@@ -956,12 +954,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			for (i=0; i<numUl; i++) {
 				if (minPrices[i] <= 0.0){
 					double thisShift = -minPrices[i] + 0.1*(maxPrices[i] - minPrices[i]);
-					for (j=0; j<ulOriginalPrices[0].price.size(); j++){
+					for (j=0; j<(int)ulOriginalPrices[0].price.size(); j++){
 						ulOriginalPrices[i].price[j] += thisShift;
 					}
 					firstTime = true;
 
-					for (k=j=0; j<ulOriginalPrices[0].price.size(); j++){
+					for (k=j=0; j<(int)ulOriginalPrices[0].price.size(); j++){
 						double previousPrice;
 						if (!ulOriginalPrices.at(i).nonTradingDay[j]){
 							if (firstTime){ firstTime = false; }
@@ -976,7 +974,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 			}
 
-			totalNumDays         = ulOriginalPrices.at(0).price.size();
+			totalNumDays         = (int)ulOriginalPrices.at(0).price.size();
 			lastDataDateString   = ulOriginalPrices.at(0).date[totalNumDays - 1];
 			totalNumReturns      = totalNumDays - 1;
 			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
@@ -1099,7 +1097,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				// add dummy records for underlyings for which there are no divs (will include, for example total return indices)
 				for (i = 0; i < numUl; i++) {
-					if (divYieldsTenor[i].size() == 0){
+					if ((int)divYieldsTenor[i].size() == 0){
 						double driftAdj = 0.0;
 						if (ukspaCase != "" || doPriips){
 							double thisERP = ulERPs[i];
@@ -1141,12 +1139,12 @@ int _tmain(int argc, _TCHAR* argv[])
 								tempPrices.push_back(ulOriginalPrices[thisUidx].price[i]);
 							}
 						}
-						for (i=1; i<tempPrices.size(); i++){
+						for (i=1; i<(int)tempPrices.size(); i++){
 							double thisReturn = tempPrices[i - 1] > 0.0 ? tempPrices[i] / tempPrices[i - 1] : 1.0;
 							tempReturns.push_back(thisReturn);
 						}
 						// calc 1y vol
-						int numReturns = tempReturns.size();
+						int numReturns = (int)tempReturns.size();
 						for (j=0,i=numReturns-1; i >= 0 && j<253; j++,i--){
 							tempReturns1.push_back(tempReturns[i]);
 						}
@@ -1196,7 +1194,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						// ... if either underlyingId or tenor changes
 						if (nextTenor != thisTenor || nextUidx != thisUidx){
 							// save a row in volSurface for the current underlying 
-							if (someVols.size() > 0){
+							if ((int)someVols.size() > 0){
 								ulVolsImpVol[thisUidx].push_back(someVols);
 								someVols.resize(0);
 								ulVolsFwdVol[thisUidx].push_back(someFwdVols);
@@ -1214,8 +1212,8 @@ int _tmain(int argc, _TCHAR* argv[])
 						someVols.push_back(thisVol);
 						someStrikes.push_back(thisStrike);
 						// push this forward vols
-						int numTenors  = ulVolsImpVol[thisUidx].size();
-						int numStrikes = someStrikes.size();
+						int numTenors  = (int)ulVolsImpVol[thisUidx].size();
+						int numStrikes = (int)someStrikes.size();
 						if (numTenors > 0){ // calc forward vols
 							previousVol   = ulVolsImpVol[thisUidx][numTenors - 1][numStrikes - 1];
 							previousTenor = ulVolsTenor[thisUidx][numTenors - 1];
@@ -1230,7 +1228,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						retcode = mydb.fetch(false, "");
 					}
 					// tail-end charlie
-					if (someVols.size()>0){
+					if ((int)someVols.size()>0){
 						ulVolsImpVol[thisUidx].push_back(someVols);
 						ulVolsFwdVol[thisUidx].push_back(someFwdVols);
 						ulVolsStrike[thisUidx].push_back(someStrikes);
@@ -1257,7 +1255,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				// add dummy records for underlyings for which there are no rates
 				for (i = 0; i < numUl; i++) {
-					if (oisRatesTenor[i].size() == 0){
+					if ((int)oisRatesTenor[i].size() == 0){
 						oisRatesTenor[i].push_back(10.0);
 						oisRatesRate[i].push_back(0.0);
 					}
@@ -1278,7 +1276,7 @@ int _tmain(int argc, _TCHAR* argv[])
 								if (j % periodicity == 0){ tempPrices.push_back(ulOriginalPrices[thisUidx].price[i]); }
 							}
 						}
-						for (i=1; i<tempPrices.size(); i++){
+						for (i=1; i<(int)tempPrices.size(); i++){
 							double thisReturn = tempPrices[i - 1] > 0.0 ? tempPrices[i] / tempPrices[i - 1] : 1.0;
 							tempReturns.push_back(thisReturn);
 						}
@@ -1291,7 +1289,7 @@ int _tmain(int argc, _TCHAR* argv[])
 									if (j % periodicity == 0){ tempPrices1.push_back(ulOriginalPrices[otherUidx].price[i]); }
 								}
 							}
-							for (i=1; i<tempPrices1.size(); i++){
+							for (i=1; i<(int)tempPrices1.size(); i++){
 								double thisReturn = tempPrices1[i - 1] > 0.0 ? tempPrices1[i] / tempPrices1[i - 1] : 1.0;
 								tempReturns1.push_back(thisReturn);
 							}
@@ -1349,11 +1347,11 @@ int _tmain(int argc, _TCHAR* argv[])
 				}
 				// check we have data for all underlyings
 				for (i = 0; i < numUl; i++) {
-					if (ulVolsTenor[i].size() == 0){ 
+					if ((int)ulVolsTenor[i].size() == 0){
 						cerr << "No volatilities found for " << ulNames[i] << endl; 
 						exit(107); 
 					}
-					if (divYieldsTenor[i].size() == 0){
+					if ((int)divYieldsTenor[i].size() == 0){
 						cerr << "No dividends found for " << ulNames[i] << endl;
 						exit(108);
 					}
@@ -1519,7 +1517,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				case basketCallQuantoPayoff:
 				case basketPutQuantoPayoff:
 					double basketFinal=0.0, basketRef=1.0;
-					for (j=0; j<thisBarrier.brel.size(); j++) {
+					for (j=0; j<(int)thisBarrier.brel.size(); j++) {
 						const SpBarrierRelation &thisBrel(thisBarrier.brel[j]);
 						double w          = thisBrel.weight;
 						int uid           = thisBrel.underlying;
@@ -1538,7 +1536,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				// NOTE: different brels can have different start dates
 				// DOME:  need to check all brels have the same endDate
 				bool isExtremumBarrier = false;
-				for (i = 0; i < thisBarrier.brel.size(); i++) {
+				for (i = 0; i < (int)thisBarrier.brel.size(); i++) {
 					if (thisBarrier.brel[i].startDate != thisBarrier.brel[i].endDate 
 						/* reinstated this next condition, otherwise strikeResets (which reset strike to spot on barrierStartDate) are set as continuousBarriers */ 
 						&& !thisBarrier.isStrikeReset) {
@@ -1552,20 +1550,20 @@ int _tmain(int argc, _TCHAR* argv[])
 
 				// update vector of monitoring dates
 				double thisEndDays = thisBarrier.getEndDays();
-				if (thisEndDays <=0){
+				if (thisEndDays <=0.0){
 					if (find(accrualMonDateIndx.begin(), accrualMonDateIndx.end(), thisEndDays) == accrualMonDateIndx.end()) {
-						accrualMonDateIndx.push_back(thisEndDays);
+						accrualMonDateIndx.push_back((int)thisEndDays);
 					}
 				}
 				else {
 					// DOME: for now only use endDates, as all American barriers are detected below as extremum bariers
 					if (thisBarrier.isExtremum || !thisBarrier.isContinuous || (thisBarrier.isStrikeReset && !thisBarrier.isStopLoss)){
 						if (find(monDateIndx.begin(), monDateIndx.end(), thisEndDays) == monDateIndx.end()) {
-							monDateIndx.push_back(thisEndDays);
+							monDateIndx.push_back((int)thisEndDays);
 						}
 					}
 					else {  // daily monitoring
-						for (i = 0; i < thisBarrier.brel.size(); i++) {
+						for (i = 0; i < (int)thisBarrier.brel.size(); i++) {
 							const SpBarrierRelation &thisBrel(thisBarrier.brel[i]);
 							if (thisBrel.startDate != thisBrel.endDate) {
 								int startDays      = (thisBrel.bStartDate - bProductStartDate).days() - daysExtant;
@@ -1598,7 +1596,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 			// possibly pad future ulPrices for resampling into if there is not enough history
-			int daysPadding = max(maxBarrierDays,maxBarrierDays + daysExtant - totalNumDays + 1);
+			int daysPadding = (int)max(maxBarrierDays, maxBarrierDays + daysExtant - totalNumDays + 1);
 			boost::gregorian::date  bTempDate = bLastDataDate;
 			while (daysPadding>0){
 				bTempDate += boost::gregorian::days(1);
@@ -1619,13 +1617,13 @@ int _tmain(int argc, _TCHAR* argv[])
 			// remove any timepointDays 
 			vector<int> timepointDays;
 			if (doTimepoints){
-				for (i=0; i<tempTimepointDays.size(); i++){
+				for (i=0; i<(int)tempTimepointDays.size(); i++){
 					if (tempTimepointDays[i] <= maxBarrierDays){
 						timepointDays.push_back(tempTimepointDays[i]);
 					}
 				}
 			}
-			int numTimepoints  = timepointDays.size();
+			int numTimepoints  = (int)timepointDays.size();
 			vector<string> timepointNames;
 			if (doTimepoints){
 				sort(timepointDays.begin(), timepointDays.end());
@@ -1639,7 +1637,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					const SpBarrier&    b(spr.barrier.at(i));
 					int thisEndDays = (int)b.endDays;
 					bool done = false;
-					for (i=0; !done && i < timepointDays.size(); i++){
+					for (i=0; !done && i < (int)timepointDays.size(); i++){
 						if (thisEndDays == timepointDays[i]){
 							done = true;
 							sprintf(lineBuffer, "%s %s", timepointNames.at(i).c_str(), b.description.c_str());
@@ -1668,8 +1666,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			// further initialisation, given product info
 			// ...check product not matured
-			if (monDateIndx.size() == 0 && accrualMonDateIndx.size() == 0){ continue; }
-			spr.maxProductDays = maxBarrierDays + daysExtant;
+			if ((int)monDateIndx.size() == 0 && (int)accrualMonDateIndx.size() == 0){ continue; }
+			spr.maxProductDays = (int)maxBarrierDays + daysExtant;
 			// enough data?
 			if (totalNumDays<2 || (thisNumIterations<2 && totalNumDays < spr.maxProductDays)){
 				cerr << "Not enough data for product#:" << productId << endl;
@@ -1699,7 +1697,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					originalUlReturns[i] = ulReturns[i];
 					vector<double> thisSlice;
 					// calc vol from daily continuous returns
-					for (j = 0; j < ulReturns[0].size() - 1; j++) {
+					for (j = 0; j < (int)ulReturns[0].size() - 1; j++) {
 						if (!ulOriginalPrices[i].nonTradingDay[j]){
 							thisSlice.push_back(log(ulReturns[i][j]));
 						}
@@ -1711,7 +1709,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					double thisDailyDriftCorrection = exp(-0.5*calendarDailyVariance[i]);
 					double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i] * 365.25);
 					// change underlyings' drift rate
-					for (j = 0; j < ulReturns[i].size(); j++) {
+					for (j = 0; j < (int)ulReturns[i].size(); j++) {
 						ulReturns[i][j] *= thisDailyDriftCorrection;
 					}
 				}				
@@ -1727,7 +1725,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 
 			// ...check product not matured
-			numMonPoints = monDateIndx.size();
+			numMonPoints = (int)monDateIndx.size();
 			if (productHasMatured || !numMonPoints || (numMonPoints == 1 && monDateIndx[0] == 0)){ continue; }
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
@@ -1748,7 +1746,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					double x2    =  2.0;       // upper bound guess
 					double solverStep = 0.03;
 					double solverParam(0.0);
-					int  i, j;
+					int  j;
 					double  dx, dxold, f,f2, df, fh, fl, temp, xh, xl, rts;
 					EvalResult evalResult1(0.0, 0.0), evalResult2(0.0, 0.0);
 					string adviceString = " - please choose a TargetValue closer to the current FairValue, or modify the product so as to have a FairValue closer to your TargetValue";
@@ -1768,7 +1766,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						// now get an ANNUAL coupon
 						for (j=0; !couponFound && j < numBarriers; j++){
 							SpBarrier& b(spr.barrier.at(j));
-							if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && b.brel.size()>0)){
+							if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && (int)b.brel.size()>0)){
 								couponFound = true;
 								coupon      = (b.payoff - (b.capitalOrIncome ? 1.0 : 0.0)) / b.totalBarrierYears;
 							}
@@ -1786,7 +1784,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					case solveForPutBarrier:
 						for (j=0; !putFound && j < numBarriers; j++){
 							SpBarrier& b(spr.barrier.at(j));
-							if (b.capitalOrIncome && b.participation < 0.0 && b.brel.size()>0){
+							if (b.capitalOrIncome && b.participation < 0.0 && (int)b.brel.size()>0){
 								putFound = true;
 								solveBarrier = b.brel[0].barrier;
 							}
@@ -1940,7 +1938,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					for (int creditBump=0; creditBump < creditBumps; creditBump++){
 						creditBumpAmount = creditBumpStart + creditBumpStep*creditBump;
 						// change credit curve
-						for (i=0; i < cdsSpread.size(); i++){
+						for (i=0; i < (int)cdsSpread.size(); i++){
 							cdsSpread[i] = holdCdsSpread[i] + creditBumpAmount;
 						}
 						buildHazardCurve(cdsSpread, cdsTenor, maxYears, recoveryRate, hazardCurve);
@@ -1951,11 +1949,11 @@ int _tmain(int argc, _TCHAR* argv[])
 						for (int rhoBump=0; rhoBump < rhoBumps; rhoBump++){
 							rhoBumpAmount = rhoBumpStart + rhoBumpStep*rhoBump;
 							// change rate curves
-							for (i=0; i < baseCurve.size(); i++){
+							for (i=0; i < (int)baseCurve.size(); i++){
 								baseCurve[i].spread = holdBaseCurve[i].spread + rhoBumpAmount;
 							}
 							for (i=0; i < numUl; i++){
-								for (j=0; j < holdOisRatesRate[i].size(); j++){
+								for (j=0; j < (int)holdOisRatesRate[i].size(); j++){
 									oisRatesRate[i][j] = holdOisRatesRate[i][j] + rhoBumpAmount;
 								}
 							}
@@ -1968,9 +1966,9 @@ int _tmain(int argc, _TCHAR* argv[])
 								vector< vector<vector<double>> >  theseUlFwdVol(numUl), theseUlImpVol(numUl);
 								for (i=0; i < numUl; i++){
 									double thisFwdVol;
-									for (j=0; j < ulVolsTenor[i].size(); j++){
+									for (j=0; j < (int)ulVolsTenor[i].size(); j++){
 										vector<double>  someImpVol, someFwdVol;
-										for (k=0; k < ulVolsStrike[i][j].size(); k++){
+										for (k=0; k < (int)ulVolsStrike[i][j].size(); k++){
 											someImpVol.push_back(ulVolsImpVol[i][j][k] + vegaBumpAmount);
 											if (j == 0){
 												someFwdVol.push_back(someImpVol[k]);
@@ -2005,8 +2003,8 @@ int _tmain(int argc, _TCHAR* argv[])
 											double newSpot      = spots[i] * (1.0 + (doStickySmile ? 0.0 : deltaBumpAmount));
 											double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
 											if (doStickySmile){
-												for (j=0; j < thisMarketData.ulVolsTenor[i].size(); j++){
-													for (k=0; k < thisMarketData.ulVolsStrike[i][j].size(); k++){
+												for (j=0; j < (int)thisMarketData.ulVolsTenor[i].size(); j++){
+													for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
 														thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
 													}
 												}
@@ -2018,7 +2016,7 @@ int _tmain(int argc, _TCHAR* argv[])
 												// clear hits
 												if (b.startDays>0){ b.hit.clear(); }
 												// set/reset brel moneyness
-												int numBrel = b.brel.size();
+												int numBrel = (int)b.brel.size();
 												for (k=0; k < numBrel; k++){
 													SpBarrierRelation& thisBrel(b.brel.at(k));
 													if (ulId == thisBrel.underlying){
@@ -2068,8 +2066,8 @@ int _tmain(int argc, _TCHAR* argv[])
 											double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
 											ulPrices[i].price[totalNumDays - 1] = newSpot;
 											if (doStickySmile){
-												for (j=0; j < thisMarketData.ulVolsTenor.size(); j++){
-													for (k=0; k < thisMarketData.ulVolsStrike[i][j].size(); k++){
+												for (j=0; j < (int)thisMarketData.ulVolsTenor.size(); j++){
+													for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
 														thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
 													}
 												}
@@ -2081,7 +2079,7 @@ int _tmain(int argc, _TCHAR* argv[])
 												// clear hits
 												if (b.startDays>0){ b.hit.clear(); }
 												// set/reset brel moneyness
-												int numBrel = b.brel.size();
+												int numBrel = (int)b.brel.size();
 												for (k=0; k < numBrel; k++){
 													SpBarrierRelation& thisBrel(b.brel.at(k));
 													if (ulId == thisBrel.underlying){
@@ -2165,7 +2163,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 					// change underlyings' drift rate
-					for (j = 0; j < ulReturns[i].size(); j++) {
+					for (j = 0; j < (int)ulReturns[i].size(); j++) {
 						ulReturns[i][j] *= priipsDailyDriftCorrection;
 					}
 				}
@@ -2186,16 +2184,16 @@ int _tmain(int argc, _TCHAR* argv[])
 				for (i = 0; i < numUl; i++) {
 					vector<double> stressVols;
 					double thisReturn;
-					const double thisNumReturns(originalUlReturns[0].size());
+					const double thisNumReturns((double)originalUlReturns[0].size());
 					vector<double>  bigSlice;
 					deque<double> thisSlice;
 					// calc vol from 21-day window of daily continuous returns
-					if (originalUlReturns[0].size() < rollingWindowSize){
+					if ((int)originalUlReturns[0].size() < rollingWindowSize){
 						cerr << "Not enough data for PRIIPS stress test" << endl;
 						exit(111);
 					}
 					// load the window
-					for (j = 0; thisSlice.size() < rollingWindowSize; j++) {
+					for (j = 0; (int)thisSlice.size() < rollingWindowSize; j++) {
 						if (!ulOriginalPrices[i].nonTradingDay[j]){
 							thisReturn = log(originalUlReturns[i][j]);
 							bigSlice.push_back(thisReturn);
@@ -2220,7 +2218,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						}
 					}
 					sort(stressVols.begin(), stressVols.end());
-					double thisStressedVol     = stressVols[floor(stressVols.size()*(maxBarrierDays > 365 ? 0.90 : 0.99))];
+					double thisStressedVol     = stressVols[(unsigned int)floor((double)stressVols.size()*(maxBarrierDays > 365 ? 0.90 : 0.99))];
 					MeanAndStdev(bigSlice, sliceMean, sliceStdev, sliceStderr);
 					double originalVol         = sliceStdev * roughVolAnnualiser;
 					double thisInflationFactor = thisStressedVol / originalVol;
@@ -2231,7 +2229,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						thisSlice.clear();
 						deque<string> highestVolDates;
 						deque<double> highestVolLevels;
-						for (j = obsAtHighestVol; thisSlice.size() < rollingWindowSize; j--) {
+						for (j = obsAtHighestVol; (int)thisSlice.size() < rollingWindowSize; j--) {
 							if (!ulOriginalPrices[i].nonTradingDay[j]){
 								thisReturn = log(originalUlReturns[i][j]);
 								thisSlice.push_front(thisReturn);
@@ -2244,7 +2242,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 					spr.priipsStressVols.push_back(thisInflationFactor);
 					// inflate underlyings' returns
-					for (j = 0; j < ulReturns[i].size(); j++) {
+					for (j = 0; j < (int)ulReturns[i].size(); j++) {
 						ulReturns[i][j] = exp(log(ulReturns[i][j])*thisInflationFactor);
 					}
 				}

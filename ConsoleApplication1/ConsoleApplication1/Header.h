@@ -97,11 +97,11 @@ double ArtsRan(){
 // ... parse algebra and evaluate it on data   eg    min_-1.0_add_abs   would calculate min(data), subtract 1.0 and take its abs()
 // ... rerurns a number
 double evalAlgebra(const std::vector<double> data, std::string algebra){
-	if (data.size() == 0 || algebra.length() == 0){ return 0.0; }
+	if ((int)data.size() == 0 || algebra.length() == 0){ return 0.0; }
 
 	// algebra, once tokenised, is evaluated in reverse polish
 	int i, len, pos, j;
-	int numValues = data.size();
+	int numValues = (int) data.size();
 	char buffer[100]; sprintf(buffer, "%s", algebra.c_str());
 	char *token = std::strtok(buffer, "_");
 	std::vector<std::string> tokens;
@@ -110,24 +110,24 @@ double evalAlgebra(const std::vector<double> data, std::string algebra){
 		token = std::strtok(NULL, "_");
 	}
 
-	int numTokens = tokens.size();
+	int numTokens = (int) tokens.size();
 	double result = 0.0;
 	std::vector<double> stack;    for (i=0; i<numValues; i++){ stack.push_back(data[i]); }
 	double extremum;
 
 	for (i=0; i < numTokens; i++){
-		pos = stack.size() - 1;
+		pos = (int) stack.size() - 1;
 		if (tokens[i] == "min"){
-			extremum = +INFINITY;
-			for (j=0, len=stack.size(); j < len; j++){
+			extremum = DBL_MAX;
+			for (j=0, len=(int)stack.size(); j < len; j++){
 				if (stack[j] < extremum){ extremum = stack[j]; }
 			}
 			stack.clear();
 			stack.push_back(extremum);
 		}
 		else if (tokens[i] == "max"){
-			extremum = -INFINITY;
-			for (j=0, len=stack.size(); j < len; j++){
+			extremum = -DBL_MAX;
+			for (j=0, len=(int)stack.size(); j < len; j++){
 				if (stack[j] > extremum){ extremum = stack[j]; }
 			}
 			stack.clear();
@@ -182,7 +182,7 @@ fAndDf functionEval(double(*fn)(const double, const std::vector<double> &c, cons
 // calculate PV of a bunch of cashflows c occurring at time t, at a continuous rate r
 double pv(const double r, const std::vector<double> &c, const std::vector<double> &t){
 	double sumPv = 0.0;
-	for (int i=0; i<c.size(); i++){
+	for (int i=0; i<(int)c.size(); i++){
 		sumPv += c[i] * exp(-r*t[i]);
 	}
 	return(sumPv);
@@ -205,7 +205,7 @@ double irr(const std::vector<double> &c, const std::vector<double> &t) {
 	// handle when not bracketed
 	if ((fl>0.0 && fh>0.0) || (fl<0.0 && fh<0.0)){
 		double sumCashflows(0.0);
-		for (i=0; i < c.size(); i++){ sumCashflows += c[i]; }
+		for (i=0; i < (int)c.size(); i++){ sumCashflows += c[i]; }
 		if (sumCashflows <= 0.0){   // products about to mature for x may have a slightly high midPrice making sumCashflows negative
 			return(x1);
 		}
@@ -257,7 +257,7 @@ double irr(const std::vector<double> &c, const std::vector<double> &t) {
 
 // correlation
 double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues) {
-	int N = aValues.size();
+	int N = (int)aValues.size();
 	double fMean  = std::accumulate(aValues.begin(), aValues.end(), 0.0) / N;
 	double fMean1 = std::accumulate(bValues.begin(), bValues.end(), 0.0) / N;
 	double aVariance = 0.0, bVariance = 0.0, coVariance = 0.0;
@@ -275,7 +275,7 @@ double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues) {
 // mean and stdev
 template<typename T>
 void MeanAndStdev(T&v, double &mean, double &stdev, double &stdErr){
-	int N = v.size();
+	int N = (int)v.size();
 	// mean
 	double sum = std::accumulate(v.begin(), v.end(), 0.0);
 	mean = sum / N;
@@ -288,7 +288,7 @@ void MeanAndStdev(T&v, double &mean, double &stdev, double &stdErr){
 }
 template<typename T>
 double Mean(T&v){
-	int N = v.size();
+	int N = (int)v.size();
 	double sum = std::accumulate(v.begin(), v.end(), 0.0);
 	return(sum / N);
 }
@@ -319,7 +319,7 @@ void buildAveragingInfo(const char* avgTenorText, const char* avgFreqText, int &
 	std::map<char, int>::iterator curr, end;
 	char buf[10];
 	int tenorPeriodDays = 0;
-	int tenorLen  = strlen(avgTenorText);
+	int tenorLen  = (int)strlen(avgTenorText);
 	char avgChar2 = tolower(avgTenorText[tenorLen-1]);
 	/* one way to do it
 	for (found = false, curr = avgTenor.begin(), end = avgTenor.end(); !found && curr != end; curr++) {
@@ -334,7 +334,7 @@ void buildAveragingInfo(const char* avgTenorText, const char* avgFreqText, int &
 	int numTenor = atoi(buf);
 	avgDays  = numTenor * tenorPeriodDays;  // maybe add 1 since averaging invariably includes both end dates
 
-	int avgFreqLen = strlen(avgFreqText);
+	int avgFreqLen = (int)strlen(avgFreqText);
 	int avgFreqStride = 1;
 	if (avgFreqLen > 1){ 
 		strncpy(buf, avgFreqText, avgFreqLen-1); 
@@ -350,7 +350,7 @@ void buildAveragingInfo(const char* avgTenorText, const char* avgFreqText, int &
 
 // cds functions
 double interpCurve(std::vector<double> curveTimes, std::vector<double> curveValues,double point){
-	int len = curveTimes.size();
+	int len = (int)curveTimes.size();
 	if (!len) return 0.0;
 	if (point > curveTimes[len - 1]) return curveValues[len - 1];
 	if (point < curveTimes[0])       return curveValues[0];
@@ -367,7 +367,7 @@ double interpCurve(std::vector<double> curveTimes, std::vector<double> curveValu
 }
 
 double probDefault(std::vector<double> curveProbs, const double point){
-	int len = curveProbs.size();
+	int len = (int)curveProbs.size();
 	if (!len) return 0.0;
 	double cumProb(0.0);
 	int i;
@@ -382,7 +382,7 @@ double probDefault(std::vector<double> curveProbs, const double point){
 }
 
 void bootstrapCDS(const std::vector<double> r, std::vector<double> &dpCurve, const double recoveryRate){
-	int len(r.size());
+	int len((int)r.size());
 	if (!len) return;
 	double thisProb, cumProbAlive(0.0), probAliveThisPeriod(1.0), cumProbDefault(0.0);
 	for (int i = 0; i<len; i++) {
@@ -402,7 +402,7 @@ void buildHazardCurve(const std::vector<double> cdsSpread, const std::vector<dou
 
 	bootstrapCDS(fullCurve, dpCurve, recoveryRate);
 	hazardCurve.empty();
-	for (int j = 0, len = fullCurve.size(); j<len; j++) {
+	for (int j = 0, len = (int)fullCurve.size(); j<len; j++) {
 		hazardCurve.push_back(dpCurve[j]);
 	}
 }
@@ -415,7 +415,7 @@ void splitCommaSepName(std::vector<std::string> &out, std::string s){
 	auto words_begin = std::sregex_iterator(s.begin(), s.end(), word_regex);
 	auto words_end   = std::sregex_iterator();
 
-	int numWords = std::distance(words_begin, words_end);
+	int numWords = (int)std::distance(words_begin, words_end);
 	
 	for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
 		std::smatch match = *i;
@@ -425,11 +425,11 @@ void splitCommaSepName(std::vector<std::string> &out, std::string s){
 // split barrierCommand
 void splitBarrierCommand(std::vector<std::string> &out, std::string s){
 
-	std::regex word_regex("([^\(\)]+)");
+	std::regex word_regex("([^()]+)");
 	auto words_begin = std::sregex_iterator(s.begin(), s.end(), word_regex);
 	auto words_end   = std::sregex_iterator();
 
-	int numWords = std::distance(words_begin, words_end);
+	int numWords = (int)std::distance(words_begin, words_end);
 
 	for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
 		std::smatch match = *i;
@@ -486,10 +486,10 @@ double ESnorm(double prob) { return Dnorm(NormSInv(prob)) / prob; }
 
 // Cholesky decomposition of (correlation) matrix
 void CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vector<double>> &outputMatrix) {
-	int i, j, k, N, len;
+	int i, j, k, N;
 	double element;
 	// init
-	N = matrix.size();
+	N = (int)matrix.size();
 	std::vector<std::vector<double>>  a(N, std::vector<double>(N));             // the original matrix
 	std::vector<std::vector<double>>  L_Lower(N, std::vector<double>(N));       // the new matrix
 	for (i=0; i<N; i++) {
@@ -528,7 +528,7 @@ void GenerateCorrelatedNormal(const int numUnderlyings,
 	const bool                             consumeRands,
 	int                                    &randnoIndx,
 	std::vector<double>                    &randnosStore) {
-	int    i, j, k;
+	int    j, k;
 	double anyDouble;
 	// get correlated standard Normal shocks
 	for (j = 0; j<numUnderlyings; j++){
@@ -565,7 +565,7 @@ int ArrayPosition(const std::vector<double> &theArray,
 		const int comparison) {
 	int i, found, len;
 	found = -1;
-	len   = theArray.size();
+	len   = (int)theArray.size();
 	switch (comparison) {
 	case -1: // first number greater than or equal to, or maximum
 		for (i=0; i<len && found == -1; i++){
@@ -626,8 +626,8 @@ double interpVector(const std::vector<double> &vector,
 	const std::vector<double> &axis, 
 	const double point){
 	int i;
-	int len = vector.size();
-	if (len != axis.size()) return INFINITY;
+	int len = (int)vector.size();
+	if (len != (int)axis.size()) return DBL_MAX;
 	if (point > axis[len - 1]) return vector[len - 1];  // flat extrapolation beyond longest  axis
 	if (point < axis[0]) return vector[0];  // flat extrapolation before shortest axis
 	for (i=0; point > axis[i] && i<len; i++) {}  // empty block...just getting "i" to the axis beyond point
@@ -653,7 +653,7 @@ double interpVector(const std::vector<double> &vector,
 double calcRiskCategory(const std::vector<double> &buckets,const double scaledVol,const double start){
 	double riskCategory(start);  
 	int i, len;
-	for (i = 1, len = buckets.size(); i<len && scaledVol>buckets[i]; i++) { riskCategory += 1.0; }
+	for (i = 1, len = (int)buckets.size(); i<len && scaledVol>buckets[i]; i++) { riskCategory += 1.0; }
 	if (i != len) riskCategory += (scaledVol - buckets[i - 1]) / (buckets[i] - buckets[i - 1]);
 	return(riskCategory);
 }
@@ -754,14 +754,14 @@ public:
 		SQLHANDLE handle,
 		SQLSMALLINT type)
 	{
-		SQLINTEGER  i = 0;
+		SQLSMALLINT i = 0;
 		SQLINTEGER  native;
 		SQLWCHAR    state[7];
 		SQLWCHAR    text[512];
 		SQLSMALLINT len;
 		SQLRETURN   ret;
 		size_t      numChars;
-		char        *cptr,*cptr1;
+		char        *cptr;
 		fprintf(stderr,	"\n%s%s%s%s\n",	"Database problem running ",fn," ",msg.c_str());
 
 		do	{
@@ -839,7 +839,7 @@ public:
 	void prepare(SQLCHAR* thisSQL,int numCols) {
 		int numAttempts = 0;
 		// DEBUG ONLY
-		if (strlen((char*)thisSQL)>MAX_SP_BUF){
+		if ((int)strlen((char*)thisSQL)>MAX_SP_BUF){
 			std::cerr << "String len:" << strlen((char*)thisSQL) << " will overflow\n";
 			exit(102);
 		}
@@ -975,7 +975,7 @@ public:
 		barrier        = originalBarrier;
 		uBarrier       = originalUbarrier;
 		strike         = originalStrike;
-		int lastIndx(ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
+		int lastIndx((int)ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
 		double lastPrice(ulTimeseries.price[lastIndx]);
 		
 		// post-strike initialisation
@@ -1073,7 +1073,7 @@ public:
 					}
 				}
 			}
-			double avgInMoneyness = theseAvgInObs.size() && avgInAlgebra.length() ? evalAlgebra(theseAvgInObs, avgInAlgebra) : sumAvg / numAvg / ulPrice;
+			double avgInMoneyness = (int)theseAvgInObs.size() && avgInAlgebra.length() ? evalAlgebra(theseAvgInObs, avgInAlgebra) : sumAvg / numAvg / ulPrice;
 			moneyness = 1.0 / avgInMoneyness; // refLevel for average STRIKE options will need to MULTIPLY by moneyness (rather than the usual case of DIVIDE)
 			strike = originalStrike * avgInMoneyness;
 		}
@@ -1198,8 +1198,7 @@ public:
 	bool isHitVanilla(const int thisMonPoint,const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
 		int j, thisIndx;
 		bool isHit  = isAnd;
-		double thisRefLevel, nthLargestReturn;
-		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		int numBrel = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
 		if (numBrel == 0) return true;
 		std::string word;
 
@@ -1231,8 +1230,8 @@ public:
 	bool isHitLargestN(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
 		int j, thisIndx;
 		bool isHit  = isAnd;
-		double thisRefLevel, nthLargestReturn;
-		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		double nthLargestReturn;
+		int numBrel = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
 		if (numBrel == 0) return true;
 		std::string word;
 
@@ -1249,7 +1248,7 @@ public:
 			theseReturns.push_back(thesePrices[thisIndx] / thisBrel.refLevel);
 		}
 		sort(theseReturns.begin(), theseReturns.end(), std::greater<double>()); // sort DECENDING
-		nthLargestReturn = theseReturns[param1 <= 0 ? 0 : param1 - 1];
+		nthLargestReturn = theseReturns[param1 <= 0 ? 0 : (int)param1 - 1];
 		for (j=0; j<numBrel; j++){   // mark inactive barrierRelations
 			const SpBarrierRelation &thisBrel(brel[j]);
 			thisIndx         = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
@@ -1283,12 +1282,12 @@ public:
 
 	// basket test if barrier is hit
 	bool isHitBasket(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
-		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		int numBrel = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
 		if (numBrel == 0) return true;
 		int j, thisIndx;
 		bool isHit  = isAnd;
 		bool above  = brel[0].above;
-		double w,thisRefLevel;
+		double w;
 
 		// ** is basket weighted bestOf?
 		std::vector<double> performanceBasedWeights;
@@ -1309,7 +1308,7 @@ public:
 		*/
 		double basketReturn = 0.0;
 		for (j = 0; j<numBrel; j++) {
-			if (performances.size()>0){
+			if ((int)performances.size()>0){
 				basketReturn  += performances[j] * performanceBasedWeights[j];
 			}
 			else{
@@ -1332,12 +1331,11 @@ public:
 
 	// outperf test if barrier is hit
 	bool isHitOutperf(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
-		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		int numBrel = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
 		if (numBrel < 2) return true;
 		int j, thisIndx;
 		bool isHit  = isAnd;
 		bool above  = brel[0].above;
-		double w, thisRefLevel;
 
 		/*
 		* see if return difference breaches barrier level (in 'N' field)
@@ -1370,7 +1368,7 @@ public:
 		int j, thisIndx;
 		bool isHit  = isAnd;
 		double thisRefLevel, nthLargestReturn;
-		int numBrel = brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		int numBrel = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
 		if (numBrel == 0) return true;
 		std::string word;
 
@@ -1390,7 +1388,7 @@ public:
 				theseReturns.push_back(thesePrices[thisIndx] / thisRefLevel);
 			}
 			sort(theseReturns.begin(), theseReturns.end(), std::greater<double>()); // sort DECENDING
-			nthLargestReturn = theseReturns[param1 <= 0 ? 0 : param1-1];
+			nthLargestReturn = theseReturns[param1 <= 0.0 ? 0 : (int)param1 - 1];
 			for (j=0; j<numBrel; j++){   // mark inactive barrierRelations
 				const SpBarrierRelation &thisBrel(brel[j]);
 				thisIndx         = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
@@ -1457,7 +1455,7 @@ public:
 		case lookbackPutPayoff:
 		case putPayoff:
 		case autocallPutPayoff:
-			for (j = 0, len = brel.size(); j<len; j++) {
+			for (j = 0, len = (int)brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n      = ulIdNameMap[thisBrel.underlying];
 				// following line changed as we now correctly do SpBarrierRelation initialisation from strike(strike) to strike(unadjStrike)
@@ -1506,7 +1504,7 @@ public:
 				if (productShape == "Himalaya"){
 					double bestUlReturn;
 					int bestUlIndx=0;
-					for (bestUlReturn=-INFINITY, optionPayoff=0.0, j=0, len=optionPayoffs.size(); j<len; j++) {
+					for (bestUlReturn=(double)-DBL_MAX, optionPayoff=0.0, j=0, len=(int)optionPayoffs.size(); j<len; j++) {
 						if (useUl[ulIdNameMap[brel[j].underlying]]){
 							if (optionPayoffs[j] > optionPayoff) { optionPayoff = optionPayoffs[j]; }
 							if (optionPayoffs[j] > bestUlReturn) { bestUlIndx   = j; bestUlReturn = optionPayoffs[j]; }
@@ -1516,7 +1514,7 @@ public:
 				}
 				else {
 					if (underlyingFunctionId == uFnSmallest){
-						for (optionPayoff = INFINITY, j = 0, len = optionPayoffs.size(); j<len; j++) {
+						for (optionPayoff = DBL_MAX, j = 0, len = (int)optionPayoffs.size(); j<len; j++) {
 							if (optionPayoffs[j] < optionPayoff) { optionPayoff = optionPayoffs[j]; }
 						}
 						if (optionPayoff < 0.0){
@@ -1524,7 +1522,7 @@ public:
 						} 
 					}
 					else {
-						for (optionPayoff = 0.0, j = 0, len = optionPayoffs.size(); j<len; j++) {
+						for (optionPayoff = 0.0, j = 0, len = (int)optionPayoffs.size(); j<len; j++) {
 							if (optionPayoffs[j] > optionPayoff) { optionPayoff = optionPayoffs[j]; }
 						}
 					}
@@ -1533,7 +1531,7 @@ public:
 			case uFnLargestN: {
 				double avgNpayoff(0.0);
 				sort(optionPayoffs.begin(), optionPayoffs.end(), std::greater<double>()); // sort DECENDING
-				for (optionPayoff=0, j=0, len=param1; j<len; j++){
+				for (optionPayoff=0, j=0, len=(int)param1; j<len; j++){
 					double brelWeight = brel[j].weight;
 					avgNpayoff += optionPayoffs[j] * (productShape == "Rainbow" || brelWeight != 0.0 ? param1*brelWeight : 1.0);
 					}
@@ -1549,7 +1547,7 @@ public:
 		case basketPutPayoff:
 		case basketPutQuantoPayoff:
 			basketFinal = 0.0;
-			for (j = 0, len = brel.size(); j < len; j++)	{
+			for (j = 0, len = (int)brel.size(); j < len; j++)	{
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n     = ulIdNameMap[thisBrel.underlying];
 				thisRefLevel     = thisBrel.refLevel;  // startLevels[n] / thisBrel.moneyness;
@@ -1560,7 +1558,7 @@ public:
 				sort(basketPerfs.begin(), basketPerfs.end(), std::greater<double>()); // sort DECENDING
 				sort(basketWeights.begin(), basketWeights.end(), std::greater<double>()); // sort DECENDING
 			}
-			for (j=0, len = brel.size(); j<len; j++) {
+			for (j=0, len = (int)brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
 				basketFinal   += basketPerfs[j] * basketWeights[j];
 			}
@@ -1572,9 +1570,9 @@ public:
 		case cappuccinoPayoff:
 			callOrPut = 1;
 			cumReturn = 0.0;
-			w          = 1.0 / brel.size();
+			w          = 1.0 / (double)brel.size();
 			basketFinal=0.0, basketStart=0.0, basketRef=0.0;
-			for (j=0, len = brel.size(); j<len; j++) {
+			for (j=0, len = (int)brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
 				n              = ulIdNameMap[thisBrel.underlying];
 				thisRefLevel   = startLevels[n] * thisBrel.strike;
@@ -1594,7 +1592,7 @@ public:
 			callOrPut = 1;
 		case outperformancePutPayoff:
 			// first MINUS second
-			if (brel.size() == 2){
+			if ((int)brel.size() == 2){
 				for (j=0; j<2; j++) {
 					const SpBarrierRelation &thisBrel(brel[j]);
 					n              = ulIdNameMap[thisBrel.underlying];
@@ -1611,7 +1609,7 @@ public:
 			if (doFinalAssetReturn){
 				// DOME: just record worstPerformer for now
 				finalAssetReturn = 1.0e9;
-				for (j = 0, len = ulIds.size(); j<len; j++)	{
+				for (j = 0, len = (int)ulIds.size(); j<len; j++)	{
 					int    n     = ulIdNameMap[ulIds[j]];
 					double perf  = thesePrices[n] / startLevels[n] ;
 					if (perf < finalAssetReturn){ finalAssetReturn = perf; }
@@ -1633,13 +1631,13 @@ public:
 			double thisVariance;
 			bool   param1IsZero  = param1 == 0.0;
 			double lowerBound    = thisBrel.refLevel * param1;
-			for (thisVariance=0.0, k=1; k < thisPriceSlice.size(); k++){
+			for (thisVariance=0.0, k=1; k < (int)thisPriceSlice.size(); k++){
 				if (param1IsZero || thisPriceLevel[k] > lowerBound){
 					double anyDouble = thisPriceSlice[k] - thisPriceSlice[k - 1];
 					thisVariance += anyDouble*anyDouble;
 				}
 			}
-			thisVariance      = 252.0 * thisVariance / (thisPriceSlice.size() - 1);
+			thisVariance      = 252.0 * thisVariance / ((double)thisPriceSlice.size() - 1);
 			double swapPayoff = (thisVariance - strike*strike) / (2.0*strike);
 			if (fabs(swapPayoff) > cap){ swapPayoff = cap * (swapPayoff < 0.0 ? -1.0 : 1.0); }
 			thisPayoff      += participation*swapPayoff;
@@ -1677,19 +1675,19 @@ public:
 	// do any averaging
 	void doAveraging(const std::vector<double> &startLevels, std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, const std::vector<UlTimeseries> &ulPrices,
 		const int thisPoint, const int thisMonPoint, const int numUls) {
-		int j,k,len,count;
+		int j,k,len;
 
 		// averaging OUT
-		if (avgDays && brel.size()) {
+		if (avgDays && (int)brel.size()) {
 			switch (avgType) {
 			case 0: //averageLevels
-				for (j = 0, len = brel.size(); j < len; j++) {
+				for (j = 0, len = (int)brel.size(); j < len; j++) {
 					const SpBarrierRelation& thisBrel = brel[j];
 					int n = ulIdNameMap[thisBrel.underlying];
 					double thisStartLevel = startLevels[n];
 					std::vector<double> avgObs;
 					// create DECREASING DATE ORDER (most recent is at index 0) avgObs vector of observations
-					for (k = 0; k < thisBrel.runningAverage.size(); k++) {
+					for (k = 0; k < (int)thisBrel.runningAverage.size(); k++) {
 						avgObs.push_back(thisBrel.runningAverage[k] * thisStartLevel);
 					}
 					for (k = 0; k < (avgDays - thisBrel.runningAvgDays) && k < thisMonPoint; k++) {
@@ -1700,11 +1698,11 @@ public:
 					}
 					// calculate some value for these observations
 					// hacky: if there is no averagingIn use any algebra here
-					if (thisBrel.avgInDays == 0 && avgObs.size() && thisBrel.avgInAlgebra.length()) {
+					if (thisBrel.avgInDays == 0 && (int)avgObs.size() && thisBrel.avgInAlgebra.length()) {
 						// convert to returns
 						//  NOTE avgObs is in DECREASING DATE ORDER
 						std::vector<double> thesePerfs;
-						for (int k = 0, len1 = avgObs.size(); k<len1; k++) { thesePerfs.push_back(avgObs[k] / thisBrel.refLevel); }
+						for (int k = 0, len1 = (int)avgObs.size(); k<len1; k++) { thesePerfs.push_back(avgObs[k] / thisBrel.refLevel); }
 						double thisAlgebraLevel =	evalAlgebra(thesePerfs, thisBrel.avgInAlgebra);
 						lookbackLevel[n] = thisAlgebraLevel * thisBrel.refLevel;
 					}
@@ -1712,29 +1710,29 @@ public:
 						double anyValue(0.0);
 						anyValue = *max_element(avgObs.begin(), avgObs.end());
 						// DOME remove for loop if it gives the same value
-						for (int k = 0, len1 = avgObs.size(); k<len1; k++) { double anyValue1 = avgObs[k]; if (anyValue1>anyValue){ anyValue = anyValue1; } }
+						for (int k = 0, len1 = (int)avgObs.size(); k<len1; k++) { double anyValue1 = avgObs[k]; if (anyValue1>anyValue){ anyValue = anyValue1; } }
 						lookbackLevel[n] = anyValue;
 					}
 					else if (payoffType == "lookbackPut"){
-						double anyValue(INFINITY);
+						double anyValue(DBL_MAX);
 						anyValue = *min_element(avgObs.begin(), avgObs.end());
 						// DOME remove for loop if it gives the same value
-						for (int k = 0, len1 = avgObs.size(); k<len1; k++) { double anyValue1 = avgObs[k]; if (anyValue1<anyValue){ anyValue = anyValue1; } }
+						for (int k = 0, len1 = (int)avgObs.size(); k<len1; k++) { double anyValue1 = avgObs[k]; if (anyValue1<anyValue){ anyValue = anyValue1; } }
 						lookbackLevel[n] = anyValue;
 					}
 					else {
 						double anyValue(0.0);
-						for (int k = 0, len1 = avgObs.size(); k < len1; k++) {	anyValue += avgObs[k];	}
-						thesePrices[n] = anyValue/ avgObs.size();
+						for (int k = 0, len1 = (int)avgObs.size(); k < len1; k++) { anyValue += avgObs[k]; }
+						thesePrices[n] = anyValue / (double)avgObs.size();
 					}
 				}
 				break;
 			case 1: // proportion
 				double numHits(0.0), numPossibleHits(0.0);
 				if (daysExtant){
-					for (int i = 0, numObs = brel[0].avgWasHit.size(); i < numObs; i++) {
+					for (int i = 0, numObs = (int)brel[0].avgWasHit.size(); i < numObs; i++) {
 						bool wasHit = true;
-						for (j = 0, len = brel.size(); j < len; j++) {
+						for (j = 0, len = (int)brel.size(); j < len; j++) {
 							wasHit = wasHit && brel[j].avgWasHit[i];
 						}
 						numHits         += wasHit ? 1 : 0;
@@ -1745,7 +1743,7 @@ public:
 					if (k%avgFreq == 0){
 						while (k < thisMonPoint && (ulPrices.at(0).nonTradingDay.at(thisMonPoint - k))){ k++; };
 						std::vector<double> testPrices(numUls);
-						for (j = 0, len = brel.size(); j < len; j++) {
+						for (j = 0, len = (int)brel.size(); j < len; j++) {
 							SpBarrierRelation thisBrel = brel[j];
 							int n = ulIdNameMap[thisBrel.underlying];
 							testPrices.at(n) = ulPrices.at(n).price.at(thisMonPoint - k);
@@ -1768,11 +1766,11 @@ public:
 double PayoffMean(const std::vector<SpBarrier> &barrier){
 	int                 numInstances(0);
 	double              sumPayoffs(0.0);
-	for (int thisBarrier = 0; thisBarrier < barrier.size(); thisBarrier++){
+	for (int thisBarrier = 0; thisBarrier < (int)barrier.size(); thisBarrier++){
 		const SpBarrier&    b(barrier.at(thisBarrier));
 		if (b.capitalOrIncome) {
-			numInstances    += b.hit.size();
-			for (int i = 0; i < b.hit.size(); i++){
+			numInstances    += (int)b.hit.size();
+			for (int i = 0; i < (int)b.hit.size(); i++){
 				sumPayoffs += b.hit[i].amount;
 			}
 		}
@@ -1783,11 +1781,11 @@ double PayoffMean(const std::vector<SpBarrier> &barrier){
 double PayoffStdev(const std::vector<SpBarrier> &barrier, const double mean){
 	int                 numInstances(0);
 	double              sumVariance(0.0);
-	for (int thisBarrier = 0; thisBarrier < barrier.size(); thisBarrier++){
+	for (int thisBarrier = 0; thisBarrier < (int)barrier.size(); thisBarrier++){
 		const SpBarrier&    b(barrier.at(thisBarrier));
 		if (b.capitalOrIncome) {
-			numInstances    += b.hit.size();
-			for (int i = 0; i < b.hit.size(); i++){
+			numInstances    += (int)b.hit.size();
+			for (int i = 0; i < (int)b.hit.size(); i++){
 				double thisAmount = (b.hit[i].amount - mean);
 				sumVariance += thisAmount*thisAmount;
 			}
@@ -1895,11 +1893,11 @@ public:
 	// init
 	void init(const double maxYears){
 		// ...prebuild all dates outside loop
-		int numAllDates = allDates.size();	allBdates.reserve(numAllDates);
+		int numAllDates = (int)allDates.size();	allBdates.reserve(numAllDates);
 		for (int thisPoint = 0; thisPoint < numAllDates; thisPoint += 1) { allBdates.push_back(boost::gregorian::from_simple_string(allDates.at(thisPoint))); }
 
-		for (int i=0; i < baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
-		numUls = ulIds.size();
+		for (int i=0; i < (int)baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
+		numUls = (int)ulIds.size();
 		for (int i=0; i < numUls; i++){ useUl.push_back(true); }
 		barrier.reserve(100); // for more efficient push_back
 
@@ -1919,7 +1917,7 @@ public:
 	// re-initialise barriers
 	void initBarriers(){
 		numIncomeBarriers = 0;
-		int numBarriers = barrier.size();
+		int numBarriers = (int)barrier.size();
 		for (int j=0; j < numBarriers; j++){
 			SpBarrier& b(barrier.at(j));
 			if (!b.capitalOrIncome){ numIncomeBarriers += 1; }
@@ -1932,13 +1930,13 @@ public:
 	}
 	// set some product param
 	void solverSet(const int solveForThis,const double paramValue){
-		int numBarriers = barrier.size();
+		int numBarriers = (int)barrier.size();
 		switch (solveForThis){
 		case solveForCoupon:
 			// set each coupon to an annualised rate
 			for (int j=0; j < numBarriers; j++){
 				SpBarrier& b(barrier.at(j));
-				if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && b.brel.size()>0)){
+				if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && (int)b.brel.size()>0)){
 					b.payoff  =  (b.capitalOrIncome ? 1.0 : 0.0) + paramValue * b.totalBarrierYears;
 				}
 			}
@@ -1947,7 +1945,7 @@ public:
 			// set put barrier
 			for (int j=0; j < numBarriers; j++){
 				SpBarrier& b(barrier.at(j));
-				int numBrels = b.brel.size();
+				int numBrels = (int)b.brel.size();
 				if (b.capitalOrIncome && b.participation < 0.0 && numBrels>0){					
 					for (int k=0; k < numBrels; k++){
 						b.brel[k].barrier = paramValue;
@@ -2013,12 +2011,12 @@ public:
 		bool                     matured;
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
-		int                      numTimepoints    = timepointDays.size();
+		int                      numTimepoints    = (int)timepointDays.size();
 		int                      randnoIndx       =  0;
 		int                      optCount         = 0;
 		char                     charBuffer[1000];
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
-		double                   simulatedFairValue,thisAmount,anyDouble, anyDouble1, couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
+		double                   simulatedFairValue,thisAmount,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		boost::gregorian::date   bFixedCouponsDate(bLastDataDate);
 		std::vector< std::vector<double> > simulatedLogReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
@@ -2043,7 +2041,6 @@ public:
 			timepointPaths.push_back(somePaths[i]);
 		}
 		int                      numIncomeBarriers(0);
-		RETCODE                  retcode;
 		
 		// init
 		/*		
@@ -2079,7 +2076,7 @@ public:
 		unsigned long int npPos    = maxNpPos;
 		// faster to put repeated indices in a vector, compared to modulo arithmetic, and we only need manageable arrays eg 100y of daily data is 36500 points, repeated 1000 - 36,500,000 which is well within the MAX_SIZE
 		std::vector<unsigned int> returnsSeq; returnsSeq.reserve(maxNpPos); 
-		for (i=0; i < longNumOfSequences; i++){ 
+		for (i=0; i < (int)longNumOfSequences; i++){
 			for (j=firstObs; j<totalNumReturns; j++) { 
 				returnsSeq.push_back(j); 
 			} 
@@ -2100,7 +2097,7 @@ public:
 						i += 1;
 					}
 				}
-				int concatenatedLength = concatenatedSample.size();
+				int concatenatedLength = (int)concatenatedSample.size();
 				// permutations will now give balanced sample
 				for (int bootSample=0; bootSample<numMcIterations; bootSample++) {
 					if (bootSample % 2 == 0) {
@@ -2120,7 +2117,7 @@ public:
 		// see if any brels have endDays shorter than barrier endDays
 		for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 			SpBarrier& b(barrier.at(thisBarrier));
-			int numBrel = b.brel.size();
+			unsigned int numBrel = (unsigned int)b.brel.size();
 			std::vector<double>	theseExtrema; theseExtrema.reserve(10);
 			for (unsigned int uI = 0; uI < numBrel; uI++){
 				SpBarrierRelation& thisBrel(b.brel.at(uI));
@@ -2133,7 +2130,7 @@ public:
 		// *****************
 		// main MC loop
 		// *****************
-		int numMonDates = monDateIndx.size(); 
+		int numMonDates = (int)monDateIndx.size();
 		double accuracyTol(0.1);
 		// market risk variables and initc
 		bool   calledByPricer = true;
@@ -2150,7 +2147,7 @@ public:
 		if (getMarketData || useUserParams){
 			// debug only: init antitheticRandom and force its use below using 'true' for 'useAntithetic' in the call to GenerateCorrelatedNormal()
 			
-			for (i=0; i < antitheticRandom.size();i++){
+			for (i=0; i < (int)antitheticRandom.size(); i++){
 				for (j=0; j < numUl;j++){
 					antitheticRandom[i][j] = -1.0;
 				}
@@ -2166,8 +2163,8 @@ public:
 				rnCorr[i][i] = 1.0;
 			}
 			// ... now populate with whatever correlations we are given
-			for (i=0; i < md.corrsCorrelation.size();i++) {
-				for (j=0; j<md.corrsCorrelation[i].size(); j++) {
+			for (i=0; i < (int)md.corrsCorrelation.size(); i++) {
+				for (j=0; j<(int)md.corrsCorrelation[i].size(); j++) {
 					int otherId = md.corrsOtherId[i][j];
 					double thisCorr = md.corrsCorrelation[i][j];
 					rnCorr[i][otherId]  = thisCorr;
@@ -2185,8 +2182,8 @@ public:
 			for (i=0; i<numUl; i++) {
 				std::vector< std::vector<double>> &thisFwdVol = md.ulVolsFwdVol[i];
 				std::vector<double>               &thisTenor  = md.ulVolsTenor[i];
-				int numStrikes = thisFwdVol[0].size();
-				int numTenors  = thisFwdVol.size();
+				int numStrikes = (int)thisFwdVol[0].size();
+				int numTenors  = (int)thisFwdVol.size();
 				std::vector<std::vector<double>>  someVolSurface(numMonDates,std::vector<double>(numStrikes));
 				double latestObsVol = -1.0;
 				for (j=0; j<numStrikes; j++) {
@@ -2246,7 +2243,7 @@ public:
 		// ***********************
 		std::vector<double> debugCorrelatedRandNos;
 		int numDisables(0);
-		int randnosStoreSize = randnosStore.size();
+		int randnosStoreSize = (int)randnosStore.size();
 		for (thisIteration = 0; thisIteration < numMcIterations &&
 			(!consumeRands || randnoIndx<=randnosStoreSize)     && 
 			(forceIterations || fabs(stdevRatioPctChange)>accuracyTol); thisIteration++) {
@@ -2272,7 +2269,7 @@ public:
 						int thisMonPoint    = startPoint + thatNumDays;
 						double lognormalAdj = 0.5;
 						const std::string   thatDateString(allDates.at(thisMonPoint));
-						double thisReturn, thisSig, thisValue, thatValue,thisStdErr;
+						double thisReturn, thisSig, thisValue, thatValue;
 
 						// what is the time now
 						thatT   = thatNumDays / 365.25;
@@ -2302,7 +2299,7 @@ public:
 							//... any Quanto drift: LEAVE HERE IN CASE correlations become time-dependent
 							// DOME: this assumes all payoffs are quanto
 							// DOME: assumes all fx vols are 10% ...
-							thisEqFxCorr[i]     = md.fxcorrsCorrelation[i].size() == 0 ? 0.0 : md.fxcorrsCorrelation[i][0];
+							thisEqFxCorr[i]     = (int)md.fxcorrsCorrelation[i].size() == 0 ? 0.0 : md.fxcorrsCorrelation[i][0];
 						}
 						/*
 						*  now generate underlying shocks until this obsDate
@@ -2384,7 +2381,7 @@ public:
 							// bootstrapStride
 							if (doBootstrapStride){
 								// just crawl along the returns vector, unless it ends
-								if (thisBootstrapStride > 0 && _notionalIx < (maxNpPos - 2) && returnsSeq[_notionalIx + 1] < totalNumReturns){
+								if (thisBootstrapStride > 0 && _notionalIx < (maxNpPos - 2) && returnsSeq[_notionalIx + 1] < (unsigned int)totalNumReturns){
 									thisBootstrapStride -= 1;
 									_notionalIx         += 1;
 								}
@@ -2524,9 +2521,9 @@ public:
 					// if (barrierDisabled[thisBarrier]){ std::cerr << "BarrierDisabled:" << thisBarrier << std::endl;  }
 					barrierDisabled[thisBarrier]= false;
 					SpBarrier& b(barrier.at(thisBarrier));
-					int numBrel = b.brel.size();
+					int numBrel = (int)b.brel.size();
 					std::vector<double>	theseExtrema; theseExtrema.reserve(10);
-					for (unsigned int uI = 0; uI < numBrel; uI++){
+					for (unsigned int uI = 0; uI < (unsigned int)numBrel; uI++){
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
 						int thisName = ulIdNameMap.at(thisBrel.underlying);
 						thisBrel.doAveragingIn(startLevels.at(thisName), thisPoint, lastPoint + (!doAccruals ? monDateIndx[numMonDates-1]: 0), ulPrices.at(thisName));
@@ -2573,7 +2570,7 @@ public:
 							// accruals only look as far as real data (cannot look further into simulated time
 							if (doAccruals && (lastPoint  > totalNumDays - 1)){ lastPoint   = totalNumDays - 1; }
 							std::vector<int> ulNames;
-							for (unsigned int uI = 0; uI < numBrel; uI++){
+							for (unsigned int uI = 0; uI < (unsigned int)numBrel; uI++){
 								ulNames.push_back(ulIdNameMap.at(b.brel.at(uI).underlying));
 							}
 							for (k=firstPoint; !barrierWasHit.at(thisBarrier) && k <= lastPoint; k++) {
@@ -2591,7 +2588,7 @@ public:
 				} // END set up barriers
 
 				// START LOOP through each monitoring date to trigger events
-				for (int thisMonIndx = 0; !matured && thisMonIndx < monDateIndx.size(); thisMonIndx++){
+				for (int thisMonIndx = 0; !matured && thisMonIndx < (int)monDateIndx.size(); thisMonIndx++){
 					int thisMonDays  = monDateIndx[thisMonIndx];
 					int thisMonPoint = thisPoint + thisMonDays;
 					const std::string   thisDateString(allDates.at(thisMonPoint));
@@ -2609,8 +2606,8 @@ public:
 							// strikeReset AND stopLoss means we want YESTERDAY's close
 							// ...ge a hack to accomodate #2774 where investor is short a strip of daily-reset KIPs struck at YESTERDAY's close
 							if (b.isStrikeReset && b.isStopLoss){
-								int numBrel = b.brel.size();
-								for (unsigned int uI = 0; uI < numBrel; uI++){
+								int numBrel = (int)b.brel.size();
+								for (unsigned int uI = 0; uI < (unsigned int)numBrel; uI++){
 									SpBarrierRelation& thisBrel(b.brel.at(uI));
 									int thisName = ulIdNameMap.at(thisBrel.underlying);
 									thisBrel.setLevels(ulPrices.at(thisName).price.at(lastTradingIndx));
@@ -2634,13 +2631,13 @@ public:
 								// process barrier commands
 								if (b.barrierCommands != ""){
 									std::vector<std::string> barrierCommands = split(b.barrierCommands, ';');
-									for (int i=0; i<barrierCommands.size(); i++){
+									for (int i=0; i<(int)barrierCommands.size(); i++){
 										std::string bCommand  = barrierCommands[i];
 										std::vector<std::string> bCommandBits;
 										splitBarrierCommand(bCommandBits, bCommand);
 										std::vector<std::string> bCommandArgs;
 										std::string thisBcommand = bCommandBits[0];
-										if (bCommandBits.size() > 1){ bCommandArgs = split(bCommandBits[1], ','); }
+										if ((int)bCommandBits.size() > 1){ bCommandArgs = split(bCommandBits[1], ','); }
 
 										if (thisBcommand == "disableBarrier"){
 											int targetBarrierId = atoi(bCommandArgs[0].c_str()) - 1;
@@ -2657,7 +2654,7 @@ public:
 										}
 										else if (thisBcommand == "decreaseBudget"){
 											// initialise budget if there is an argument
-											if (bCommandBits.size() > 1){ 
+											if ((int)bCommandBits.size() > 1){
 												budget = atof(bCommandArgs[0].c_str()); 
 												thisPostStrikeState.initialBudget = budget;
 											}
@@ -2672,8 +2669,8 @@ public:
 													SpBarrier &b(barrier[nextBarrier]);
 													if (b.capitalOrIncome) {
 														done        = true;
-														int numBrel = b.brel.size();
-														for (unsigned int uI = 0; uI < numBrel; uI++){
+														int numBrel = (int)b.brel.size();
+														for (unsigned int uI = 0; uI < (unsigned int)numBrel; uI++){
 															SpBarrierRelation& thisBrel(b.brel.at(uI));
 															thisBrel.barrierLevel  = 0.0;
 														}
@@ -2708,9 +2705,9 @@ public:
 												}
 											}
 										}
-										if (couponFrequency.size()) {  // add fixed coupon
+										if ((int)couponFrequency.size()) {  // add fixed coupon
 											bFixedCouponsDate   = allBdates.at(thisMonPoint);
-											int    freqLen      = couponFrequency.length();
+											int    freqLen      = (int)couponFrequency.length();
 											char   freqChar     = toupper(couponFrequency[freqLen - 1]);
 											std::string freqNumber = couponFrequency.substr(0, freqLen - 1);
 											sprintf(charBuffer, "%s", freqNumber.c_str());
@@ -2832,7 +2829,7 @@ public:
 				double thisChange     = floor(10000.0*(thisStdevRatio - stdevRatio) / stdevRatio) / 100.0;
 				const int numSigChanges(3);
 				stdevRatioPctChanges.push_back(fabs(thisChange));
-				int numStdevRatioPctChanges = stdevRatioPctChanges.size();
+				int numStdevRatioPctChanges = (int)stdevRatioPctChanges.size();
 				if (numStdevRatioPctChanges > numSigChanges){
 					double sumChanges(0.0);
 					for (int j=numStdevRatioPctChanges - 1; j >= numStdevRatioPctChanges - numSigChanges; j--) {
@@ -2891,7 +2888,7 @@ public:
 					// here we want product return = simulatedPV / averageSimulatedPV   ... so here we calc 1 / averageSimulatedPV
 					thisNormalisation =  Mean(optimiseProductResult);
 				}
-				for (optCount=0; optCount < optimiseProductResult.size(); optCount++){
+				for (optCount=0; optCount < (int)optimiseProductResult.size(); optCount++){
 					if (optCount % optMaxNumToSend == 0){
 						// send batch
 						if (optCount != 0){
@@ -2910,7 +2907,7 @@ public:
 				if (0){
 					double geomReturn(0.0);
 					double sumDuration(0.0);
-					for (i = 0; i < optimiseProductPayoff.size(); i++){
+					for (i = 0; i < (int)optimiseProductPayoff.size(); i++){
 						double thisPayoff = optimiseProductPayoff[i];
 						geomReturn += log((thisPayoff<unwindPayoff ? unwindPayoff : thisPayoff) / midPrice);
 						sumDuration += optimiseProductDuration[i];
@@ -2939,7 +2936,7 @@ public:
 				if (couponPaidOut){
 					for (i=0; i < maturityBarrier; i++){
 						const SpBarrier&    ib(barrier.at(i));
-						if (ib.capitalOrIncome == 0 && ib.hitWithDate.size()>0){
+						if (ib.capitalOrIncome == 0 && (int)ib.hitWithDate.size()>0){
 							sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", ib.hitWithDate[0].date.c_str(), "',", ib.hitWithDate[0].amount, ",'", productCcy.c_str(), "')");
 							found = true;
 						}
@@ -2947,8 +2944,8 @@ public:
 				}
 
 				// add any fixed coupons
-				if (couponFrequency.size()) {  // add fixed coupon
-					int    freqLen      = couponFrequency.length();
+				if ((int)couponFrequency.size()) {  // add fixed coupon
+					int    freqLen      = (int)couponFrequency.length();
 					char   freqChar     = toupper(couponFrequency[freqLen - 1]);
 					std::string freqNumber = couponFrequency.substr(0, freqLen - 1);
 					sprintf(charBuffer, "%s", freqNumber.c_str());
@@ -2965,7 +2962,7 @@ public:
 						std::string aDate = to_iso_extended_string(pTime).substr(0, 10);
 						storeFixedCoupons.push_back(SpPayoffAndDate(aDate.c_str(), fixedCoupon));
 					}
-					for (i=0; i < storeFixedCoupons.size(); i++){
+					for (i=0; i < (int)storeFixedCoupons.size(); i++){
 						sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", storeFixedCoupons[i].date.c_str(), "',", storeFixedCoupons[i].amount, ",'", productCcy.c_str(), "')");
 						found = true;
 					}
@@ -2987,7 +2984,7 @@ public:
 			} // END doAccruals
 			// not doing accruals
 			else {
-				if (0 && debugCorrelatedRandNos.size() > 2) {
+				if (0 && (int)debugCorrelatedRandNos.size() > 2) {
 					double thisMean, thisStd, thisStderr;
 					MeanAndStdev(debugCorrelatedRandNos, thisMean, thisStd, thisStderr);
 					sprintf(lineBuffer, "%s%.4lf", "Simulated average randnos:", thisMean);
@@ -3013,7 +3010,7 @@ public:
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					const SpBarrier&    b(barrier.at(thisBarrier));
 					if (b.capitalOrIncome) {
-						numAllEpisodes += b.hit.size();
+						numAllEpisodes += (int)b.hit.size();
 					}
 					hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
 				}
@@ -3024,7 +3021,7 @@ public:
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					if (/* !hasProportionalAvg && */ numIncomeBarriers){
 						// ** insert new
-						for (int thisNumHits=0; thisNumHits < numCouponHits.size(); thisNumHits++){
+						for (int thisNumHits=0; thisNumHits < (int)numCouponHits.size(); thisNumHits++){
 							sprintf(lineBuffer, "%s%d%s%d%s%.5lf%s%d%s",
 								"insert into couponhistogram (ProductId,NumCoupons,Prob,IsBootstrapped) values (", productId, ",",
 								thisNumHits, ",", ((double)numCouponHits[thisNumHits]) / numAllEpisodes, ",", numMcIterations == 1 ? 0 : 1, ")");
@@ -3085,14 +3082,14 @@ public:
 						double              thisBarrierSumPayoffs(0.0), thisAmount;
 						std::vector<double> thisBarrierPayoffs; thisBarrierPayoffs.reserve(100000);
 						std::vector<double> thisBarrierCouponValues; thisBarrierCouponValues.reserve(100000);
-						int                 numInstances    = b.hit.size();
+						int                 numInstances    = (int)b.hit.size();
 						double              sumProportion   = b.sumProportion;
 						double              thisYears       = b.yearsToBarrier;
 						double              prob            = b.hasBeenHit ? 1.0 : sumProportion / numAllEpisodes; // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
 						double              thisProbDefault = probDefault(hazardCurve, thisYears);
-						int                 yearsAsMapKey   = floor(b.yearsToBarrier * YEARS_TO_INT_MULTIPLIER);
+						int                 yearsAsMapKey   = (int)floor(b.yearsToBarrier * YEARS_TO_INT_MULTIPLIER);
 
-						for (i = 0; i < b.hit.size(); i++){
+						for (i = 0; i < (int)b.hit.size(); i++){
 							thisAmount = b.hit[i].amount;
 							// possibly apply credit adjustment
 							if (applyCredit) {
@@ -3122,7 +3119,7 @@ public:
 								if (updateCashflows && doMostLikelyBarrier && b.participation>=0.0){
 									double direction = b.isAnd ? -1.0 : 1.0;
 									maxFirstKoMoneyness = 100.0*direction;
-									for (int j = 0, len=b.brel.size(); j < len; j++){
+									for (int j = 0, len=(int)b.brel.size(); j < len; j++){
 										const SpBarrierRelation&    thisBrel(b.brel.at(j));
 										double thisMoneyness = thisBrel.barrier / thisBrel.moneyness;
 										if (direction*(thisMoneyness - maxFirstKoMoneyness) < 0.0){ 
@@ -3151,21 +3148,20 @@ public:
 									maxBarrierProb          = prob;
 									maxBarrierProbMoneyness = -100.0;
 									// want the HIGHEST barrier as %spot
-									for (int j = 0, len=b.brel.size(); j < len; j++){
+									for (int j = 0, len=(int)b.brel.size(); j < len; j++){
 										const SpBarrierRelation&    thisBrel(b.brel.at(j));
 										double thisMoneyness = thisBrel.barrier / thisBrel.moneyness;
 										if (thisMoneyness>maxBarrierProbMoneyness){ maxBarrierProbMoneyness = thisMoneyness; }
 									}
 								}
 							}
-							double avgBarrierCoupon;
 							// MeanAndStdev(thisBarrierCouponValues, avgBarrierCoupon, anyDouble, anyDouble1);
-							for (i = 0; i < b.hit.size(); i++){
+							for (i = 0; i < (int)b.hit.size(); i++){
 								double thisAmount      = thisBarrierPayoffs[i];
 								double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(10.0, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 								if (thisAnnRet < -0.9999){ thisAnnRet = -0.9999; } // avoid later problems with log(1.0+annRets)
 								double thisCouponValue = thisBarrierCouponValues[i];
-								double thisCouponRet   = thisYears <= 0.0 || (couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue < -1.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
+								double thisCouponRet   = thisYears <= 0.0 || ((int)couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue < -1.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
 
 								// maybe save finalAssetReturns
 								if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter < 400000 && !doPriips){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
@@ -3242,8 +3238,6 @@ public:
 							sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
 							if (doDebug){
 								FILE * pFile;
-								int n;
-								char name[100];
 								pFile = fopen("debug.txt", "a");
 								fprintf(pFile, "%s\n", lineBuffer);
 								fclose(pFile);
@@ -3270,7 +3264,7 @@ public:
 					if (numStrPosInstances > 0)    { eStrPosPayoff /= numStrPosInstances; }
 					if (numNegInstances > 0)    { eNegPayoff    /= numNegInstances; }
 
-					int numAnnRets(allAnnRets.size());
+					int numAnnRets((int)allAnnRets.size());
 					double duration  = sumDuration / numAnnRets;
 
 					// winlose ratios for different cutoff returns
@@ -3293,7 +3287,7 @@ public:
 							double sumWinLoseNegPayoffs = 0.0;
 							int    numWinLosePosPayoffs = 0;
 							int    numWinLoseNegPayoffs = 0;
-							for (j = 0, len=allAnnRets.size(); j<len; j++) {
+							for (j = 0, len=(int)allAnnRets.size(); j<len; j++) {
 								double payoff   = theseWinLoseMeasures[j] / thisWinLoseDivisor - winLoseMinRet;
 								if (payoff > 0){ sumWinLosePosPayoffs += payoff; numWinLosePosPayoffs += 1; }
 								else           { sumWinLoseNegPayoffs -= payoff; numWinLoseNegPayoffs += 1; }
@@ -3320,13 +3314,13 @@ public:
 								sprintf(lineBuffer, "%s", "insert into timepoints (UserId,ProductId,UnderlyingId,TimePointDays,Name,Percentile,SimValue) values ");
 								int ulId = ulIds[j];
 								sort(timepointLevels[i][j].begin(), timepointLevels[i][j].end());
-								int numTpLevels = timepointLevels[i][j].size();
+								int numTpLevels = (int)timepointLevels[i][j].size();
 								// save simPercentiles
-								for (k=0, len=simPercentiles.size(); k < len; k++){
+								for (k=0, len=(int)simPercentiles.size(); k < len; k++){
 									double pctile = simPercentiles[k];
 									if (firstTime){ firstTime = false; }
 									else { strcat(lineBuffer, ","); }
-									int thisIndx = floor(numTpLevels*simPercentiles[k]);
+									int thisIndx = (int)floor(numTpLevels*simPercentiles[k]);
 									double value = timepointLevels[i][j][thisIndx];
 									sprintf(lineBuffer, "%s%s%d%s%d%s%d%s%s%s%lf%s%lf%s", lineBuffer, "(3,", productId, ",", ulId, ",", thisTpDays, ",'", name.c_str(), "',", pctile, ",", value, ")");
 								}
@@ -3382,21 +3376,21 @@ public:
 					}
 					double averageReturn        = sumAnnRets / numAnnRets;
 					double averageCouponReturn  = sumCouponRets / numAnnRets;
-					double vaR99                = 100.0*allAnnRets[floor(numAnnRets*(0.01))];
-					double vaR90                = 100.0*allAnnRets[floor(numAnnRets*(0.1))];
-					double vaR50                = 100.0*allAnnRets[floor(numAnnRets*(0.5))];
-					double vaR10                = 100.0*allAnnRets[floor(numAnnRets*(0.9))];
+					double vaR99                = 100.0*allAnnRets[(unsigned int)floor((double)numAnnRets*(0.01))];
+					double vaR90                = 100.0*allAnnRets[(unsigned int)floor((double)numAnnRets*(0.1))];
+					double vaR50                = 100.0*allAnnRets[(unsigned int)floor((double)numAnnRets*(0.5))];
+					double vaR10                = 100.0*allAnnRets[(unsigned int)floor((double)numAnnRets*(0.9))];
 					double priipsStressVar(-1.0), priipsStressYears(-1.0), varYears, var1Years, var2Years;
 					if (doPriips){
 						double thisStressT = maxProductDays > 365 ? 0.05 : 0.01;
 						if (doPriipsStress){
-							PriipsStruct &thisPriip(priipsInstances[floor(numAnnRets*thisStressT)]);
+							PriipsStruct &thisPriip(priipsInstances[(unsigned int)floor(numAnnRets*thisStressT)]);
 							priipsStressVar   = thisPriip.pvReturn;
 							priipsStressYears = thisPriip.yearsToPayoff;
 						}
-						varYears  = priipsAnnRetInstances[floor(numAnnRets*(0.1))].yearsToPayoff;
-						var1Years = priipsAnnRetInstances[floor(numAnnRets*(0.5))].yearsToPayoff;
-						var2Years = priipsAnnRetInstances[floor(numAnnRets*(0.9))].yearsToPayoff;
+						varYears  = priipsAnnRetInstances[(unsigned int)floor(numAnnRets*(0.1))].yearsToPayoff;
+						var1Years = priipsAnnRetInstances[(unsigned int)floor(numAnnRets*(0.5))].yearsToPayoff;
+						var2Years = priipsAnnRetInstances[(unsigned int)floor(numAnnRets*(0.9))].yearsToPayoff;
 					}
 					// SRRI vol
 					struct srriParams { double conf, normStds, normES; };
@@ -3413,7 +3407,7 @@ public:
 						srriConf      = shortfallParams[i].conf;
 						srriStds      = shortfallParams[i].normStds;
 						normES        = shortfallParams[i].normES;
-						srriConfRet   = allAnnRets[floor(numAnnRets*(1 - srriConf))];
+						srriConfRet   = allAnnRets[(unsigned int)floor(numAnnRets*(1 - srriConf))];
 						if (i == 0){ cesrStrictVol = -(srriStds - sqrt(srriStds*srriStds + 2 * (log(1 + averageReturn) - log(1 + srriConfRet)))); }
 						i += 1;
 					} while (srriConfRet > averageReturn && i<3);
@@ -3459,7 +3453,7 @@ public:
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 
 						sprintf(lineBuffer, "%s", "insert into pctiles values ");
-						for (i=0; i < returnBucket.size(); i++){
+						for (i=0; i < (int)returnBucket.size(); i++){
 							if (i != 0){ sprintf(lineBuffer, "%s%s", lineBuffer, ","); }
 							sprintf(lineBuffer, "%s%s%d%s%.2lf%s%.4lf%s%d%s%d%s%lf%s", lineBuffer, "(", productId, ",", 100.0*returnBucket[i], ",", bucketProb[i], ",", numMcIterations, ",", analyseCase == 0 ? 0 : 1, ",", projectedReturn, ")");
 						}
@@ -3472,15 +3466,15 @@ public:
 					if (doDebug){ std::cerr << "Starting analyseResults SavingToDatabase for case \n" << analyseCase << std::endl; }
 
 					const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
-					int numShortfall(floor(confLevel    *numAnnRets));
-					int numShortfallTest(floor(confLevelTest*numAnnRets));
+					int numShortfall((int)floor(confLevel    * (double)numAnnRets));
+					int numShortfallTest((int)floor(confLevelTest*(double)numAnnRets));
 					double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){ eShortfall     += allAnnRets[i]; }	if (numShortfall){ eShortfall     /= numShortfall; }
 					double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allPayoffs[i]; }	if (numShortfallTest){ eShortfallTest /= numShortfallTest; }
 					double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 					double priipsImpliedCost, priipsVaR, priipsDuration;
 			
 					if (doPriips){
-						PriipsStruct &thisPriip(priipsInstances[floor(priipsInstances.size()*0.025)]);
+						PriipsStruct &thisPriip(priipsInstances[(unsigned int)floor((double)priipsInstances.size()*0.025)]);
 						priipsVaR          = thisPriip.pvReturn;
 						priipsDuration     = thisPriip.yearsToPayoff;
 						if (3.842 < 2.0*log(thisPriip.pvReturn)){
@@ -3490,7 +3484,7 @@ public:
 						esVol = thisPriip.pvReturn>0.0 && priipsDuration > 0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) / sqrt(duration) : 0.0;
 						// calc PRIIPs PV
 						double sumPriipsPvs(0.0);
-						int    numPriipsPvs = priipsInstances.size();
+						int    numPriipsPvs = (int)priipsInstances.size();
 						for (int i=0; i < numPriipsPvs; i++){ sumPriipsPvs += priipsInstances[i].pvReturn; }
 						double priipsPV = sumPriipsPvs / numPriipsPvs;
 						if (priipsUsingRNdrifts && !doPriipsStress){
@@ -3565,7 +3559,7 @@ public:
 					double productBmReturn     = bmSwapRate + cds5y / 2.0 + (esVol*pow(duration, 0.5) / bmVol)*(bmEarithReturn - bmSwapRate);
 					double productExcessReturn = earithReturn - productBmReturn;
 
-					int    secsTaken      = difftime(time(0), startTime);
+					int    secsTaken      = (int)difftime(time(0), startTime);
 
 					// if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
 					if (updateCashflows && (!getMarketData || analyseCase == 0)){
@@ -3573,7 +3567,7 @@ public:
 						if (doPriipsStress){
 							sort(priipsStressVols.begin(), priipsStressVols.end());
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "PriipsStressInflationMin='", priipsStressVols[0]);
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMax='", priipsStressVols[priipsStressVols.size() - 1]);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMax='", (int)priipsStressVols[priipsStressVols.size() - 1]);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressYears='", priipsStressYears);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressVar='", priipsStressVar);
 						}
@@ -3681,7 +3675,7 @@ public:
 								sprintf(charBuffer, "%s\t%.2lf", charBuffer, spotLevels[i]);
 							}
 							std::cout << charBuffer << std::endl;
-							for (int thisMonIndx = 0; thisMonIndx < monDateIndx.size(); thisMonIndx++){
+							for (int thisMonIndx = 0; thisMonIndx < (int)monDateIndx.size(); thisMonIndx++){
 								int thisMonPoint = startPoint + monDateIndx[thisMonIndx];
 								thisDateString = allDates.at(thisMonPoint);
 								sprintf(charBuffer, "%s%s", "Fwds(stdev)[%ofSpot] and discountFactor on: ", thisDateString.c_str());
