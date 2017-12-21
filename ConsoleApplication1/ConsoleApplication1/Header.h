@@ -97,7 +97,7 @@ double ArtsRan(){
 // ... parse algebra and evaluate it on data   eg    min_-1.0_add_abs   would calculate min(data), subtract 1.0 and take its abs()
 // ... rerurns a number
 double evalAlgebra(const std::vector<double> data, std::string algebra){
-	if ((int)data.size() == 0 || algebra.length() == 0){ return 0.0; }
+	if (data.size() == 0 || algebra.length() == 0){ return 0.0; }
 
 	// algebra, once tokenised, is evaluated in reverse polish
 	int i, len, pos, j;
@@ -1073,7 +1073,7 @@ public:
 					}
 				}
 			}
-			double avgInMoneyness = (int)theseAvgInObs.size() && avgInAlgebra.length() ? evalAlgebra(theseAvgInObs, avgInAlgebra) : sumAvg / numAvg / ulPrice;
+			double avgInMoneyness = theseAvgInObs.size() && avgInAlgebra.length() ? evalAlgebra(theseAvgInObs, avgInAlgebra) : sumAvg / numAvg / ulPrice;
 			moneyness = 1.0 / avgInMoneyness; // refLevel for average STRIKE options will need to MULTIPLY by moneyness (rather than the usual case of DIVIDE)
 			strike = originalStrike * avgInMoneyness;
 		}
@@ -1248,7 +1248,7 @@ public:
 			theseReturns.push_back(thesePrices[thisIndx] / thisBrel.refLevel);
 		}
 		sort(theseReturns.begin(), theseReturns.end(), std::greater<double>()); // sort DECENDING
-		nthLargestReturn = theseReturns[param1 <= 0 ? 0 : (int)param1 - 1];
+		nthLargestReturn = theseReturns[param1 <= 0 ? 0 : (unsigned int)param1 - 1];
 		for (j=0; j<numBrel; j++){   // mark inactive barrierRelations
 			const SpBarrierRelation &thisBrel(brel[j]);
 			thisIndx         = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
@@ -1388,7 +1388,7 @@ public:
 				theseReturns.push_back(thesePrices[thisIndx] / thisRefLevel);
 			}
 			sort(theseReturns.begin(), theseReturns.end(), std::greater<double>()); // sort DECENDING
-			nthLargestReturn = theseReturns[param1 <= 0.0 ? 0 : (int)param1 - 1];
+			nthLargestReturn = theseReturns[param1 <= 0.0 ? 0 : (unsigned int)param1 - 1];
 			for (j=0; j<numBrel; j++){   // mark inactive barrierRelations
 				const SpBarrierRelation &thisBrel(brel[j]);
 				thisIndx         = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
@@ -1592,7 +1592,7 @@ public:
 			callOrPut = 1;
 		case outperformancePutPayoff:
 			// first MINUS second
-			if ((int)brel.size() == 2){
+			if (brel.size() == 2){
 				for (j=0; j<2; j++) {
 					const SpBarrierRelation &thisBrel(brel[j]);
 					n              = ulIdNameMap[thisBrel.underlying];
@@ -1678,7 +1678,7 @@ public:
 		int j,k,len;
 
 		// averaging OUT
-		if (avgDays && (int)brel.size()) {
+		if (avgDays && brel.size()) {
 			switch (avgType) {
 			case 0: //averageLevels
 				for (j = 0, len = (int)brel.size(); j < len; j++) {
@@ -1698,7 +1698,7 @@ public:
 					}
 					// calculate some value for these observations
 					// hacky: if there is no averagingIn use any algebra here
-					if (thisBrel.avgInDays == 0 && (int)avgObs.size() && thisBrel.avgInAlgebra.length()) {
+					if (thisBrel.avgInDays == 0 && avgObs.size() && thisBrel.avgInAlgebra.length()) {
 						// convert to returns
 						//  NOTE avgObs is in DECREASING DATE ORDER
 						std::vector<double> thesePerfs;
@@ -1936,7 +1936,7 @@ public:
 			// set each coupon to an annualised rate
 			for (int j=0; j < numBarriers; j++){
 				SpBarrier& b(barrier.at(j));
-				if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && (int)b.brel.size()>0)){
+				if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && b.brel.size()>0)){
 					b.payoff  =  (b.capitalOrIncome ? 1.0 : 0.0) + paramValue * b.totalBarrierYears;
 				}
 			}
@@ -2637,7 +2637,7 @@ public:
 										splitBarrierCommand(bCommandBits, bCommand);
 										std::vector<std::string> bCommandArgs;
 										std::string thisBcommand = bCommandBits[0];
-										if ((int)bCommandBits.size() > 1){ bCommandArgs = split(bCommandBits[1], ','); }
+										if (bCommandBits.size() > 1){ bCommandArgs = split(bCommandBits[1], ','); }
 
 										if (thisBcommand == "disableBarrier"){
 											int targetBarrierId = atoi(bCommandArgs[0].c_str()) - 1;
@@ -2654,7 +2654,7 @@ public:
 										}
 										else if (thisBcommand == "decreaseBudget"){
 											// initialise budget if there is an argument
-											if ((int)bCommandBits.size() > 1){
+											if (bCommandBits.size() > 1){
 												budget = atof(bCommandArgs[0].c_str()); 
 												thisPostStrikeState.initialBudget = budget;
 											}
@@ -2705,7 +2705,7 @@ public:
 												}
 											}
 										}
-										if ((int)couponFrequency.size()) {  // add fixed coupon
+										if (couponFrequency.size()) {  // add fixed coupon
 											bFixedCouponsDate   = allBdates.at(thisMonPoint);
 											int    freqLen      = (int)couponFrequency.length();
 											char   freqChar     = toupper(couponFrequency[freqLen - 1]);
@@ -3567,7 +3567,7 @@ public:
 						if (doPriipsStress){
 							sort(priipsStressVols.begin(), priipsStressVols.end());
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "PriipsStressInflationMin='", priipsStressVols[0]);
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMax='", (int)priipsStressVols[priipsStressVols.size() - 1]);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressInflationMax='", priipsStressVols[(unsigned int)priipsStressVols.size() - 1]);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressYears='", priipsStressYears);
 							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',PriipsStressVar='", priipsStressVar);
 						}
