@@ -1803,6 +1803,7 @@ double PayoffStdev(const std::vector<SpBarrier> &barrier, const double mean){
 class SProduct {
 private:
 	int                             productId;
+	int                             userId;
 	const std::string               productCcy;
 	const std::vector <bool>        &allNonTradingDays;
 	const std::vector <int>         &ulIds;
@@ -1821,6 +1822,7 @@ public:
 		char                           *lineBuffer,
 		const boost::gregorian::date    &bLastDataDate,
 		const int                       productId,
+		const int                       userId,
 		const std::string               productCcy,
 		const UlTimeseries              &baseTimeseies,
 		const boost::gregorian::date    bProductStartDate,
@@ -1864,8 +1866,8 @@ public:
 		const bool                      doBumps,
 		const bool                      stochasticDrift
 		)
-		: lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), productCcy(productCcy), allDates(baseTimeseies.date), allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),
-		couponFrequency(couponFrequency), 
+		: lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date), 
+		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
 		benchmarkStrike(benchmarkStrike), depositGteed(depositGteed), collateralised(collateralised),
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
@@ -3053,12 +3055,12 @@ public:
 					if (doDebug){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 					bool     applyCredit = analyseCase == 1;
 					std::map<int, double> cashflowMap;
-					double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));
-					// ukspaCase also now have projectedReturns
-					if (ukspaCase == "Bear")      { projectedReturn = 0.1; }
+					double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));					
+					if (     ukspaCase == "Bear")         { projectedReturn = 0.1; }
 					else if (ukspaCase == "Neutral")      { projectedReturn = 0.2; }
-					else if (ukspaCase == "Bull")      { projectedReturn = 0.3; }
+					else if (ukspaCase == "Bull")         { projectedReturn = 0.3; }
 					if (getMarketData && ukspaCase == "") { projectedReturn = 0.4; }
+					if (useUserParams)                    { projectedReturn = 0.5; }
 
 					bool     foundEarliest = false;
 					double   probEarly(0.0), probEarliest(0.0);
