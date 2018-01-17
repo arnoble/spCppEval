@@ -1584,6 +1584,19 @@ int _tmain(int argc, _TCHAR* argv[])
 					}
 				}	
 
+				
+				//	add vol tenors to MonDates
+				if (getMarketData || useUserParams){
+					int  maxObsDays = monDateIndx[monDateIndx.size() - 1];
+					for (i = 0; i < ulVolsTenor[0].size(); i++) {
+						int theseDays = (int)floor(365.25*ulVolsTenor[0][i]);
+						if (maxObsDays>= theseDays && find(monDateIndx.begin(), monDateIndx.end(), theseDays) == monDateIndx.end()) {
+							monDateIndx.push_back((int)theseDays);
+						}
+					}
+					sort(monDateIndx.begin(), monDateIndx.end());
+				}
+
 				// any other init
 				int thisEndDaysInt = (int)thisEndDays;
 				if (doTimepoints && std::find(tempTimepointDays.begin(), tempTimepointDays.end(), thisEndDaysInt) == tempTimepointDays.end()) { tempTimepointDays.push_back(thisEndDaysInt); }
