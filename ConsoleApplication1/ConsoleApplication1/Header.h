@@ -1690,7 +1690,7 @@ public:
 					for (k = 0; k < (int)thisBrel.runningAverage.size(); k++) {
 						avgObs.push_back(thisBrel.runningAverage[k] * thisStartLevel);
 					}
-					for (k = 0; k < (avgDays - thisBrel.runningAvgDays) && k < thisMonPoint; k++) {
+					for (k = 0; k <= (avgDays - thisBrel.runningAvgDays) && k < thisMonPoint; k++) {
 						if (k%avgFreq == 0){
 							while (k < thisMonPoint && (ulPrices.at(n).nonTradingDay.at(thisMonPoint - k))){ k++; };
 							avgObs.push_back(ulPrices.at(n).price.at(thisMonPoint - k));
@@ -1891,6 +1891,7 @@ public:
 	std::vector<SpPayoffAndDate>        storeFixedCoupons;
 	std::vector<std::vector<std::vector<double>>> &optimiseMcLevels;
 	std::vector<int>                    &optimiseUlIdNameMap;
+	std::vector<int>                reportableMonDateIndx;
 	
 	// init
 	void init(const double maxYears){
@@ -2345,7 +2346,7 @@ public:
 									//... calculate return for thisDt  for this underlying
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
 									currentLevels[i]       = currentLevels[i] * thisReturn;
-									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.18 * dt) : 1.0);
+									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.08 * dt) : 1.0);
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 									// debugCorrelatedRandNos.push_back(currentQuantoLevels[i]/spotLevels[i]);
 									if (forOptimisation && productIndx == 0){
@@ -3678,20 +3679,23 @@ public:
 							}
 							std::cout << charBuffer << std::endl;
 							for (int thisMonIndx = 0; thisMonIndx < (int)monDateIndx.size(); thisMonIndx++){
-								int thisMonPoint = startPoint + monDateIndx[thisMonIndx];
-								thisDateString = allDates.at(thisMonPoint);
-								sprintf(charBuffer, "%s%s", "Fwds(stdev)[%ofSpot] and discountFactor on: ", thisDateString.c_str());
-								for (i = 0; i < numUl; i++){
-									MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev, thisStderr);
-									sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(", thisStderr, ")[", thisMean / spotLevels[i], "]");
+								int thisMonValue = monDateIndx[thisMonIndx];
+								if (std::find(reportableMonDateIndx.begin(), reportableMonDateIndx.end(),thisMonValue) != reportableMonDateIndx.end()){
+									int thisMonPoint = startPoint + thisMonValue;
+									thisDateString = allDates.at(thisMonPoint);
+									sprintf(charBuffer, "%s%s", "Fwds(stdev)[%ofSpot] and discountFactor on: ", thisDateString.c_str());
+									for (i = 0; i < numUl; i++){
+										MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev, thisStderr);
+										sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(", thisStderr, ")[", thisMean / spotLevels[i], "]");
+									}
+									double yearsToBarrier   = monDateIndx[thisMonIndx] / 365.25;
+									double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
+									forwardRate            += fundingFraction*interpCurve(cdsTenor, cdsSpread, yearsToBarrier);
+									double discountT        = yearsToBarrier - forwardStartT;
+									double discountFactor   = pow(forwardRate, -discountT);
+									sprintf(charBuffer, "%s\t%.5lf", charBuffer, discountFactor);
+									std::cout << charBuffer << std::endl;
 								}
-								double yearsToBarrier   = monDateIndx[thisMonIndx] / 365.25;
-								double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
-								forwardRate            += fundingFraction*interpCurve(cdsTenor, cdsSpread, yearsToBarrier);
-								double discountT        = yearsToBarrier - forwardStartT;
-								double discountFactor   = pow(forwardRate, -discountT);
-								sprintf(charBuffer, "%s\t%.5lf", charBuffer, discountFactor);
-								std::cout << charBuffer << std::endl;
 							}
 						}
 						// fair value

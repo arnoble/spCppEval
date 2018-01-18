@@ -30,6 +30,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["doAnyIdTable"]            = "";
 		argWords["getMarketData"]           = "";
 		argWords["proto"]                   = "";
+		argWords["localVol"]                = "";
 		argWords["stochasticDrift"]         = "";
 		argWords["dbServer"]                = "spCloud|newSp|spIPRL";
 		argWords["forceIterations"]         = "";
@@ -85,7 +86,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false),solveFor(false);
-		bool             stochasticDrift(false),ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
+		bool             localVol(false),stochasticDrift(false),ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -166,6 +167,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
 			if (strstr(thisArg, "useProductFundingFractionFactor")){  useProductFundingFractionFactor  = true; }
 			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
+			if (strstr(thisArg, "localVol"          )){ localVol           = true; }
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }				
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
@@ -531,7 +533,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, productBaseCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
-			vector<int>      monDateIndx, accrualMonDateIndx;
+			vector<int>      monDateIndx, reportableMonDateIndx, accrualMonDateIndx;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
 
 			// init
@@ -1174,7 +1176,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 				}
 				else {
-					sprintf(ulSql, "%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from impvol where underlyingid in (", ulIds[0]);
+					sprintf(ulSql, "%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from ",localVol ? "local":"imp","vol where underlyingid in (", ulIds[0]);
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
@@ -1585,17 +1587,6 @@ int _tmain(int argc, _TCHAR* argv[])
 				}	
 
 				
-				//	add vol tenors to MonDates
-				if (getMarketData || useUserParams){
-					int  maxObsDays = monDateIndx[monDateIndx.size() - 1];
-					for (i = 0; i < ulVolsTenor[0].size(); i++) {
-						int theseDays = (int)floor(365.25*ulVolsTenor[0][i]);
-						if (maxObsDays>= theseDays && find(monDateIndx.begin(), monDateIndx.end(), theseDays) == monDateIndx.end()) {
-							monDateIndx.push_back((int)theseDays);
-						}
-					}
-					sort(monDateIndx.begin(), monDateIndx.end());
-				}
 
 				// any other init
 				int thisEndDaysInt = (int)thisEndDays;
@@ -1605,6 +1596,19 @@ int _tmain(int argc, _TCHAR* argv[])
 				// next barrier record
 				numBarriers += 1;
 				retcode = mydb.fetch(false,"");
+			}
+
+			//	add vol tenors to MonDates
+			spr.reportableMonDateIndx = monDateIndx;
+			if (getMarketData || useUserParams){
+				int  maxObsDays = monDateIndx[monDateIndx.size() - 1];
+				for (i = 0; i < ulVolsTenor[0].size(); i++) {
+					int theseDays = (int)floor(365.25*ulVolsTenor[0][i]);
+					if (maxObsDays >= theseDays && find(monDateIndx.begin(), monDateIndx.end(), theseDays) == monDateIndx.end()) {
+						monDateIndx.push_back((int)theseDays);
+					}
+				}
+				sort(monDateIndx.begin(), monDateIndx.end());
 			}
 
 
