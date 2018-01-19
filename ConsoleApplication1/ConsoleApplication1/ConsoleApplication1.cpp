@@ -30,7 +30,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		argWords["doAnyIdTable"]            = "";
 		argWords["getMarketData"]           = "";
 		argWords["proto"]                   = "";
-		argWords["localVol"]                = "";
+		argWords["bsPricer"]                = "";
 		argWords["stochasticDrift"]         = "";
 		argWords["dbServer"]                = "spCloud|newSp|spIPRL";
 		argWords["forceIterations"]         = "";
@@ -86,7 +86,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false),solveFor(false);
-		bool             localVol(false),stochasticDrift(false),ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
+		bool             localVol(true),stochasticDrift(false),ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -167,7 +167,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
 			if (strstr(thisArg, "useProductFundingFractionFactor")){  useProductFundingFractionFactor  = true; }
 			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
-			if (strstr(thisArg, "localVol"          )){ localVol           = true; }
+			if (strstr(thisArg, "bsPricer"          )){ localVol           = false; }
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }				
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
