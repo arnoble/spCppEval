@@ -1601,7 +1601,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			//	add vol tenors to MonDates
 			spr.reportableMonDateIndx = monDateIndx;
 			if (getMarketData || useUserParams){
-				int  maxObsDays = monDateIndx[monDateIndx.size() - 1];
+				int  maxObsDays = monDateIndx.size() > 0 ? monDateIndx[monDateIndx.size() - 1] : 1000000;
 				for (i = 0; i < ulVolsTenor[0].size(); i++) {
 					int theseDays = (int)floor(365.25*ulVolsTenor[0][i]);
 					if (maxObsDays >= theseDays && find(monDateIndx.begin(), monDateIndx.end(), theseDays) == monDateIndx.end()) {
