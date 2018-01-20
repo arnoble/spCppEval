@@ -3671,7 +3671,7 @@ public:
 							for (i = 0; i < numUl; i++){
 								sprintf(charBuffer, "%s\t%s", charBuffer, ulNames[i].c_str());
 							}
-							sprintf(charBuffer, "%s%s", charBuffer, "\tDiscountFactor");
+							sprintf(charBuffer, "%s%s%.3lf%s", charBuffer, "\tDiscountFactor(incl_FundingFraction=",fundingFraction,")");
 							std::cout << charBuffer << std::endl;
 							sprintf(charBuffer, "%s%s", "Spots on: ", thisDateString.c_str());
 							for (i = 0; i < numUl; i++){
@@ -3710,6 +3710,7 @@ public:
 						// update db
 						sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisMean*issuePrice);
 						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStderr*issuePrice);
+						sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FundingFractionUsed='", fundingFraction);
 						sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
 						sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
 						// std::cout << lineBuffer << std::endl;
