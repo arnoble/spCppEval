@@ -3475,7 +3475,7 @@ public:
 					double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allPayoffs[i]; }	if (numShortfallTest){ eShortfallTest /= numShortfallTest; }
 					double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 					double priipsImpliedCost, priipsVaR, priipsDuration;
-			
+					double cVar95PctLoss = -100.0*(1.0 - eShortfallTest / midPrice);
 					if (doPriips){
 						PriipsStruct &thisPriip(priipsInstances[(unsigned int)floor((double)priipsInstances.size()*0.025)]);
 						priipsVaR          = thisPriip.pvReturn;
@@ -3565,7 +3565,7 @@ public:
 					int    secsTaken      = (int)difftime(time(0), startTime);
 
 					// if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
-					if (updateCashflows && (!getMarketData || analyseCase == 0)){
+					if (updateCashflows && ((!getMarketData && !useUserParams)|| analyseCase == 0)){
 						sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
 						if (doPriipsStress){
 							sort(priipsStressVols.begin(), priipsStressVols.end());
@@ -3640,6 +3640,7 @@ public:
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='", eShortfall*100.0);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EShortfallTest='", eShortfallTest*100.0);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='", eShortfallDepo*100.0);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',cVar95PctLoss='", cVar95PctLoss);								
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbShortfall='", benchmarkProbUnderperf);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondShortfall='", benchmarkCondUnderperf*100.0);
@@ -3746,6 +3747,7 @@ public:
 							vaR90, ":",
 							vaR50, ":",
 							vaR10, ":",
+							cVar95PctLoss, ":",
 							100.0*averageCouponReturn, ":",
 							100.0*maxBarrierProb, ":",
 							100.0*maxBarrierProbMoneyness, ":",

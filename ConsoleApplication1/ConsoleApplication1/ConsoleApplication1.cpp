@@ -1176,7 +1176,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 				}
 				else {
-					sprintf(ulSql, "%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from ",localVol ? "local":"imp","vol where underlyingid in (", ulIds[0]);
+					sprintf(ulSql, "%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from ",localVol && getMarketData ? "local":"imp","vol where underlyingid in (", ulIds[0]);
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
