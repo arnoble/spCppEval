@@ -3748,6 +3748,7 @@ public:
 							vaR50, ":",
 							vaR10, ":",
 							cVar95PctLoss, ":",
+							cVar95PctLoss + 100.0*benchmarkProbOutperf, ":",
 							100.0*averageCouponReturn, ":",
 							100.0*maxBarrierProb, ":",
 							100.0*maxBarrierProbMoneyness, ":",
