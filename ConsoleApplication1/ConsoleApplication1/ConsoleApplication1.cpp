@@ -8,8 +8,16 @@ using namespace std;
 
 
 
+#ifndef _MSC_VER
+// not VC++
+#elif _MSC_VER < 1900
+// MSVC++ 12.0 _MSC_VER == 1800 (Visual Studio 2013)
+int _tmain(int argc, WCHAR* argv[])
+#else
+// Future versions
+int _tmain(int argc, WCHAR* argv[])
+#endif
 
-int _tmain(int argc, _TCHAR* argv[])
 {
 	size_t numChars;
 	try{
