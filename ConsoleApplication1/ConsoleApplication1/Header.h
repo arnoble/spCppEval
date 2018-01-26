@@ -152,7 +152,7 @@ double evalAlgebra(const std::vector<double> data, std::string algebra){
 			stack[pos] = floor(stack[pos]);
 		}
 		else if (tokens[i] == "latest"){
-			stack.push_back(data[0]);
+			stack.push_back(data[numValues-1]);
 		}
 		else {
 			stack.push_back(atof(tokens[i].c_str()));
@@ -1696,13 +1696,14 @@ public:
 							avgObs.push_back(ulPrices.at(n).price.at(thisMonPoint - k));
 						}
 					}
+
 					// calculate some value for these observations
 					// hacky: if there is no averagingIn use any algebra here
 					if (thisBrel.avgInDays == 0 && avgObs.size() && thisBrel.avgInAlgebra.length()) {
 						// convert to returns
 						//  NOTE avgObs is in DECREASING DATE ORDER
 						std::vector<double> thesePerfs;
-						for (int k = 0, len1 = (int)avgObs.size(); k<len1; k++) { thesePerfs.push_back(avgObs[k] / thisBrel.refLevel); }
+						for (int k = (int)avgObs.size() - 1; k>=0; k--) { thesePerfs.push_back(avgObs[k] / thisBrel.refLevel); }
 						double thisAlgebraLevel =	evalAlgebra(thesePerfs, thisBrel.avgInAlgebra);
 						lookbackLevel[n] = thisAlgebraLevel * thisBrel.refLevel;
 					}

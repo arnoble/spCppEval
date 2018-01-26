@@ -12,7 +12,7 @@ using namespace std;
 // not VC++
 #elif _MSC_VER < 1900
 // MSVC++ 12.0 _MSC_VER == 1800 (Visual Studio 2013)
-int _tmain(int argc, WCHAR* argv[])
+int _tmain(int argc, WCHAR* argv[])   // was _TCHAR but seems fine now with WCHAR
 #else
 // Future versions
 int _tmain(int argc, WCHAR* argv[])
