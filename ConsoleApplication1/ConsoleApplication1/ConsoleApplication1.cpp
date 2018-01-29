@@ -60,7 +60,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["planSelect"]              = "only|none";		
 		argWords["eqFx"]                    = "eqUid:fxId:x.x  eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
-		argWords["solveFor"]                = "targetFairValue:whatToSolveFor  eg 98.0:coupon|putBarrier"; 
+		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier and add :commit to save solution"; 
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >";
 		argWords["forOptimisation"]         = "";
@@ -93,7 +93,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              bumpUserId(3),thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false),solveFor(false);
+		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             localVol(true),stochasticDrift(false),ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -294,13 +294,15 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 			}
 			if (sscanf(thisArg, "solveFor:%s", lineBuffer)){
-				solveFor = true;
+				solveFor      = true;
+				getMarketData = true;
 				char *token = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
-				if ((int)tokens.size() != 2){ cerr << "solveFor: incorrect syntax" << endl; exit(105); }
+				if (tokens.size() < 2){ cerr << "solveFor: incorrect syntax" << endl; exit(105); }
 				targetFairValue   = atof(tokens[0].c_str());
 				whatToSolveFor    = tokens[1];
+				if (tokens.size() > 2 && tokens[2] == "commit"){ solveForCommit = true; }
 				if (whatToSolveFor == "coupon"){
 					solveForThis = solveForCoupon;
 				}
@@ -533,10 +535,9 @@ int _tmain(int argc, WCHAR* argv[])
 		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(optimiseNumUls, std::vector<std::vector<double>>(optimiseNumDays));
 		if (numProducts>1){ doUseThisPrice = false; }
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
-			int              oldProductBarrierId = 0, productBarrierId = 0;
 			int              numBarriers = 0, thisIteration = 0;
 			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
-			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId;
+			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
 			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice, baseCcyReturn, benchmarkStrike;
 			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, productBaseCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
@@ -1393,7 +1394,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if (AMC != 0.0){
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
-			SProduct spr(&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
+			SProduct spr(mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
@@ -1479,9 +1480,10 @@ int _tmain(int argc, WCHAR* argv[])
 					double weight           = atof(szAllPrices[brcolWeight]);
 					double strikeOverride   = atof(szAllPrices[brcolStrikeOverride]);
 					bool   isAbsolute       = atoi(szAllPrices[brcolIsAbsolute]) == 1;
-					uid      = atoi(szAllPrices[brcolUnderlyingId]);
-					barrier  = max(0.0,atof(szAllPrices[brcolBarrier]) + barrierBend*bendDirection);
-					uBarrier = atof(szAllPrices[brcolUpperBarrier])   ;
+					barrierRelationId       = atoi(szAllPrices[brcolBarrierRelationId]);
+					uid                     = atoi(szAllPrices[brcolUnderlyingId]);
+					barrier                 = max(0.0,atof(szAllPrices[brcolBarrier]) + barrierBend*bendDirection);
+					uBarrier                = atof(szAllPrices[brcolUpperBarrier])   ;
 					if (uBarrier > 999999 && uBarrier < 1000001.0) { uBarrier = NULL; } // using 1000000 as a quasiNULL, since C++ SQLFetch ignores NULL columns
 					if (uBarrier != NULL){ uBarrier = max(0.0, uBarrier + barrierBend*bendDirection); }
 					above                         = atoi(szAllPrices[brcolAbove]) == 1;
@@ -1510,7 +1512,7 @@ int _tmain(int argc, WCHAR* argv[])
 				
 					if (uid) {
 						// create barrierRelation
-						thisBarrier.brel.push_back(SpBarrierRelation(uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
+						thisBarrier.brel.push_back(SpBarrierRelation(barrierRelationId,uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
 							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), 
 							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString,isContinuousALL,
 							thisBarrier.isStrikeReset, thisBarrier.isStopLoss));
@@ -1834,6 +1836,7 @@ int _tmain(int argc, WCHAR* argv[])
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					fl = evalResult1.value - targetFairValue;
 					if (fl == 0.0) {
+						spr.solverCommit(solveForThis, solverParam*x1); 
 						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*x1);
 						std::cout << lineBuffer << std::endl;
 						return(0);
@@ -1847,6 +1850,7 @@ int _tmain(int argc, WCHAR* argv[])
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					fh = evalResult2.value - targetFairValue;
 					if (fh == 0.0) {
+						spr.solverCommit(solveForThis, solverParam*x2);
 						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(),":", solverParam*x2);
 						std::cout << lineBuffer << std::endl;
 						return(0);
@@ -1887,6 +1891,7 @@ int _tmain(int argc, WCHAR* argv[])
 							(abs(f*2.0) > abs(dxold*df))){           // or not decreasing fast enough
 							dxold = dx; dx = 0.5*(xh - xl); rts = xl + dx;
 							if (xl == rts){
+								spr.solverCommit(solveForThis, solverParam*rts);
 								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 								std::cout << lineBuffer << std::endl;
 								return(0);
@@ -1895,12 +1900,14 @@ int _tmain(int argc, WCHAR* argv[])
 						else {                      // Newton step acceptable. Take it
 							dxold=dx; dx=f / df; temp=rts; rts -= dx;
 							if (temp == rts){
+								spr.solverCommit(solveForThis, solverParam*rts);
 								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 								std::cout << lineBuffer << std::endl;
 								return(0);
 							}                     // finish if change in root negligible
 						}
 						if (abs(dx) < xacc){
+							spr.solverCommit(solveForThis, solverParam*rts);
 							sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 							std::cout << lineBuffer << std::endl;
 							return(0);

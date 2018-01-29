@@ -932,7 +932,8 @@ public:
 class SpBarrierRelation {
 
 public:
-	SpBarrierRelation(const int underlying,
+	SpBarrierRelation(const int barrierRelationId, 
+		const int underlying,
 		double              _barrier,
 		double              _uBarrier,
 		const bool          _isAbsolute,
@@ -954,7 +955,7 @@ public:
 		const bool          isContinuousALL,
 		const bool          isStrikeReset,
 		const bool          isStopLoss)
-		: underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
+		: barrierRelationId(barrierRelationId), underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
 		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq),
 		avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss)
@@ -1030,7 +1031,7 @@ public:
 		}
 	};
 	const bool        above, at, isAbsolute, isContinuousALL, isStrikeReset, isStopLoss;
-	const int         underlying, avgType, avgDays, avgFreq,daysExtant;
+	const int         barrierRelationId, underlying, avgType, avgDays, avgFreq, daysExtant;
 	const double      originalStrike,originalBarrier, originalUbarrier,weight;
 	const std::string startDate, endDate, avgInAlgebra;
 	int               count, j, k, startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0, endDaysDiff=0;
@@ -1820,6 +1821,7 @@ private:
 
 public:
 	SProduct(
+		MyDB                           &mydb,
 		char                           *lineBuffer,
 		const boost::gregorian::date    &bLastDataDate,
 		const int                       productId,
@@ -1867,7 +1869,7 @@ public:
 		const bool                      doBumps,
 		const bool                      stochasticDrift
 		)
-		: lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date), 
+		: mydb(mydb),lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date), 
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
 		benchmarkStrike(benchmarkStrike), depositGteed(depositGteed), collateralised(collateralised),
@@ -1879,6 +1881,7 @@ public:
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps), stochasticDrift(stochasticDrift) {};
 
 	// public members: DOME consider making private
+	MyDB                           &mydb;
 	char                           *lineBuffer;
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips, notUKSPA, stochasticDrift;
@@ -1953,6 +1956,40 @@ public:
 				if (b.capitalOrIncome && b.participation < 0.0 && numBrels>0){					
 					for (int k=0; k < numBrels; k++){
 						b.brel[k].barrier = paramValue;
+					}
+				}
+			}
+			break;
+		} // switch
+	}
+
+	// commit solver solution to DB
+	void solverCommit(const int solveForThis, const double paramValue){
+		solverSet(solveForThis, paramValue);
+		int numBarriers = (int)barrier.size();
+		switch (solveForThis){
+		case solveForCoupon:
+			// set each coupon to an annualised rate
+			for (int j=0; j < numBarriers; j++){
+				SpBarrier& b(barrier.at(j));
+				if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && b.brel.size()>0)){
+					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Payoff='", 100.0*b.payoff,"%'");
+					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
+			}
+			break;
+		case solveForPutBarrier:
+			// set put barrier
+			for (int j=0; j < numBarriers; j++){
+				SpBarrier& b(barrier.at(j));
+				int numBrels = (int)b.brel.size();
+				if (b.capitalOrIncome && b.participation < 0.0 && numBrels>0){
+					for (int k=0; k < numBrels; k++){
+						SpBarrierRelation& br(b.brel[k]);
+						sprintf(lineBuffer, "%s%.5lf%s", "update barrierrelation set Barrier='", br.barrier, "'");
+						sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where BarrierRelationId='", br.barrierRelationId, "'");
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
 				}
 			}
@@ -3720,7 +3757,6 @@ public:
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 						}
 					}
-
 
 
 
