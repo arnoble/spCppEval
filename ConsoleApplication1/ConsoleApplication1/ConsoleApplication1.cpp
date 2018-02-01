@@ -1768,7 +1768,7 @@ int _tmain(int argc, WCHAR* argv[])
 				if (solveFor){
 					// Newton-Raphson		
 					int maxit    = 100;
-					double xacc  = 0.002;      // 20bp accuracy
+					double xacc  = 0.0001;      // 10bp accuracy
 					double x1    =  0.5;       // lower bound guess
 					double x2    =  2.0;       // upper bound guess
 					double solverStep = 0.03;
@@ -1783,7 +1783,9 @@ int _tmain(int argc, WCHAR* argv[])
 					double coupon(0.0);
 					bool putFound(false);
 					double solveBarrier;
+					double previousBarrierYears(0.0);
 
+					// solve
 					switch (solveForThis){
 					case solveForCoupon:
 						// first see if there are any income barriers
@@ -1795,7 +1797,9 @@ int _tmain(int argc, WCHAR* argv[])
 							SpBarrier& b(spr.barrier.at(j));
 							if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && (int)b.brel.size()>0)){
 								couponFound = true;
-								coupon      = (b.payoff - (b.capitalOrIncome ? 1.0 : 0.0)) / b.totalBarrierYears;
+								// capitalBarrier: coupon times CUMULATIVE years; incomeBarriers: coupon times INTERVAL years
+								coupon      = (b.payoff - (b.capitalOrIncome ? 1.0 : 0.0)) / (b.capitalOrIncome ? b.totalBarrierYears : (b.totalBarrierYears - previousBarrierYears));								
+								previousBarrierYears = b.totalBarrierYears;
 							}
 						}
 						if (!couponFound){
@@ -1824,6 +1828,13 @@ int _tmain(int argc, WCHAR* argv[])
 						solverParam = solveBarrier;
 						break;
 					} // switch
+
+					// possibly done already
+					if (abs(evalResult.value - targetFairValue) < xacc){
+						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam);
+						std::cout << lineBuffer << std::endl;
+						return(0);
+					}
 
 
 					// initial values at upper/lower bound
