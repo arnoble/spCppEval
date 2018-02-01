@@ -1847,7 +1847,7 @@ int _tmain(int argc, WCHAR* argv[])
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					fl = evalResult1.value - targetFairValue;
 					if (fl == 0.0) {
-						spr.solverCommit(solveForThis, solverParam*x1); 
+						if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*x1); }
 						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*x1);
 						std::cout << lineBuffer << std::endl;
 						return(0);
@@ -1861,7 +1861,7 @@ int _tmain(int argc, WCHAR* argv[])
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					fh = evalResult2.value - targetFairValue;
 					if (fh == 0.0) {
-						spr.solverCommit(solveForThis, solverParam*x2);
+						if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*x2); }
 						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(),":", solverParam*x2);
 						std::cout << lineBuffer << std::endl;
 						return(0);
@@ -1902,7 +1902,7 @@ int _tmain(int argc, WCHAR* argv[])
 							(abs(f*2.0) > abs(dxold*df))){           // or not decreasing fast enough
 							dxold = dx; dx = 0.5*(xh - xl); rts = xl + dx;
 							if (xl == rts){
-								spr.solverCommit(solveForThis, solverParam*rts);
+								if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*rts); }
 								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 								std::cout << lineBuffer << std::endl;
 								return(0);
@@ -1911,14 +1911,14 @@ int _tmain(int argc, WCHAR* argv[])
 						else {                      // Newton step acceptable. Take it
 							dxold=dx; dx=f / df; temp=rts; rts -= dx;
 							if (temp == rts){
-								spr.solverCommit(solveForThis, solverParam*rts);
+								if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*rts); }
 								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 								std::cout << lineBuffer << std::endl;
 								return(0);
 							}                     // finish if change in root negligible
 						}
 						if (abs(dx) < xacc){
-							spr.solverCommit(solveForThis, solverParam*rts);
+							if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*rts); }
 							sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 							std::cout << lineBuffer << std::endl;
 							return(0);
