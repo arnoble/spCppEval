@@ -1938,13 +1938,16 @@ public:
 	// set some product param
 	void solverSet(const int solveForThis,const double paramValue){
 		int numBarriers = (int)barrier.size();
+		double previousBarrierYears(0.0);
 		switch (solveForThis){
 		case solveForCoupon:
-			// set each coupon to an annualised rate
+			// set each coupon to an annualised rate			
 			for (int j=0; j < numBarriers; j++){
 				SpBarrier& b(barrier.at(j));
 				if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && b.brel.size()>0)){
-					b.payoff  =  (b.capitalOrIncome ? 1.0 : 0.0) + paramValue * b.totalBarrierYears;
+					// capitalBarrier: coupon times CUMULATIVE years; incomeBarriers: coupon times INTERVAL years
+					b.payoff  =  (b.capitalOrIncome ? 1.0 : 0.0) + paramValue * (b.capitalOrIncome ? b.totalBarrierYears : (b.totalBarrierYears - previousBarrierYears));
+					previousBarrierYears = b.totalBarrierYears;
 				}
 			}
 			break;
