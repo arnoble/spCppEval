@@ -3093,7 +3093,7 @@ public:
 				double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 				double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
 				// analyse each results case
-				for (int analyseCase = 0; analyseCase < (doPriips || getMarketData ? 1 : 2); analyseCase++) {
+				for (int analyseCase = 0; analyseCase < (doPriips || getMarketData || useUserParams ? 1 : 2); analyseCase++) {
 					if (doDebug){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 					bool     applyCredit = analyseCase == 1;
 					std::map<int, double> cashflowMap;
@@ -3271,7 +3271,7 @@ public:
 						}
 						// ** SQL 
 						// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
-						if (updateCashflows && (!getMarketData || analyseCase == 0) && (!doPriips || (priipsUsingRNdrifts && !doPriipsStress))){
+						if (updateCashflows && ((!getMarketData && !useUserParams) || analyseCase == 0) && (!doPriips || (priipsUsingRNdrifts && !doPriipsStress))){
 							sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d", "update ", useProto, "barrierprob set Prob='", prob,
 								"',AnnReturn='", annReturn,
 								"',CondPayoff='", mean,
