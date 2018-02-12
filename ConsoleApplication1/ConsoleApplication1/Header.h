@@ -687,6 +687,7 @@ public:
 	MarketData(
 		std::vector<std::vector<double>>                    &ulVolsTenor,
 		std::vector< std::vector<std::vector<double>> >     &ulVolsStrike,
+		std::vector< std::vector<std::vector<double>> >     &ulVolsImpVol,
 		std::vector< std::vector<std::vector<double>> >     &ulVolsFwdVol,
 		std::vector<std::vector<double>>                    &oisRatesTenor,
 		std::vector<std::vector<double>>                    &oisRatesRate,
@@ -697,12 +698,13 @@ public:
 		std::vector<std::vector<double>>                    &corrsCorrelation,
 		std::vector<std::vector<int>>                       &fxcorrsOtherId,
 		std::vector<std::vector<double>>                    &fxcorrsCorrelation
-		) :ulVolsTenor(ulVolsTenor), ulVolsStrike(ulVolsStrike), ulVolsFwdVol(ulVolsFwdVol), oisRatesTenor(oisRatesTenor), oisRatesRate(oisRatesRate),
+		) :ulVolsTenor(ulVolsTenor), ulVolsStrike(ulVolsStrike), ulVolsImpVol(ulVolsImpVol), ulVolsFwdVol(ulVolsFwdVol), oisRatesTenor(oisRatesTenor), oisRatesRate(oisRatesRate),
 		divYieldsTenor(divYieldsTenor), divYieldsRate(divYieldsRate), divYieldsStdErr(divYieldsStdErr),corrsOtherId(corrsOtherId), corrsCorrelation(corrsCorrelation), fxcorrsOtherId(fxcorrsOtherId), fxcorrsCorrelation(fxcorrsCorrelation)
 		{
 		}
 	std::vector< std::vector<double> >                  &ulVolsTenor;
 	std::vector< std::vector<std::vector<double>> >     &ulVolsStrike;
+	std::vector< std::vector<std::vector<double>> >     &ulVolsImpVol; 
 	std::vector< std::vector<std::vector<double>> >     &ulVolsFwdVol;
 	std::vector<std::vector<double>>                    &oisRatesTenor;
 	std::vector<std::vector<double>>                    &oisRatesRate;
@@ -1815,7 +1817,7 @@ private:
 	const int                       bootstrapStride, daysExtant, productIndx;
 	const double                    benchmarkStrike,fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      doBumps,silent, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      localVol,doBumps, silent, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 
@@ -1867,7 +1869,8 @@ public:
 		const int                       settleDays,
 		const bool                      silent,
 		const bool                      doBumps,
-		const bool                      stochasticDrift
+		const bool                      stochasticDrift,
+		const bool                      localVol
 		)
 		: mydb(mydb),lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date), 
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -1878,7 +1881,8 @@ public:
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), 
-		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps), stochasticDrift(stochasticDrift) {};
+		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps), stochasticDrift(stochasticDrift),
+		localVol(localVol) {};
 
 	// public members: DOME consider making private
 	MyDB                           &mydb;
@@ -2011,8 +2015,9 @@ public:
 		const int                 numBarriers,
 		const int                 numUl,
 		const std::vector<int>    ulIdNameMap,
-		std::vector<int>          monDateIndx,
-		const double              recoveryRate, 
+		const std::vector<int>    monDateIndx,
+		const std::vector<double> monDateT, 
+		const double              recoveryRate,
 		const std::vector<double> hazardCurve,
 		MyDB                      &mydb,
 		double                    &accruedCoupon,
@@ -2221,7 +2226,7 @@ public:
 			// set up forwardVols for the period to each obsDate
 			double oneDay  = 1.0 / 365.25;
 			for (i=0; i<numMonDates; i++) {
-				ObsDatesT[i] = monDateIndx[i] * oneDay;
+				ObsDatesT[i] = monDateT[i] * oneDay;
 			}
 			for (i=0; i<numUl; i++) {
 				std::vector< std::vector<double>> &thisFwdVol = md.ulVolsFwdVol[i];
@@ -2316,7 +2321,7 @@ public:
 						double thisReturn, thisSig, thisValue, thatValue;
 
 						// what is the time now
-						thatT   = thatNumDays / 365.25;
+						thatT   = monDateT[thisMonIndx]/365.25;
 						/*
 						* get market data for each underlying, on this date
 						*/
@@ -2383,7 +2388,7 @@ public:
 
 								for (i = 0; i < numUl; i++) {
 									// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
-									thisSig = InterpolateMatrix(ObsDateVols[i], ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
+									thisSig = InterpolateMatrix(localVol ? md.ulVolsImpVol[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									//... calculate return for thisDt  for this underlying
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
 									currentLevels[i]       = currentLevels[i] * thisReturn;
