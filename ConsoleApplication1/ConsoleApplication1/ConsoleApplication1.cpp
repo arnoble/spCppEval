@@ -623,7 +623,7 @@ int _tmain(int argc, WCHAR* argv[])
 			double defaultFundingFraction = atof(szAllPrices[colProductDefaultFundingFraction]);
 			int    bootstrapStride        = atoi(szAllPrices[colProductBootstrapStride]);
 			int    settleDays             = atoi(szAllPrices[colProductSettleDays]);
-			double barrierBend            = atof(szAllPrices[colProductBarrierBend])  * (getMarketData && !doUKSPA && !doBumps && !doDeltas ? 1.0 : 0.0);
+			double barrierBend            = atof(szAllPrices[colProductBarrierBend])  * (getMarketData && !doUKSPA /* && !doBumps && !doDeltas */ ? 1.0 : 0.0);
 
 			useUserParams                 = userParametersId > 0 ? true : atoi(szAllPrices[colProductUseUserParams]) == 1;
 			string forceStartDate         = szAllPrices[colProductForceStartDate];
@@ -1427,23 +1427,25 @@ int _tmain(int argc, WCHAR* argv[])
 					productNeedsFullPriceRecord = true;
 					buildAveragingInfo(szAllPrices[colAvgInTenor], szAllPrices[colAvgInFreq], avgInDays, avgInFreq);
 				}
-				int barrierId          = atoi(szAllPrices[colProductBarrierId]);
-				int avgType            = atoi(szAllPrices[colAvgType]);
-				string barrierCommands = szAllPrices[colCommands];
-				bool isAbsolute        = atoi(szAllPrices[colIsAbsolute]     ) == 1;
-				bool isStrikeReset     = atoi(szAllPrices[colStrikeReset]    ) == 1;
-				bool isStopLoss        = atoi(szAllPrices[colStopLoss]       ) == 1;
-				bool isForfeitCoupons  = atoi(szAllPrices[colForfeitCoupons] ) == 1;
-				capitalOrIncome        = atoi(szAllPrices[colCapitalOrIncome]) == 1;
-				nature          = szAllPrices[colNature];
-				payoff          = atof(szAllPrices[colPayoff]) / 100.0;
-				settlementDate  = szAllPrices[colSettlementDate];
+				int barrierId           = atoi(szAllPrices[colProductBarrierId]);
+				int avgType             = atoi(szAllPrices[colAvgType]);
+				string barrierCommands  = szAllPrices[colCommands];
+				bool isAbsolute         = atoi(szAllPrices[colIsAbsolute]     ) == 1;
+				bool isStrikeReset      = atoi(szAllPrices[colStrikeReset]    ) == 1;
+				bool isStopLoss         = atoi(szAllPrices[colStopLoss]       ) == 1;
+				bool isForfeitCoupons   = atoi(szAllPrices[colForfeitCoupons] ) == 1;
+				capitalOrIncome         = atoi(szAllPrices[colCapitalOrIncome]) == 1;
+				nature                  = szAllPrices[colNature];
+				payoff                  = atof(szAllPrices[colPayoff]) / 100.0;
+				settlementDate          = szAllPrices[colSettlementDate];
+				double thisCoupon       = capitalOrIncome ? max(0.0, payoff - 1.0) : payoff;
+				double thisBarrierBend  = thisCoupon > 0.0 ? 0.1*thisCoupon : barrierBend;
 				// PRIIPs Intermediate Scenario?
-				description     = szAllPrices[colDescription];
-				avgInAlgebra    = szAllPrices[colAvgInAlgebra];
-				thisPayoffId    = atoi(szAllPrices[colPayoffId]); 
-				thisPayoffType  = payoffType[thisPayoffId];
-				participation   = atof(szAllPrices[colParticipation]);
+				description             = szAllPrices[colDescription];
+				avgInAlgebra            = szAllPrices[colAvgInAlgebra];
+				thisPayoffId            = atoi(szAllPrices[colPayoffId]);
+				thisPayoffType          = payoffType[thisPayoffId];
+				participation           = atof(szAllPrices[colParticipation]);
 				// barrier bend
 				string ucPayoffType(thisPayoffType);
 				transform(ucPayoffType.begin(), ucPayoffType.end(), ucPayoffType.begin(), toupper);
@@ -1451,12 +1453,12 @@ int _tmain(int argc, WCHAR* argv[])
 				double bendParticipation = participation > 0.0                            ?  1.0 : participation < 0.0                           ? -1.0 : 0.0;
 				double bendDirection     = bendCallPut * bendParticipation;
 				if (ucPayoffType.find("FIXED") != std::string::npos) { bendDirection  = -1.0; }
-				strike          = max(0.0,atof(szAllPrices[colStrike]) + barrierBend*bendDirection);
+				strike          = max(0.0,atof(szAllPrices[colStrike]) + thisBarrierBend*bendDirection);
 				cap             = max(0.0,atof(szAllPrices[colCap])    - barrierBend*bendDirection);
 				int     underlyingFunctionId = atoi(szAllPrices[colUnderlyingFunctionId]);
 				double  param1 = atof(szAllPrices[colParam1]);
 				if (ucPayoffType.find("BASKET") != std::string::npos){
-					param1 = max(0.0, param1 + barrierBend*bendDirection);
+					param1 = max(0.0, param1 + thisBarrierBend*bendDirection);
 				}
 				
 				/*
@@ -1484,7 +1486,7 @@ int _tmain(int argc, WCHAR* argv[])
 					bool   isAbsolute       = atoi(szAllPrices[brcolIsAbsolute]) == 1;
 					barrierRelationId       = atoi(szAllPrices[brcolBarrierRelationId]);
 					uid                     = atoi(szAllPrices[brcolUnderlyingId]);
-					barrier                 = max(0.0,atof(szAllPrices[brcolBarrier]) + barrierBend*bendDirection);
+					barrier                 = max(0.0,atof(szAllPrices[brcolBarrier]) + thisBarrierBend*bendDirection);
 					uBarrier                = atof(szAllPrices[brcolUpperBarrier])   ;
 					if (uBarrier > 999999 && uBarrier < 1000001.0) { uBarrier = NULL; } // using 1000000 as a quasiNULL, since C++ SQLFetch ignores NULL columns
 					if (uBarrier != NULL){ uBarrier = max(0.0, uBarrier + barrierBend*bendDirection); }
@@ -1510,7 +1512,7 @@ int _tmain(int argc, WCHAR* argv[])
 						if (uBarrier != NULL) { uBarrier       /= thisStrikeDatePrice; }
 						if (strikeOverride != 0.0)  { strikeOverride /= thisStrikeDatePrice; }
 					}
-					if (strikeOverride != 0.0)  { strikeOverride = max(0.0,strikeOverride + barrierBend*bendDirection); }
+					if (strikeOverride != 0.0)  { strikeOverride = max(0.0,strikeOverride + thisBarrierBend*bendDirection); }
 				
 					if (uid) {
 						// create barrierRelation
@@ -1965,6 +1967,7 @@ int _tmain(int argc, WCHAR* argv[])
 				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), thetaBumpAmount(0.0), rhoBumpAmount(0.0), creditBumpAmount(0.0);
 				if (doBumps && (deltaBumps || vegaBumps || thetaBumps || rhoBumps || creditBumps)  /* && daysExtant>0 */){
 					vector< vector<vector<double>> >  holdUlFwdVol(thisMarketData.ulVolsFwdVol);
+					vector< vector<vector<double>> >  holdUlImpVol(thisMarketData.ulVolsImpVol);
 					vector<vector<vector<double>>>    holdUlVolsStrike(thisMarketData.ulVolsStrike);
 					vector<double>                    holdCdsSpread(cdsSpread);
 					vector<SomeCurve>                 holdBaseCurve(baseCurve);
@@ -2080,6 +2083,7 @@ int _tmain(int argc, WCHAR* argv[])
 											}
 											// bump vols
 											thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
+											thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
 
 											cerr << "BUMP:" << ulId << " credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
 
@@ -2107,6 +2111,7 @@ int _tmain(int argc, WCHAR* argv[])
 											ulPrices[i].price[totalNumDays - 1] = spots[i];
 											// ... reinstate vols
 											thisMarketData.ulVolsFwdVol[i] = holdUlFwdVol[i];
+											thisMarketData.ulVolsImpVol[i] = holdUlImpVol[i];
 											thisMarketData.ulVolsStrike[i] = holdUlVolsStrike[i];
 										} // for (i=0; i < numUl; i++){
 										// for ALL underlyings
@@ -2140,6 +2145,7 @@ int _tmain(int argc, WCHAR* argv[])
 											}
 											// bump vols
 											thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
+											thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
 										}
 										// re-evaluate
 										cerr << "BUMPALL: credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
@@ -2176,6 +2182,7 @@ int _tmain(int argc, WCHAR* argv[])
 											ulPrices[i].price[totalNumDays - 1] = spots[i];
 											// ... reinstate vols
 											thisMarketData.ulVolsFwdVol[i] = holdUlFwdVol[i];
+											thisMarketData.ulVolsImpVol[i] = holdUlImpVol[i];
 											thisMarketData.ulVolsStrike[i] = holdUlVolsStrike[i];
 										} // for (i=0; i < numUl; i++){	
 									} // if (deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || thetaBumpAmount != 0.0){
