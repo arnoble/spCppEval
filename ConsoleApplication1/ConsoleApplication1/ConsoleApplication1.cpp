@@ -1439,7 +1439,7 @@ int _tmain(int argc, WCHAR* argv[])
 				payoff                  = atof(szAllPrices[colPayoff]) / 100.0;
 				settlementDate          = szAllPrices[colSettlementDate];
 				double thisCoupon       = capitalOrIncome ? max(0.0, payoff - 1.0) : payoff;
-				double thisBarrierBend  = thisCoupon > 0.0 ? 0.1*thisCoupon : barrierBend;
+				double thisBarrierBend  = getMarketData && !doUKSPA ? thisCoupon > 0.0 ? 0.1*thisCoupon : barrierBend : 0.0;
 				// PRIIPs Intermediate Scenario?
 				description             = szAllPrices[colDescription];
 				avgInAlgebra            = szAllPrices[colAvgInAlgebra];
