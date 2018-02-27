@@ -103,7 +103,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
 		double           targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
-		double           deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
+		double           deltaBumpAmount(0.05),deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0);
 		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1),solveForThis(0);
 		boost::gregorian::date lastDate;
@@ -229,12 +229,18 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 			}
 			if (strstr(thisArg, "doDeltas")){
-					getMarketData   = true;
-					doDeltas        = true; 
-					doBumps         = true;
-					deltaBumpStart  = -0.05;
-					deltaBumpStep   =  0.05;
-					deltaBumps      = 3;
+				char *token = std::strtok(thisArg, ":");
+				std::vector<std::string> tokens;
+				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
+				if ((int)tokens.size() > 1){ 
+					deltaBumpAmount = fabs(atof(tokens[1].c_str()));
+				}
+				getMarketData   = true;
+				doDeltas        = true; 
+				doBumps         = true;
+				deltaBumpStart  = -deltaBumpAmount;
+				deltaBumpStep   =  deltaBumpAmount;
+				deltaBumps      = 3;
 			}
 
 			if (sscanf(thisArg, "planSelect:%s", lineBuffer)){
@@ -2095,7 +2101,8 @@ int _tmain(int argc, WCHAR* argv[])
 												productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 											if (doDeltas){
 												if (deltaBumpAmount != 0.0){
-													double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
+													//  Elasticity: double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
+													double  delta = (bumpedFairValue - thisFairValue) / deltaBumpAmount/issuePrice;
 													sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
 													sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", ulIds[i], ",", productId, ")");
 													mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -2156,7 +2163,8 @@ int _tmain(int argc, WCHAR* argv[])
 											productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 										if (doDeltas) {
 											if (deltaBumpAmount != 0.0){
-												double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
+												//  Elasticity: double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
+												double  delta = (bumpedFairValue - thisFairValue) / deltaBumpAmount / issuePrice;
 												sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
 												sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", 0, ",", productId, ")");
 												mydb.prepare((SQLCHAR *)lineBuffer, 1);
