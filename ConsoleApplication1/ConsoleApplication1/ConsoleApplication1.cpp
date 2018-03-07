@@ -458,6 +458,7 @@ int _tmain(int argc, WCHAR* argv[])
 			bmSwapRate = atof(szAllPrices[0]);			
 		}
 		double projectedReturn = (thisNumIterations <= 1 ? 0.0 : (doPriips ? 0.08 : 1.0)); 
+
 		double bmEarithReturn(0.0), bmVol(0.18);
 		sprintf(lineBuffer, "%s%.4lf%s","SELECT EarithReturn ArithmeticReturn_pa, esVol*sqrt(duration) Volatility from cashflows where ProductId=71 and ProjectedReturn='",projectedReturn,"'");
 		mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
@@ -465,7 +466,9 @@ int _tmain(int argc, WCHAR* argv[])
 			bmEarithReturn = atof(szAllPrices[0]);
 			bmVol          = atof(szAllPrices[1]);
 		}
+	
 		
+
 		// deal with any optimisation demands
 		if (forOptimisation){
 			// find #underlyings

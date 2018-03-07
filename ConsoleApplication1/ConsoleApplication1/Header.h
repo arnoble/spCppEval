@@ -1862,7 +1862,7 @@ public:
 		const bool                      forOptimisation, 
 		const int                       productIndx,
 		const double                    bmSwapRate, 
-		const double                    bmEarithReturn, 
+		const double                    bmEarithReturn,
 		const double                    bmVol,
 		const double                    cds5y,
 		const int                       bootstrapStride,
@@ -1880,7 +1880,7 @@ public:
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
-		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride), 
+		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol) {};
 
@@ -3411,9 +3411,7 @@ public:
 						benchmarkCondOutperf = cumValue1 / cumCount1;
 						bmRelOutperfPV       = cumOutperfPV / cumCount1;
 					}
-					bmRelCAGR = sumYearsToBarrier > 0.0 ? exp(bmRelCAGR / sumYearsToBarrier) - 1.0 : 0.0;
-
-
+					bmRelCAGR       = sumYearsToBarrier > 0.0 ? exp(bmRelCAGR / sumYearsToBarrier) - 1.0 : 0.0;
 
 					// ** process overall product results
 					const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
@@ -3517,6 +3515,9 @@ public:
 					const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
 					int numShortfall((int)floor(confLevel    * (double)numAnnRets));
 					int numShortfallTest((int)floor(confLevelTest*(double)numAnnRets));
+					// NOTE: eShortfall (which an average of annRets) will be HIGHER than the AnnRet of a KIP barrier, as shown in barrierprob table, which annualises the averagePayoff
+					// ... due to Jensen's inequality: f(average) != average(f)
+					// ... for example try 2 6y payoffs of 0.1 and 0.6
 					double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){ eShortfall     += allAnnRets[i]; }	if (numShortfall){ eShortfall     /= numShortfall; }
 					double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allPayoffs[i]; }	if (numShortfallTest){ eShortfallTest /= numShortfallTest; }
 					double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
@@ -3622,7 +3623,7 @@ public:
 						}
 						else{
 							sprintf(lineBuffer, "%s%s%.5lf%s", lineBuffer, "ESvol='", priipsUsingRNdrifts ? scaledVol : esVol, priipsUsingRNdrifts ? "'/sqrt(duration) +'0" : "");   // pesky way to pick up previously saved realWorld duration						
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkReturn='", productBmReturn);
+							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkReturn='", productBmReturn);  // NOTE this is the FORCED comparision against the capital-market-line and NOT the bm-relative return
 							sprintf(lineBuffer, "%s%s%s%.5lf%s", lineBuffer, "',ProductExcessReturn=", priipsUsingRNdrifts ? "EArithReturn - " : "", priipsUsingRNdrifts ? productBmReturn:productExcessReturn,"+'0");
 							if (priipsUsingRNdrifts){
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
