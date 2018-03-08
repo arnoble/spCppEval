@@ -2293,6 +2293,7 @@ public:
 		std::vector<double> debugCorrelatedRandNos;
 		int numDisables(0);
 		int randnosStoreSize = (int)randnosStore.size();
+		double lognormalAdj = useUserParams ? 0.0 : 0.5;
 		for (thisIteration = 0; thisIteration < numMcIterations &&
 			(!consumeRands || randnoIndx<=randnosStoreSize)     && 
 			(forceIterations || fabs(stdevRatioPctChange)>accuracyTol); thisIteration++) {
@@ -2316,7 +2317,6 @@ public:
 					for (int thisMonIndx = 0; thisMonIndx < numMonDates; thisMonIndx++){
 						int thatNumDays     = monDateIndx[thisMonIndx];
 						int thisMonPoint    = startPoint + thatNumDays;
-						double lognormalAdj = 0.5;
 						const std::string   thatDateString(allDates.at(thisMonPoint));
 						double thisReturn, thisSig, thisValue, thatValue;
 
@@ -3045,7 +3045,7 @@ public:
 				if (!silent) {
 					for (i = 0; i < numUl; i++) {
 						MeanAndStdev(simulatedReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
-						std::cout << "Simulated annualised drift rate (inc. quanto) to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << std::endl;
+						std::cout << "Simulated annualised drift rate (inc. quanto) to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << " spot:" << spotLevels[i] << std::endl;
 						MeanAndStdev(simulatedLogReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
 						std::cout << "Simulated vol to:" << ulPrices[i].date[startPoint + productDays] << " :" << thisStd / sqrt(productDays / 365) << " for:" << ulNames[i] << std::endl;
 						MeanAndStdev(simulatedLevelsToMaxYears[i], thisMean, thisStd, thisStderr);
