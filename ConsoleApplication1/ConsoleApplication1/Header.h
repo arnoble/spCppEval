@@ -3049,7 +3049,7 @@ public:
 						MeanAndStdev(simulatedLogReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
 						std::cout << "Simulated vol to:" << ulPrices[i].date[startPoint + productDays] << " :" << thisStd / sqrt(productDays / 365) << " for:" << ulNames[i] << std::endl;
 						MeanAndStdev(simulatedLevelsToMaxYears[i], thisMean, thisStd, thisStderr);
-						std::cout << "Simulated final level (inc. quanto) at:" << ulPrices[i].date[startPoint + productDays] << ":" << thisMean << " for:" << ulNames[i] << " (" << productDays / 365.0 << "y):" << std::endl;
+						std::cout << "Simulated final level (inc. quanto) at:" << ulPrices[i].date[startPoint + productDays] << ":" << thisMean << "(" << thisMean / spotLevels[i] << ") for:" << ulNames[i] << " (" << productDays / 365.0 << "y):" << std::endl;
 					}
 				}
 
