@@ -2745,10 +2745,10 @@ public:
 										matured         = true;
 										maturityBarrier = thisBarrier;
 										// add forwardValue of paidOutCoupons
-										if (couponPaidOut) {
+										if (couponPaidOut && !doAccruals) {
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
 												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] &&
-													(barrier[paidOutBarrier].yearsToBarrier >= 0.0 || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
+													(barrier[paidOutBarrier].yearsToBarrier >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
 													SpBarrier &ib(barrier[paidOutBarrier]);
 													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
@@ -3024,7 +3024,7 @@ public:
 
 				if (matured){
 					const SpBarrier&    b(barrier.at(maturityBarrier));
-					double thisAmount    = issuePrice * (b.hitWithDate[0].amount - (couponPaidOut ? b.couponValues[0] : 0.0));
+					double thisAmount    = issuePrice * (b.hitWithDate[0].amount); // -(couponPaidOut ? b.couponValues[0] : 0.0));
 					productHasMatured    = true;
 					// save capital payoff
 					sprintf(lineBuffer, "%s%lf%s%s%s%d%s", "update product join cashflows using (productid) set Matured=1,MaturityPayoff=", thisAmount, ",DateMatured='", b.settlementDate.c_str(), "' where productid=", productId, " and projectedreturn=1");
