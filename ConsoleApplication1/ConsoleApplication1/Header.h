@@ -3788,7 +3788,7 @@ public:
 							ecStrictGain*probStrictGain, ":",
 							ecLoss*probLoss, ":",
 							duration, ":",
-							riskCategory, ":",
+							priipsUsingRNdrifts && !doPriipsStress ? riskScorePriips : riskCategory, ":",
 							riskScore1to10, ":",
 							winLose, ":",
 							100.0*eShortfall, ":",
