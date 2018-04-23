@@ -2973,6 +2973,11 @@ public:
 		}  // forOptimisation
 		else {
 			// if we are doing accruals
+
+
+
+
+
 			if (doAccruals){
 				accruedCoupon = couponValue;  // store accrued coupon
 				/*
@@ -2983,7 +2988,7 @@ public:
 				bool found(false);
 				// get coupon barriers, provided couponPaidOut
 				if (couponPaidOut){
-					for (i=0; i < maturityBarrier; i++){
+					for (i=0; i < numBarriers; i++){
 						const SpBarrier&    ib(barrier.at(i));
 						if (ib.capitalOrIncome == 0 && (int)ib.hitWithDate.size()>0){
 							sprintf(lineBuffer, "%s%s%s%d%s%s%s%lf%s%s%s", lineBuffer, found ? "," : "", "(", productId, ",'", ib.hitWithDate[0].date.c_str(), "',", ib.hitWithDate[0].amount, ",'", productCcy.c_str(), "')");
