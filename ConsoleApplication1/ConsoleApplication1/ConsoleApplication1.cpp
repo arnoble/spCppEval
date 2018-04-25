@@ -708,7 +708,15 @@ int _tmain(int argc, WCHAR* argv[])
 			cout << endl << endl << productIndx << " of " << numProducts << "\nIterations:" << thisNumIterations << " ProductId:" << productId << endl << endl;
 			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
-
+			// see if product has levelsCall payoffs ... in which case we do not do a lognormalShift of the underlyings
+			bool doPriceShift(true);
+			if (thisNumIterations <= 1){
+				sprintf(lineBuffer, "%s%d%s", "select count(*) from productbarrier join payofftype pt using (payofftypeid) where productid='", productId, "' and pt.name like 'levels%'");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(true, lineBuffer);
+				if (retcode == SQL_SUCCESS && szAllPrices[0] > 0){ doPriceShift = false; }
+			}
+			
 			// get counterparty info
 			// ...mult-issuer product's have comma-separated issuers...ASSUMED equal weight
 			sprintf(lineBuffer, "%s%d%s", "select EntityName from institution where institutionid='", counterpartyId, "' ");
@@ -972,29 +980,31 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 
 			// shift prices if necessary - crude attempt to do shifted-lognormal analysis, where for example rates are negative
-			for (i=0; i<numUl; i++) {
-				if (minPrices[i] <= 0.0){
-					double thisShift = -minPrices[i] + 0.1*(maxPrices[i] - minPrices[i]);
-					for (j=0; j<(int)ulOriginalPrices[0].price.size(); j++){
-						ulOriginalPrices[i].price[j] += thisShift;
-					}
-					firstTime = true;
-
-					for (k=j=0; j<(int)ulOriginalPrices[0].price.size(); j++){
-						double previousPrice;
-						if (!ulOriginalPrices.at(i).nonTradingDay[j]){
-							if (firstTime){ firstTime = false; }
-							else { 
-								ulReturns[i][k++] = ulOriginalPrices[i].price[j] / previousPrice; 
-							}
-							previousPrice = ulOriginalPrices[i].price[j];
+			if (doPriceShift){
+				for (i=0; i<numUl; i++) {
+					if (minPrices[i] <= 0.0){
+						double thisShift = -minPrices[i] + 0.1*(maxPrices[i] - minPrices[i]);
+						for (j=0; j<(int)ulOriginalPrices[0].price.size(); j++){
+							ulOriginalPrices[i].price[j] += thisShift;
 						}
+						firstTime = true;
+
+						for (k=j=0; j<(int)ulOriginalPrices[0].price.size(); j++){
+							double previousPrice;
+							if (!ulOriginalPrices.at(i).nonTradingDay[j]){
+								if (firstTime){ firstTime = false; }
+								else {
+									ulReturns[i][k++] = ulOriginalPrices[i].price[j] / previousPrice;
+								}
+								previousPrice = ulOriginalPrices[i].price[j];
+							}
+						}
+						shiftPrices[i]   = thisShift;
+						doShiftPrices[i] = true;
 					}
-					shiftPrices[i]   = thisShift;
-					doShiftPrices[i] = true;
 				}
 			}
-
+			
 			totalNumDays         = (int)ulOriginalPrices.at(0).price.size();
 			lastDataDateString   = ulOriginalPrices.at(0).date[totalNumDays - 1];
 			totalNumReturns      = totalNumDays - 1;
