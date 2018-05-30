@@ -729,9 +729,16 @@ int _tmain(int argc, WCHAR* argv[])
 			for (i = 1; i < (int)counterpartyNames.size(); i++){
 				sprintf(charBuffer, "%s%s%s%s", charBuffer, ",'", counterpartyNames.at(i).c_str(), "'");
 			}
-			sprintf(lineBuffer, "%s%s%s", "select Maturity,avg(Spread) Spread from cdsspread join institution using (institutionid) where EntityName in (", charBuffer,
-				") and spread is not null group by Maturity order by Maturity");
 
+			// see if there are ccy-specific spreads
+			if (counterpartyNames.size()>1){
+				sprintf(lineBuffer, "%s%s%s", "select Maturity,avg(Spread) Spread from cdsspread join institution using (institutionid) where EntityName in (", charBuffer,
+					") and spread is not null group by Maturity order by Maturity");
+			}
+			else {
+				sprintf(lineBuffer, "%s%d%s%s%s%d%s","select * from (select maturity,spread from cdsspread where institutionid=", counterpartyId,
+					" and ccy='", productCcy.c_str(), "'  union select maturity,spread from cdsspread where institutionid=",counterpartyId,"  and ccy='')x group by Maturity order by Maturity");
+			}
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
 			retcode = mydb.fetch(false,lineBuffer);
 			vector<double> cdsTenor, cdsSpread;
