@@ -1019,7 +1019,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int daysExtant = (bLastDataDate - bProductStartDate).days();
 			// change to ASK; to use MID do: (bidPrice + askPrice) / (2.0*issuePrice)
 			bool ignoreBidAsk    = ((bidAskDateString < lastDataDateString) || stalePrice);
-			bool validFairValue  = (fairValueDateString == lastDataDateString) && (daysExtant > 14);
+			bool validFairValue  = (fairValueDateString == lastDataDateString) && (daysExtant > 14) && fairValuePrice>0.0;
 			bool isPostStrike    = productStartDateString < lastDataDateString;
 			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue && isPostStrike ? fairValuePrice : issuePrice) : askPrice)) / issuePrice;
 			if (strlen(endDate)){
