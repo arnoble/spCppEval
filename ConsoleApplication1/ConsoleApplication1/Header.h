@@ -90,6 +90,17 @@ double ArtsRan(){
 	double answer = randomNumber.bits[0] * normalizer;
 	return(answer);
 }
+void logMessage(const int productId,const std::string msg){
+	std::time_t t = time(NULL);
+	std:: tm* timePtr = localtime(&t);
+	std::ofstream myfile;
+	myfile.open("logMessage.txt", std::ios::out | std::ios::app );
+	myfile << (timePtr->tm_mday) << "/" << (timePtr->tm_mon) + 1 << "/" << (timePtr->tm_year) + 1900 << " ";
+	myfile << (timePtr->tm_hour) << ":" << (timePtr->tm_min) << ":" << (timePtr->tm_sec) << " ";
+
+	myfile << productId << msg << std::endl;
+	myfile.close();
+}
 /*
 * evalAlgebra
 */
@@ -3067,6 +3078,10 @@ public:
 						numAllEpisodes += (int)b.hit.size();
 					}
 					hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
+				}
+				if (numAllEpisodes != thisIteration){
+					numAllEpisodes = thisIteration;
+					logMessage(productId, " **** BEWARE - STRONGLY SUGGEST YOU INVESTIGATE  ****  seems like Capital events do not cover 100% of possible events");
 				}
 				// couponHistogram
 				if (!usingProto && !getMarketData && !doPriips && ukspaCase == ""){
