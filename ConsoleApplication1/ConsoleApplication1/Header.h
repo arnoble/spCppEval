@@ -3068,7 +3068,7 @@ public:
 					}
 					hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
 				}
-				if (numAllEpisodes != thisIteration){
+				if (numMcIterations>1 && numAllEpisodes != thisIteration){
 					numAllEpisodes = thisIteration;
 					sprintf(lineBuffer, "%s%d%s%d%s", "insert into cpluspluslog (DateTime,ProductId,UserId,Msg) values(now(),", productId, ",", userId, ",' **** BEWARE - STRONGLY SUGGEST YOU INVESTIGATE  ****  seems like Capital events do not cover 100% of possible events')");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);					
