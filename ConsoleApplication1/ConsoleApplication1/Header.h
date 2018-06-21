@@ -2054,7 +2054,7 @@ public:
 		EvalResult               evalResult(0.0,0.0);
 		std::vector<bool>		 barrierDisabled;
 		const int                optMaxNumToSend = 1000;
-		const double             unwindPayoff    = 0.01; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
+		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
 		bool                     optFirstTime;
 		bool	                 optOptimiseAnnualisedReturn(!getMarketData); 
 		bool                     matured;
