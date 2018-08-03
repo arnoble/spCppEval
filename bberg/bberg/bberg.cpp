@@ -231,7 +231,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				sprintf(lineBuffer, "%s%s%s%s",
 					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg,cp.BbergIssuerPrice from  ",
 					" product p join institution i on (p.CounterpartyId=i.InstitutionId),institution cp left join cdsspread cds using (institutionid)  where p.ProductId ",
-					idBuffer, " and i.entityname like concat('%',cp.entityname,'%') order by institutionId,maturity;");
+					idBuffer, " and i.entityname like concat('%',cp.entityname,'%') and Matured='0' order by institutionId,maturity;");
 				mydb.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb.fetch(true);
 				int     institutionId = -1, previousInstitutionId = -1;
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
