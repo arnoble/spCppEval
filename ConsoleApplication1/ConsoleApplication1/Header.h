@@ -777,6 +777,9 @@ public:
 				// eg 08S01	Communication link failure
 				printf("%s%c%c%s%c%c%c:%d:%s\n", "SQLSTATE Class:", state[0], state[1], "SQLSTATE SUBClass:", state[2], state[3], state[4], native, cptr);
 			}
+			else{
+				fprintf(stderr, "\nSQLGetDiagRec call failed\n");
+			}
 		} while (ret == SQL_SUCCESS);
 	}
 	// open connection to DataSource newSp
@@ -818,7 +821,7 @@ public:
 			numAttempts += 1;
 		} while (!SQL_SUCCEEDED(fsts) && numAttempts<10);
 		if (!SQL_SUCCEEDED(fsts))	{
-			char thisBuffer[200]; sprintf(thisBuffer, "SQLConnect for connect >>%ls<<", szDSN);
+			char thisBuffer[200]; sprintf(thisBuffer, "SQLConnect for connect >>%ls<< UID >>%ls<< PWD >>%ls<<", szDSN, szUID, szPasswd);
 			extract_error(thisBuffer, "", hDBC, SQL_HANDLE_DBC);
 			// std::cerr << "Connection params " << szDSN << szUID << szPasswd << "\n";
 			exit(104);
