@@ -100,10 +100,10 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		sprintf(lineBuffer,"%s%s%s", lineBuffer, idBuffer, " and Matured='0'");
 		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	
-		retcode = mydb.fetch(true);
+		retcode = mydb.fetch(true, lineBuffer);
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			int x(atoi(szAllBufs[0])); allProductIds.push_back(x);
-			retcode = mydb.fetch(false);
+			retcode = mydb.fetch(false, lineBuffer);
 		}
 		if (commaSepList == 1 && allProductIds.size() > 0){
 			startProductId = allProductIds[0];
@@ -120,7 +120,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			idBuffer, " and Matured='0' ", startProductId == stopProductId ? "" : " and strikedate<now() ", " order by ProductId; ");
 			// std::cout << "\ngetting prices with SQL " << lineBuffer << std::endl; 
 			mydb.prepare((SQLCHAR *)lineBuffer, 6);
-			retcode = mydb.fetch(false);  // set to false, since there may not be any deals with ISINs
+			retcode = mydb.fetch(false, lineBuffer);  // set to false, since there may not be any deals with ISINs
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				int id(atoi(szAllBufs[0]));
 				string tickerString = szAllBufs[4];
@@ -177,7 +177,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						mydb1.prepare((SQLCHAR *)charBuffer, 1);
 					}
 				}
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false, charBuffer);
 			}
 
 		}
@@ -189,7 +189,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			vector<string> curveTableNames ={"curve","oncurve"};
 			for (auto thisName = begin(curveTableNames); thisName != end(curveTableNames); ++thisName) {
 				sprintf(lineBuffer, "%s%s%s", "select ccy,tenor,bberg from ",thisName," order by ccy,Tenor;");
-				mydb.prepare((SQLCHAR *)lineBuffer, 3); 	retcode = mydb.fetch(true);
+				mydb.prepare((SQLCHAR *)lineBuffer, 3); 	retcode = mydb.fetch(true, lineBuffer);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 					char   *ccy = szAllBufs[0];
 					char   *tenor = szAllBufs[1];
@@ -205,7 +205,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					else {
 						std::cerr << "Failed to get prices for " << tickerString << std::endl;
 					}
-					retcode = mydb.fetch(false);
+					retcode = mydb.fetch(false, charBuffer);
 				}
 			}
 		}
@@ -232,7 +232,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					"select distinct cp.institutionid, cp.name,cds.maturity,cds.bberg,cp.bberg,cp.BbergIssuerPrice from  ",
 					" product p join institution i on (p.CounterpartyId=i.InstitutionId),institution cp left join cdsspread cds using (institutionid)  where p.ProductId ",
 					idBuffer, " and i.entityname like concat('%',cp.entityname,'%') and Matured='0' order by institutionId,maturity;");
-				mydb.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb.fetch(true);
+				mydb.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb.fetch(true, lineBuffer);
 				int     institutionId = -1, previousInstitutionId = -1;
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 					institutionId             = atoi(szAllBufs[0]);
@@ -273,6 +273,14 @@ int _tmain(int argc, _TCHAR* argv[])
 								if (fieldScaling[i]){
 									sprintf(resultBuffer, fieldFormat[i], atof(resultBuffer) / fieldScaling[i]);
 								}
+								else {  // remove spaces
+									std::regex r("[\\s\\t]");
+									std:string s = resultBuffer;
+									cout << "OLD:" << s << endl;
+									s = std::regex_replace(s, r, "");
+									cout << "NEW:" << s << endl;
+									sprintf(resultBuffer, "%s", s.c_str());
+								}
 								sprintf(charBuffer, "%s%s%s%s%s%d%s", "update institution set ", fieldName[i], "='", resultBuffer, "' where institutionid='", institutionId, "';");
 								mydb1.prepare((SQLCHAR *)charBuffer, 1);
 							}
@@ -299,7 +307,7 @@ int _tmain(int argc, _TCHAR* argv[])
 						strcpy(cdsBberg, ""); // some institutions have no CDS...so MySQL will return a NULL, leaving cdsBberg at its old value, typically for the previous institution 
 						strcpy(cpBberg, "");
 					}
-					retcode = mydb.fetch(false);
+					retcode = mydb.fetch(false, charBuffer);
 				}
 			}
 
@@ -307,7 +315,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			// now handle issuers with MULTI in name - assume all sub-names equally weighted
 			//
 			sprintf(lineBuffer, "%s", "select institutionid,EntityName from  institution where name like 'MULTI%' ");
-			mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true);
+			mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				int institutionId = atoi(szAllBufs[0]);
 				char subNameBuffer[1000];
@@ -328,7 +336,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					sprintf(subNameBuffer, "%s%s%s%s", subNameBuffer, "'", subNames[j].c_str(), "'");
 				}
 				sprintf(lineBuffer, "%s%s%s", lineBuffer, subNameBuffer, ");");
-				mydb1.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb1.fetch(true);
+				mydb1.prepare((SQLCHAR *)lineBuffer, 6); 	retcode = mydb1.fetch(true, lineBuffer);
 				vector<int> spRatings, moRatings, fiRatings;
 				vector<double> tierOne, drskProbs;
 				map<string, int> SPscore, MoScore, FiScore;
@@ -340,9 +348,9 @@ int _tmain(int argc, _TCHAR* argv[])
 					if (strcmp(szAllBufs[1], "0") && strcmp(szAllBufs[1], "") && SPscore.find(szAllBufs[1]) != SPscore.end()) { spRatings.push_back(SPscore[szAllBufs[1]]); }
 					if (strcmp(szAllBufs[2], "0") && strcmp(szAllBufs[2], "") && MoScore.find(szAllBufs[2]) != MoScore.end()) { moRatings.push_back(MoScore[szAllBufs[2]]); }
 					if (strcmp(szAllBufs[3], "0") && strcmp(szAllBufs[3], "") && SPscore.find(szAllBufs[3]) != SPscore.end()) { fiRatings.push_back(SPscore[szAllBufs[3]]); }
-					double thisTierOne = atof(szAllBufs[4]); if (thisTierOne > 0.0) { tierOne.push_back(thisTierOne); }
-					double thisDrsk = atof(szAllBufs[5]); if (thisDrsk    > 0.0) { drskProbs.push_back(thisDrsk); }
-					retcode = mydb1.fetch(false);
+					double thisTierOne = atof(szAllBufs[4]); tierOne.push_back(thisTierOne > 0.0 ? thisTierOne : 0.0);
+					double thisDrsk    = atof(szAllBufs[5]); drskProbs.push_back(thisDrsk  > 0.0 ? thisDrsk    : 0.0);
+					retcode = mydb1.fetch(false, lineBuffer);
 				}
 				int thisSpScore = std::accumulate(spRatings.begin(), spRatings.end(), 0.0) / spRatings.size();
 				string thisSpRating = FindMapKeyIndx(SPscore, thisSpScore);
@@ -353,7 +361,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				double thisTierOneScore = std::accumulate(tierOne.begin(), tierOne.end(), 0.0) / tierOne.size();
 				double thisDrskScore = std::accumulate(drskProbs.begin(), drskProbs.end(), 0.0) / drskProbs.size();
 				// update static data for MULTI institution
-				sprintf(charBuffer, "%s%s%s%s%s%s%s%lf,%s%lf%s%d%s",
+				sprintf(charBuffer, "%s%s%s%s%s%s%s%lf%s%lf%s%d%s",
 					"update institution set SPrating='", thisSpRating.c_str(),
 					"',Moody='", thisMoRating.c_str(),
 					"',Fitch='", thisFiRating.c_str(),
@@ -365,15 +373,15 @@ int _tmain(int argc, _TCHAR* argv[])
 				// update CDS rates
 				sprintf(lineBuffer, "%s", "select Maturity,avg(Spread) Spread from cdsspread join institution using (institutionid) where EntityName in (");
 				sprintf(lineBuffer, "%s%s%s", lineBuffer, subNameBuffer, ") and Spread is not null group by Maturity order by Maturity;");
-				mydb1.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb1.fetch(true);
+				mydb1.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb1.fetch(true, lineBuffer);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 					sprintf(charBuffer, "%s%d%s%s%s%s%s%s%s",
-						"replace into cdsspread values (", institutionId, ",", szAllBufs[0], ",", szAllBufs[1], ",'','", isoDate, "');");
+						"replace into cdsspread values (", institutionId, ",", szAllBufs[0], ",", szAllBufs[1], ",'','", isoDate, "','');");
 					mydb2.prepare((SQLCHAR *)charBuffer, 1);
-					retcode = mydb1.fetch(false);
+					retcode = mydb1.fetch(false, charBuffer);
 				}
 				// get next institution
-				retcode = mydb.fetch(false);
+				retcode = mydb.fetch(false, charBuffer);
 			}
 		}
 

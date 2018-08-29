@@ -200,6 +200,7 @@ public:
 	// get info on SQL error
 	void extract_error(
 		char *fn,
+		const char *msg,
 		SQLHANDLE handle,
 		SQLSMALLINT type)
 	{
@@ -212,7 +213,8 @@ public:
 		fprintf(stderr,
 			"\n"
 			"The driver reported the following diagnostics whilst running "
-			"%s\n\n",
+			"%s for %s\n\n",
+			msg,
 			fn);
 		do	{
 			ret = SQLGetDiagRec(type, handle, ++i, &state[0], &native, &text[0], (SQLSMALLINT) sizeof(text), &len);
@@ -232,13 +234,13 @@ public:
 
 		fsts = SQLAllocHandle(SQL_HANDLE_DBC, hEnv, hDBC);  // Allocate memory for the connection handle
 		if (!SQL_SUCCEEDED(fsts))	{
-			extract_error("SQLAllocHandle for dbc", hEnv, SQL_HANDLE_ENV);
+			extract_error("SQLAllocHandle for dbc", "",hEnv, SQL_HANDLE_ENV);
 			exit(1);
 		}
 		// Connect to Data Source
 		fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
 		if (!SQL_SUCCEEDED(fsts))	{
-			extract_error("SQLConnect ", *hDBC, SQL_HANDLE_DBC);
+			extract_error("SQLConnect ","", *hDBC, SQL_HANDLE_DBC);
 			exit(1);
 		}
 		return fsts;
@@ -252,13 +254,13 @@ public:
 
 		fsts = SQLAllocHandle(SQL_HANDLE_DBC, hEnv, hDBC);  // Allocate memory for the connection handle
 		if (!SQL_SUCCEEDED(fsts))	{
-			extract_error("SQLAllocHandle for dbc", hEnv, SQL_HANDLE_ENV);
+			extract_error("SQLAllocHandle for dbc","", hEnv, SQL_HANDLE_ENV);
 			exit(1);
 		}
 		// Connect to Data Source
 		fsts = SQLConnect(*hDBC, szDSN, SQL_NTS, szUID, SQL_NTS, szPasswd, SQL_NTS); // use SQL_NTS for length...NullTerminatedString
 		if (!SQL_SUCCEEDED(fsts))	{
-			extract_error("SQLConnect ", *hDBC, SQL_HANDLE_DBC);
+			extract_error("SQLConnect ","", *hDBC, SQL_HANDLE_DBC);
 			exit(1);
 		}
 		return fsts;
@@ -282,7 +284,7 @@ public:
 		fsts  =  SQLAllocStmt(hDBC, &hStmt); 	 // Allocate memory for statement handle
 		fsts  =  SQLPrepareA(hStmt, thisSQL, SQL_NTS);                 // Prepare the SQL statement	
 		fsts  =  SQLExecute(hStmt);                                     // Execute the SQL statement
-		if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute get basic info ", hStmt, SQL_HANDLE_STMT);	exit(1); }
+		if (!SQL_SUCCEEDED(fsts))	{ extract_error("SQLExecute get basic info ", (char *)thisSQL,hStmt, SQL_HANDLE_STMT);	exit(1); }
 		for (int i = 0; i < numCols; i++){
 			SQLBindCol(hStmt, i + 1, SQL_C_CHAR, bindBuffer[i], bufSize, &cbModel); // bind columns
 		}
@@ -290,17 +292,17 @@ public:
 	void bind(int col, char *buffer) {
 		SQLBindCol(hStmt, col, SQL_C_CHAR, buffer, bufSize, &cbModel); // bind columns
 	}
-	SQLRETURN fetch(bool checkForErrors){
+	SQLRETURN fetch(bool checkForErrors, const char *msg){
 		fsts = SQLFetch(hStmt);
 		if (checkForErrors){
-			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLFetch", hStmt, SQL_HANDLE_STMT);	exit(1); }
+			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLFetch", msg,hStmt, SQL_HANDLE_STMT);	exit(1); }
 		}
 		return fsts;
 	}
-	SQLRETURN execute(bool checkForErrors){
+	SQLRETURN execute(bool checkForErrors, const char *msg){
 		fsts = SQLExecute(hStmt);
 		if (checkForErrors){
-			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", hStmt, SQL_HANDLE_STMT);	exit(1); }
+			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", msg,hStmt, SQL_HANDLE_STMT);	exit(1); }
 		}
 		return fsts;
 	}
