@@ -1676,7 +1676,12 @@ public:
 		}
 		couponValues.push_back(couponValue);
 		if (doFinalAssetReturn){ fars.push_back(finalAssetInfo(finalAssetReturn,finalAssetIndx,barrierIndx)); }
-		if (storeBenchmarkReturn){ bmrs.push_back(benchmarkReturn); }
+		if (storeBenchmarkReturn){ 
+			if (benchmarkReturn<0.0){
+				int jj = 1;
+			}
+			bmrs.push_back(benchmarkReturn);
+		}
 	}
 	// do any averaging
 	void doAveraging(const std::vector<double> &startLevels, std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, const std::vector<UlTimeseries> &ulPrices,
@@ -2453,6 +2458,9 @@ public:
 							for (i = 0; i < numUl; i++) {
 								double thisReturn; thisReturn = ulReturns[i][thisReturnIndex];
 								ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
+								if (ulPrices[i].price[j]<0.0){
+									int jj = 1;
+								}
 							}
 							// wind back one unit
 							npPos = npPos>1 ? npPos - 1 : maxNpPos;
@@ -2783,7 +2791,8 @@ public:
 										if (benchmarkId){
 											n      = ulIdNameMap[benchmarkId];
 											double thisRefLevel = startLevels[n] / benchmarkMoneyness;
-											benchmarkReturn = thesePrices[n] / thisRefLevel;
+											double thisShift    = doShiftPrices[n] ? shiftPrices[n] : 0.0;
+											benchmarkReturn = (thesePrices[n] + thisShift) / (thisRefLevel + thisShift);
 											if (benchmarkStrike > 0.0){   // assume investor short a PUT
 												double bmPutReturn = thesePrices[n] / benchmarkStrike;
 												thisPayoff *= bmPutReturn < 1.0 ? bmPutReturn : 1.0;
@@ -3268,7 +3277,11 @@ public:
 								if (bmRet < (unwindPayoff - 1.0)){ bmRet = (unwindPayoff - 1.0); }
 								bmAnnRets.push_back(bmRet);
 								sumYearsToBarrier += thisYears;
-								bmRelLogRets.push_back(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) - log(1 + bmRet)*thisYears);
+								double tempBmRelLogRet = log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) - log(1 + bmRet)*thisYears;
+								if (isnan(tempBmRelLogRet)){
+									int jj = 1;
+								}
+								bmRelLogRets.push_back(tempBmRelLogRet);
 								sumAnnRets += thisAnnRet;
 								sumCouponRets += thisCouponRet;
 
@@ -3440,7 +3453,7 @@ public:
 					double vaR90                = 100.0*allAnnRets[(unsigned int)floor((double)numAnnRets*(0.1))];
 					double vaR50                = 100.0*allAnnRets[(unsigned int)floor((double)numAnnRets*(0.5))];
 					double vaR10                = 100.0*allAnnRets[(unsigned int)floor((double)numAnnRets*(0.9))];
-					double priipsStressVar(-1.0), priipsStressYears(-1.0), varYears, var1Years, var2Years;
+					double priipsStressVar(-1.0), priipsStressYears(-1.0), varYears(0.0), var1Years(0.0), var2Years(0.0);
 					if (doPriips){
 						double thisStressT = maxProductDays > 365 ? 0.05 : 0.01;
 						if (doPriipsStress){

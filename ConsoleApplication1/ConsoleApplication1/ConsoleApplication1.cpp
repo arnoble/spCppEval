@@ -714,7 +714,7 @@ int _tmain(int argc, WCHAR* argv[])
 				sprintf(lineBuffer, "%s%d%s", "select count(*) from productbarrier join payofftype pt using (payofftypeid) where productid='", productId, "' and pt.name like 'levels%'");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				retcode = mydb.fetch(true, lineBuffer);
-				if (retcode == SQL_SUCCESS && szAllPrices[0] > 0){ doPriceShift = false; }
+				if (retcode == SQL_SUCCESS && atof(szAllPrices[0]) > 0){ doPriceShift = false; }
 			}
 			
 			// get counterparty info
@@ -962,7 +962,11 @@ int _tmain(int argc, WCHAR* argv[])
 					if (thisPrice < minPrices[i]){ minPrices[i] = thisPrice; }
 					if (thisPrice > maxPrices[i]){ maxPrices[i] = thisPrice; }
 					if (!firstTime) {
-						ulReturns[i].push_back(thisPrice / previousPrice[i]);
+						double thisReturn = thisPrice / previousPrice[i];
+						if (isinf(thisReturn)){
+							int jj = 1;
+						}
+						ulReturns[i].push_back(thisReturn);
 						for (j = 1; j < numDayDiff; j++){    // pad non-trading days
 							ulOriginalPrices.at(i).date.push_back(szAllPrices[0]);
 							ulOriginalPrices.at(i).price.push_back(thisPrice);
@@ -998,10 +1002,11 @@ int _tmain(int argc, WCHAR* argv[])
 
 						for (k=j=0; j<(int)ulOriginalPrices[0].price.size(); j++){
 							double previousPrice;
-							if (!ulOriginalPrices.at(i).nonTradingDay[j]){
+							if (true /* !ulOriginalPrices.at(i).nonTradingDay[j] */){
 								if (firstTime){ firstTime = false; }
 								else {
-									ulReturns[i][k++] = ulOriginalPrices[i].price[j] / previousPrice;
+									double thisReturn = ulOriginalPrices[i].price[j] / previousPrice;									
+									ulReturns[i][k++] = thisReturn;
 								}
 								previousPrice = ulOriginalPrices[i].price[j];
 							}
