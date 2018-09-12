@@ -446,7 +446,13 @@ std::vector<std::string> split(std::string str, char delimiter) {
 	}
 	return internal;
 }
-
+// minAbs - return min of a and b, based on sign of b
+double MyMinAbs(double a, double b){
+	double absA  = fabs(a);
+	double absB  = fabs(b);
+	double sign  = b < 0.0 ? -1.0 : 1.0;
+	return absA < absB ? sign*a : b;
+}
 
 // ExpectedShortfall for standard normal density
 double Dnorm(double x) { return(exp(-0.5 * x*x) / (2.506628)); }  // standard normal density
@@ -3430,14 +3436,15 @@ public:
 					if (cumCount) {
 						benchmarkProbUnderperf = ((double)cumCount) / numAnnRets;
 						benchmarkCondUnderperf = cumValue / cumCount;
-						bmRelUnderperfPV       = cumUnderperfPV / cumCount;
+						bmRelUnderperfPV       = MyMinAbs(1000.0,cumUnderperfPV / cumCount);
 					}
 					if (cumCount1) {
 						benchmarkProbOutperf = ((double)cumCount1) / numAnnRets;
 						benchmarkCondOutperf = cumValue1 / cumCount1;
-						bmRelOutperfPV       = cumOutperfPV / cumCount1;
+						bmRelOutperfPV       = MyMinAbs(1000.0,cumOutperfPV / cumCount1);
 					}
 					bmRelCAGR       = sumYearsToBarrier > 0.0 ? exp(bmRelCAGR / sumYearsToBarrier) - 1.0 : 0.0;
+					bmRelCAGR       = MyMinAbs(1000.0, bmRelCAGR);
 
 					// ** process overall product results
 					const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
@@ -3631,7 +3638,7 @@ public:
 					if (winLose > 1000.0){ winLose = 1000.0; }
 					double expectedPayoff = (applyCredit ? sumPossiblyCreditAdjPayoffs : sumPayoffs) / numAnnRets;
 					double earithReturn   = sumPossiblyCreditAdjPayoffs <= 0.0 ? -1.0 : pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
-					double bmRelAverage   = bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf;
+					double bmRelAverage        = MyMinAbs(1000.0,bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf);
 					double productBmReturn     = bmSwapRate + cds5y / 2.0 + (esVol*pow(duration, 0.5) / bmVol)*(bmEarithReturn - bmSwapRate);
 					double productExcessReturn = earithReturn - productBmReturn;
 

@@ -625,7 +625,7 @@ int _tmain(int argc, WCHAR* argv[])
 			bidAskDateString              = szAllPrices[colProductBidAskDate];
 			int  benchmarkId              = ignoreBenchmark ? 0 : atoi(szAllPrices[colProductBenchmarkId]);
 			benchmarkStrike               = benchmarkId > 0 ? atof(szAllPrices[colProductBenchmarkStrike]) : 0.0;
-			if (benchmarkId != 0 && !doUKSPA && getMarketData){ benchmarkId = 0; } // do not need (possibly-not-market-data-tracked) benchmark for a fairvalue calc
+			if (benchmarkId != 0 && (doPriips || (!doUKSPA && getMarketData))){ benchmarkId = 0; } // do not need (possibly-not-market-data-tracked) benchmark for a fairvalue calc
 			double hurdleReturn           = atof(szAllPrices[colProductHurdleReturn])/100.0;
 			double contBenchmarkTER       = -log(1.0 - atof(szAllPrices[colProductBenchmarkTER]) / 100.0);
 			double fundingFraction        = atof(szAllPrices[colProductFundingFraction]);
