@@ -58,9 +58,10 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["forceFundingFraction"]    = "x.x";
 		argWords["useThisPrice"]            = "x.x";
 		argWords["planSelect"]              = "only|none";		
-		argWords["eqFx"]                    = "eqUid:fxId:x.x  eg 3:1:-0.5";
+		argWords["eqFx"]                    = "eqUid:fxId:x.x   eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
-		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier and add :commit to save solution"; 
+		argWords["ulLevel"]                 = "name:level       eg UK100:6500";
+		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier and add :commit to save solution";
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta:-0.05:0.05:3 >";
 		argWords["forOptimisation"]         = "";
@@ -94,7 +95,7 @@ int _tmain(int argc, WCHAR* argv[])
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
-		bool             localVol(true),stochasticDrift(false),ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime;
+		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
@@ -110,6 +111,7 @@ int _tmain(int argc, WCHAR* argv[])
 		string           anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), planSelect(""),whatToSolveFor(""),lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3; bumpIds["rho"] = 4; bumpIds["credit"] = 5;
+		map<string, double> ulLevels;  // name:level
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 		vector<string>   rangeFilterStrings;
 		const int        maxUls(100);
@@ -257,6 +259,14 @@ int _tmain(int argc, WCHAR* argv[])
 				fxCorrelationUid        = atoi(tokens[0].c_str());
 				fxCorrelationOtherId    = atoi(tokens[1].c_str());
 				forceEqFxCorrelation    = atof(tokens[2].c_str());
+			}
+			if (sscanf(thisArg, "ulLevel:%s", lineBuffer)){
+				forceUlLevels = true;
+				char *token = std::strtok(lineBuffer, ":");
+				std::vector<std::string> tokens;
+				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
+				if ((int)tokens.size() != 2){ cerr << "ulLevel: incorrect syntax" << endl; exit(102); }
+				ulLevels[tokens[0]] = atof(tokens[1].c_str());
 			}
 			if (sscanf(thisArg, "bump:%s", lineBuffer)){
 				if (doDeltas){ cerr << "cannot do deltas and bumps together" << endl; exit(103); }
@@ -984,6 +994,15 @@ int _tmain(int argc, WCHAR* argv[])
 				lastDate = bDate;
 				retcode = mydb.fetch(false,"");
 			}
+			// do any price overrides ... overwtite the latest price
+			if (ulLevels.size()>0){
+				for (i = 0; i < numUl; i++) {
+					if (ulLevels.find(ulNames[i]) != ulLevels.end()) {
+						ulOriginalPrices.at(i).price[ulOriginalPrices.at(i).price.size()-1] = ulLevels[ulNames[i]];
+					}
+				}
+			}
+			
 			// see if there is enough data
 			if (ulOriginalPrices.at(0).date[0] > productStartDateString){
 				cerr << "Not enough data: prices start on:" << ulOriginalPrices.at(0).date[0] << " but product strike is:" << productStartDateString << endl;
