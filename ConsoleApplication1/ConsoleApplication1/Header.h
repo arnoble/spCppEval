@@ -3243,7 +3243,7 @@ public:
 								// maybe save finalAssetReturns
 								if (doFinalAssetReturn && !usingProto  && !getMarketData && !applyCredit && totalFarCounter < 400000 && !doPriips){  // DOME: this is 100 iterations, with around 4000obs per iteration ... in many years time this limit needs to be increased!
 									if (farCounter){ strcat(farBuffer, ","); strcat(farBuffer1, ","); }
-									sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i].ret, ")");
+									sprintf(farBuffer, "%s%s%d%s%.3lf%s%.3lf%s%.3lf%s", farBuffer, "(", productId, ",", thisAmount, ",", b.fars[i].ret, ",", thisYears, ")");
 									sprintf(farBuffer1, "%s%s%d%s%.3lf%s%.3lf%s%d%s%d%s", farBuffer1, "(", productId, ",", thisAmount, ",", b.fars[i].ret,
 										",", b.fars[i].assetIndx, ",", b.fars[i].barrierIndx, ")");
 									farCounter += 1;
