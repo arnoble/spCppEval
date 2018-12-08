@@ -2765,7 +2765,7 @@ public:
 										if (couponPaidOut && !doAccruals) {
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
 												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] &&
-													(barrier[paidOutBarrier].yearsToBarrier >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
+													(barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
 													SpBarrier &ib(barrier[paidOutBarrier]);
 													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
@@ -3179,7 +3179,7 @@ public:
 							}
 							thisBarrierCouponValues.push_back(b.couponValues[i]);
 							thisBarrierPayoffs.push_back(thisAmount);
-							thisBarrierSumPayoffs += thisAmount;
+							thisBarrierSumPayoffs += thisAmount;   // but not if couponPaidOut
 						}
 
 						double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
