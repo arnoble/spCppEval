@@ -248,8 +248,8 @@ public:
 	// open connection to DataSource spCloud
 	SQLRETURN dbConnCloud(SQLHENV hEnv, SQLHDBC* hDBC) {
 		SQLWCHAR              szDSN[]    = L"spCloud";       // Data Source Name buffer
-		SQLWCHAR              szUID[]    = L"anoble";		   // User ID buffer
-		SQLWCHAR              szPasswd[] = L"Ragtin_Mor14_Lucian";   // Password buffer
+		SQLWCHAR              szUID[]    = L"updateprices";  // User ID buffer
+		SQLWCHAR              szPasswd[] = L"stochastic";    // Password buffer
 		SQLRETURN             fsts;
 
 		fsts = SQLAllocHandle(SQL_HANDLE_DBC, hEnv, hDBC);  // Allocate memory for the connection handle
