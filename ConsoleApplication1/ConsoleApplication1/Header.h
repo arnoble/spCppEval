@@ -1824,6 +1824,7 @@ private:
 	int                             userId;
 	const std::string               productCcy;
 	const std::vector <bool>        &allNonTradingDays;
+	const std::vector <bool>        &ulFixedDivs;
 	const std::vector <int>         &ulIds;
 	const std::vector<std::string>  &ulNames;
 	const std::vector <std::string> &allDates;
@@ -1884,7 +1885,8 @@ public:
 		const bool                      silent,
 		const bool                      doBumps,
 		const bool                      stochasticDrift,
-		const bool                      localVol
+		const bool                      localVol,
+		const std::vector<bool>         &ulFixedDivs
 		)
 		: mydb(mydb),lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date), 
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -1896,7 +1898,7 @@ public:
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps), stochasticDrift(stochasticDrift),
-		localVol(localVol) {};
+		localVol(localVol), ulFixedDivs(ulFixedDivs){};
 
 	// public members: DOME consider making private
 	MyDB                           &mydb;
@@ -1908,7 +1910,7 @@ public:
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl,doShiftPrices;
-	std::vector <double>            priipsStressVols,baseCurveTenor, baseCurveSpread,randnosStore,shiftPrices;
+	std::vector <double>            fixedDiv,priipsStressVols,baseCurveTenor, baseCurveSpread,randnosStore,shiftPrices;
 	std::vector<boost::gregorian::date> allBdates;
 	std::vector<SpPayoffAndDate>        storeFixedCoupons;
 	std::vector<std::vector<std::vector<double>>> &optimiseMcLevels;
@@ -1923,7 +1925,7 @@ public:
 
 		for (int i=0; i < (int)baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 		numUls = (int)ulIds.size();
-		for (int i=0; i < numUls; i++){ useUl.push_back(true); }
+		for (int i=0; i < numUls; i++){ useUl.push_back(true); fixedDiv.push_back(0.0);  }
 		barrier.reserve(100); // for more efficient push_back
 
 		// PRIIPs init
@@ -2333,6 +2335,7 @@ public:
 						int thisMonPoint    = startPoint + thatNumDays;
 						const std::string   thatDateString(allDates.at(thisMonPoint));
 						double thisReturn, thisSig, thisValue, thatValue;
+						
 
 						// what is the time now
 						thatT   = monDateT[thisMonIndx]/365.25;
@@ -2358,6 +2361,10 @@ public:
 								thatValue           = interpVector(theseRates, theseTenors, thatT);
 								double thisAdj      = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
 								thisDivYieldRate[i] += thisAdj*NormSInv(ArtsRan());
+							}
+							if (ulFixedDivs[i]){
+								fixedDiv[i]         = thisDivYieldRate[i];
+								thisDivYieldRate[i] = 0.0;
 							}
 							//... any Quanto drift: LEAVE HERE IN CASE correlations become time-dependent
 							// DOME: this assumes all payoffs are quanto
@@ -2401,12 +2408,15 @@ public:
 									randnosStore);
 
 								for (i = 0; i < numUl; i++) {
+									double thisFixedDiv = fixedDiv[i] * dt;
+
 									// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
 									thisSig = InterpolateMatrix(localVol ? md.ulVolsImpVol[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									//... calculate return for thisDt  for this underlying
+									
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
-									currentLevels[i]       = currentLevels[i] * thisReturn;
-									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.08 * dt) : 1.0);
+									currentLevels[i]       = currentLevels[i] * thisReturn - thisFixedDiv;
+									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.08 * dt) : 1.0) - thisFixedDiv;
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 									// debugCorrelatedRandNos.push_back(currentQuantoLevels[i]/spotLevels[i]);
 									if (forOptimisation && productIndx == 0){

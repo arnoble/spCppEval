@@ -57,6 +57,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["fundingFractionFactor"]   = "x.x";
 		argWords["forceFundingFraction"]    = "x.x";
 		argWords["useThisPrice"]            = "x.x";
+		argWords["useThisOIS"]              = "x.x";
 		argWords["planSelect"]              = "only|none";		
 		argWords["eqFx"]                    = "eqUid:fxId:x.x   eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
@@ -93,7 +94,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             doUseThisOIS(false),doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -103,7 +104,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
+		double           useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpAmount(0.05),deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0), thetaBumpStart(0.0), thetaBumpStep(0.0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0);
 		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1),solveForThis(0);
@@ -379,6 +380,7 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "userParameters:%s", lineBuffer)){ userParametersId = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "historyStep:%s",    lineBuffer)){ historyStep      = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "useThisPrice:%s",   lineBuffer)){ useThisPrice     = atof(lineBuffer); doUseThisPrice = true; }
+			else if (sscanf(thisArg, "useThisOIS:%s",     lineBuffer)){ useThisOIS       = atof(lineBuffer); doUseThisOIS   = true; }
 		}
 		if (doPriips){
 			if (strlen(startDate)){
@@ -643,6 +645,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int    bootstrapStride        = atoi(szAllPrices[colProductBootstrapStride]);
 			int    settleDays             = atoi(szAllPrices[colProductSettleDays]);
 			double barrierBend            = atof(szAllPrices[colProductBarrierBend])  * (getMarketData && !doUKSPA /* && !doBumps && !doDeltas */ ? 1.0 : 0.0);
+			
 
 			useUserParams                 = userParametersId > 0 ? true : atoi(szAllPrices[colProductUseUserParams]) == 1;
 			string forceStartDate         = szAllPrices[colProductForceStartDate];
@@ -783,17 +786,18 @@ int _tmain(int argc, WCHAR* argv[])
 			double maxTZhrs(0.0);
 			vector<int> ulIds, ulPriceReturnUids;
 			vector<string> ulCcys;
+			vector<bool> ulFixedDivs;
 			vector<string> ulNames;
 			map<string, int> ccyToUidMap;
 			vector<double> ulERPs, ulTZhrs;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
-			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
+			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs,FixedDivs from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
 				productId, "' ");
 			if (benchmarkId && !getMarketData && !forOptimisation){
 				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
 				strcat(lineBuffer, charBuffer);
 			}
-			mydb.prepare((SQLCHAR *)lineBuffer, 6);
+			mydb.prepare((SQLCHAR *)lineBuffer, 7);
 			retcode = mydb.fetch(true,lineBuffer);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 				string thisCcy            = szAllPrices[1];
@@ -801,8 +805,11 @@ int _tmain(int argc, WCHAR* argv[])
 				string thisName           = szAllPrices[3];
 				int    thisPriceReturnUid = atoi(szAllPrices[4]);
 				double thisTZhrs          = atof(szAllPrices[5]);
+				bool   thisFixedDivs      = atoi(szAllPrices[6]) == 1;
+
 				ulCcys.push_back(thisCcy);
 				ulTZhrs.push_back(thisTZhrs);
+				ulFixedDivs.push_back(thisFixedDivs);
 				if (fabs(thisTZhrs) > maxTZhrs){ maxTZhrs = fabs(thisTZhrs); }
 				uid         = atoi(szAllPrices[0]);
 				if (forOptimisation && find(optimiseProductIds.begin(), optimiseProductIds.end(), uid) == optimiseProductIds.end()){
@@ -1311,6 +1318,7 @@ int _tmain(int argc, WCHAR* argv[])
 					double thisTenor = atof(szAllPrices[1]);
 					double thisRate  = atof(szAllPrices[2]);
 					int    thisUidx  = ulIdNameMap[ccyToUidMap[thisCcy]];
+					if (doUseThisOIS){ thisRate = useThisOIS; }
 					oisRatesRate[thisUidx].push_back(thisRate / 100.0);
 					oisRatesTenor[thisUidx].push_back(thisTenor);
 					retcode = mydb.fetch(false, "");
@@ -1450,7 +1458,7 @@ int _tmain(int argc, WCHAR* argv[])
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
-				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, doBumps, stochasticDrift, localVol);
+				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, doBumps, stochasticDrift, localVol, ulFixedDivs);
 			numBarriers = 0;
 
 			// get barriers from DB
