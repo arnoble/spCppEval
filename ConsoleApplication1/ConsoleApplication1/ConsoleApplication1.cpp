@@ -117,6 +117,7 @@ int _tmain(int argc, WCHAR* argv[])
 		vector<string>   rangeFilterStrings;
 		const int        maxUls(100);
 		const int        bufSize(1000);
+
 		RETCODE          retcode;
 		SomeCurve        anyCurve;
 		time_t           startTime = time(0);
@@ -1497,7 +1498,7 @@ int _tmain(int argc, WCHAR* argv[])
 				payoff                  = atof(szAllPrices[colPayoff]) / 100.0;
 				settlementDate          = szAllPrices[colSettlementDate];
 				double thisCoupon       = capitalOrIncome ? max(0.0, payoff - 1.0) : payoff;
-				double thisBarrierBend  = getMarketData && !doUKSPA ? thisCoupon > 0.0 ? 0.1*thisCoupon : barrierBend : 0.0;
+				double thisBarrierBend  = getMarketData && !doUKSPA ? (thisCoupon > 0.0 ? 0.1*(thisCoupon>3.0 ? 3.0 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon
 				// PRIIPs Intermediate Scenario?
 				description             = szAllPrices[colDescription];
 				avgInAlgebra            = szAllPrices[colAvgInAlgebra];
@@ -1507,7 +1508,11 @@ int _tmain(int argc, WCHAR* argv[])
 				// barrier bend
 				string ucPayoffType(thisPayoffType);
 				transform(ucPayoffType.begin(), ucPayoffType.end(), ucPayoffType.begin(), toupper);
-				double bendCallPut       = ucPayoffType.find("CALL") != std::string::npos ? -1.0 : ucPayoffType.find("PUT") != std::string::npos ?  1.0 : 0.0;
+				bool isCall  = std::regex_search(ucPayoffType, std::regex{ "CALL$" });
+				bool isPut   = std::regex_search(ucPayoffType, std::regex{ "PUT$" });
+
+				// OLD: double bendCallPut       = ucPayoffType.find("CALL") != std::string::npos ? -1.0 : ucPayoffType.find("PUT") != std::string::npos ?  1.0 : 0.0;
+				double bendCallPut       = isCall ? -1.0 : (isPut ? 1.0 : 0.0);
 				double bendParticipation = participation > 0.0                            ?  1.0 : participation < 0.0                           ? -1.0 : 0.0;
 				double bendDirection     = bendCallPut * bendParticipation;
 				if (ucPayoffType.find("FIXED") != std::string::npos) { bendDirection  = -1.0; }
