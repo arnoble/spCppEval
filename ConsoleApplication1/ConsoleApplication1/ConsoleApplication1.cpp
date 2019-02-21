@@ -1172,8 +1172,8 @@ int _tmain(int argc, WCHAR* argv[])
 						if (ukspaCase != "" || doPriips){
 							double thisERP = ulERPs[i];
 							if (ulPriceReturnUids[i] || doPriips){  // see if there is a related underlying with a yield 
-								sprintf(lineBuffer, "%s%d", "select divyield from divyield where UnderlyingId=", 
-									doPriips ?  ulIds[i] : ulPriceReturnUids[i]);
+								sprintf(lineBuffer, "%s%d", "select divyield from divyield where UnderlyingId=",
+									doPriips ? ulIds[i] : ulPriceReturnUids[i]);
 								mydb.prepare((SQLCHAR *)lineBuffer, 1);
 								retcode = mydb.fetch(false, ulSql);
 								if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
@@ -1188,6 +1188,17 @@ int _tmain(int argc, WCHAR* argv[])
 						divYieldsStdErr[i].push_back(0.0);
 					}
 				}
+				// convert fixedDivs to money
+				if (doUKSPA || doPriips){
+					for (i = 0; i < numUl; i++) {
+						if (ulFixedDivs[i]){
+							for (j = 0; j < divYieldsRate[i].size(); j++) {
+								divYieldsRate[i][j] *= spots[i];
+							}
+						}						
+					}
+				}
+				
 			}
 			if (getMarketData || useUserParams){
 				int    thisUidx;

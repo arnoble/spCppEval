@@ -3774,12 +3774,12 @@ public:
 								if (std::find(reportableMonDateIndx.begin(), reportableMonDateIndx.end(),thisMonValue) != reportableMonDateIndx.end()){
 									int thisMonPoint = startPoint + thisMonValue;
 									thisDateString = allDates.at(thisMonPoint);
-									sprintf(charBuffer, "%s%s", "Fwds(stdev)[%ofSpot] and discountFactor on: ", thisDateString.c_str());
+									double yearsToBarrier   = monDateIndx[thisMonIndx] / 365.25;
+									sprintf(charBuffer, "%s%s%s%.2lf", "Fwds(stdev)[%ofSpot] and discountFactor on: ", thisDateString.c_str()," T:",yearsToBarrier);
 									for (i = 0; i < numUl; i++){
 										MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev, thisStderr);
 										sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(", thisStderr, ")[", thisMean / spotLevels[i], "]");
 									}
-									double yearsToBarrier   = monDateIndx[thisMonIndx] / 365.25;
 									double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
 									forwardRate            += fundingFraction*interpCurve(cdsTenor, cdsSpread, yearsToBarrier);
 									double discountT        = yearsToBarrier - forwardStartT;
