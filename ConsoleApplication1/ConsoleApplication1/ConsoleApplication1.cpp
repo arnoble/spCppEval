@@ -52,6 +52,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["maxSecsTaken"]            = "nnn";
 		argWords["userParameters"]          = "userId";
 		argWords["only"]                    = "<comma-sep list of underlyings names>";
+		argWords["notOnly"]                 = "<comma-sep list of underlyings names>";
 		argWords["UKSPA"]                   = "Bear|Neutral|Bull";
 		argWords["Issuer"]                  = "partName";
 		argWords["fundingFractionFactor"]   = "x.x";
@@ -341,8 +342,10 @@ int _tmain(int argc, WCHAR* argv[])
 				eqCorrelationOtherId    = atoi(tokens[1].c_str());
 				forceEqEqCorrelation    = atof(tokens[2].c_str());
 			}
-			if (sscanf(thisArg, "only:%s", lineBuffer)){
-				onlyTheseUls = true; 
+			if (sscanf(thisArg, "only:%s", lineBuffer) || sscanf(thisArg, "notOnly:%s", lineBuffer)){
+				bool notOnly = sscanf(thisArg, "notOnly:%s", lineBuffer);
+				string  notOnlyStr = notOnly ? "" : "not";
+				onlyTheseUls = true;
 				char *token = std::strtok(lineBuffer, ",");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ","); }
@@ -359,8 +362,9 @@ int _tmain(int argc, WCHAR* argv[])
 				*/
 				
 				// strcpy(onlyTheseUlsBuffer, " join tempOnly using (productid) ");
-				sprintf(charBuffer, "%s%s%s",
-					" join (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid) join underlying u using (underlyingid) where u.name not in (",
+				sprintf(charBuffer, "%s%s%s%s%s",
+					" join (select productid from product where productid not in (select distinct pb.productid from productbarrier pb join barrierrelation br using (productbarrierid) join underlying u using (underlyingid) where u.name ",
+					notOnlyStr.c_str()," in (",
 					lineBuffer, "))) z using (productid) ");
 				sprintf(onlyTheseUlsBuffer, "%s%s", onlyTheseUlsBuffer, charBuffer);
 			}
