@@ -941,7 +941,9 @@ public:
 
 
 class SpBarrierRelation {
-
+private:
+	const double thisBarrierBend;
+	const double bendDirection;
 public:
 	SpBarrierRelation(const int barrierRelationId, 
 		const int underlying,
@@ -965,11 +967,13 @@ public:
 		const std::string   productStartDateString,
 		const bool          isContinuousALL,
 		const bool          isStrikeReset,
-		const bool          isStopLoss)
+		const bool          isStopLoss,
+		const double        thisBarrierBend,
+		const double        bendDirection)
 		: barrierRelationId(barrierRelationId), underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
 		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq),
-		avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss)
+		avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection)
 	{
 		/*
 		const boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(startDate));
@@ -1018,7 +1022,7 @@ public:
 			// ... we are either inside an in-progress averaging (avgDays>endDays), or the entire averaging period is in the past (endDays<0)
 			if (avgDays && avgDays > endDays){
 				double refSpot(ulTimeseries.price[lastIndx]);
-				setLevels(refSpot);
+				setLevels(refSpot, false);
 				for (int indx = lastIndx+endDays-avgDays,stopIndx=lastIndx+(endDays<0 ? endDays:0); indx <= stopIndx;indx++){
 					if (runningAvgDays%avgFreq == 0){ readyForAvgObs = true; } // first obs on starting indx
 					if (!ulTimeseries.nonTradingDay[indx]  && readyForAvgObs){
@@ -1092,11 +1096,12 @@ public:
 	}
 
 	// set levels which are linked to prevailing spot level 'ulPrice'
-	void setLevels(const double ulPrice) {
+	void setLevels(const double ulPrice,const bool reverseBarrierBend) {
 		refLevel  = ulPrice / moneyness;
 		// NOTE: strikeReset barriers will also reset the barrierLevel, as follows
 		//     ... if we need barriers to reference StrikeDate levels, will need to pass in 2nd arg    startLevels.at(thisName)    and use those
-		barrierLevel     = barrier * refLevel;
+		double thisBarrier = reverseBarrierBend ? max(0.0, barrier - thisBarrierBend*bendDirection) : barrier;  // only bend barriers when doing fairValue
+		barrierLevel       = thisBarrier * refLevel;
 		if (uBarrier != NULL) { 
 				uBarrierLevel     = uBarrier * refLevel; 
 		}
@@ -1107,7 +1112,8 @@ public:
 class SpBarrier {
 private:
 	const bool          doFinalAssetReturn;
-
+	const double        thisBarrierBend;
+	const double        bendDirection;
 public:
 	SpBarrier(const int         barrierId,
 		const bool              capitalOrIncome,
@@ -1135,13 +1141,17 @@ public:
 		const int               daysExtant,
 		const boost::gregorian::date bProductStartDate,
 		const bool              doFinalAssetReturn,
-		const double            midPrice)
+		const double            midPrice,
+		const double            thisBarrierBend, 
+		const double            bendDirection)
 		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
-		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), midPrice(midPrice)
+		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), 
+		barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), 
+		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection)
 	{
 		init();
 	};
@@ -2610,9 +2620,9 @@ public:
 							if (brelStartPoint < 0){ brelStartPoint  = 0; }
 							// remove next line: we now ensure there are enough prices for the full product term
 							// if (brelStartPoint >= totalNumDays){ brelStartPoint  = totalNumDays-1; }
-							thisBrel.setLevels(ulPrices.at(thisName).price.at(brelStartPoint));
+							thisBrel.setLevels(ulPrices.at(thisName).price.at(brelStartPoint), doAccruals);
 						}
-						else { thisBrel.setLevels(startLevels.at(thisName)); }
+						else { thisBrel.setLevels(startLevels.at(thisName), doAccruals); }
 						// cater for extremum barriers, where typically averaging does not apply to barrier hit test
 						// ...so set barrierWasHit[thisBarrier] if the extremum condition is met
 						// check to see if extremumBarriers hit
@@ -2686,7 +2696,7 @@ public:
 								for (unsigned int uI = 0; uI < (unsigned int)numBrel; uI++){
 									SpBarrierRelation& thisBrel(b.brel.at(uI));
 									int thisName = ulIdNameMap.at(thisBrel.underlying);
-									thisBrel.setLevels(ulPrices.at(thisName).price.at(lastTradingIndx));
+									thisBrel.setLevels(ulPrices.at(thisName).price.at(lastTradingIndx), doAccruals);
 								}
 							}
 

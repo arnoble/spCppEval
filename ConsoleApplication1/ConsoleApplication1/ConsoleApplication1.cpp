@@ -1544,7 +1544,8 @@ int _tmain(int argc, WCHAR* argv[])
 				*/
 				spr.barrier.push_back(SpBarrier(barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
-					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice));
+					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice,
+					thisBarrierBend,bendDirection));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 	
 				// get barrier relations from DB
@@ -1597,7 +1598,7 @@ int _tmain(int argc, WCHAR* argv[])
 						thisBarrier.brel.push_back(SpBarrierRelation(barrierRelationId,uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
 							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), 
 							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString,isContinuousALL,
-							thisBarrier.isStrikeReset, thisBarrier.isStopLoss));
+							thisBarrier.isStrikeReset, thisBarrier.isStopLoss, thisBarrierBend, bendDirection));
 					}
 					// next barrierRelation record
 					retcode = mydb1.fetch(false,"");
@@ -1836,7 +1837,7 @@ int _tmain(int argc, WCHAR* argv[])
 			bool   productHasMatured(false);
 			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, accrualMonDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData,useUserParams,thisMarketData,
+				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, false /* getMarketData */,useUserParams,thisMarketData,
 				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 
 			// ...check product not matured
