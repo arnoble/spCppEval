@@ -2804,7 +2804,7 @@ public:
 											if (couponPaidOut){
 												daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod; // floor() so as to include accrued stub
 											}
-											double numFixedCoupons = /*floor*/(daysElapsed / couponPeriod); // allow fractional coupons
+											double numFixedCoupons = max(0.0, /*floor*/(daysElapsed / couponPeriod)); // allow fractional coupons
 											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / 365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
 											couponValue += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
