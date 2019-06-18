@@ -1751,7 +1751,9 @@ public:
 					else {
 						double anyValue(0.0);
 						for (int k = 0, len1 = (int)avgObs.size(); k < len1; k++) { anyValue += avgObs[k]; }
-						thesePrices[n] = anyValue / (double)avgObs.size();
+						double thisAvg = anyValue / (double)avgObs.size();
+						double deleteAnytime = startLevels[0];
+						thesePrices[n] = thisAvg;
 					}
 				}
 				break;
@@ -2426,8 +2428,11 @@ public:
 									
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
 									currentLevels[i]       = currentLevels[i] * thisReturn - thisFixedDiv;
+									if (currentLevels[i] < 0.0){ currentLevels[i]  = 0.0; }  // some fixed divs could do this eg UKXFD
 									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.08 * dt) : 1.0) - thisFixedDiv;
+									if (currentQuantoLevels[i] < 0.0){ currentQuantoLevels[i]  = 0.0; }  // some fixed divs could do this eg UKXFD
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
+
 									// debugCorrelatedRandNos.push_back(currentQuantoLevels[i]/spotLevels[i]);
 									if (forOptimisation && productIndx == 0){
 										optimiseMcLevels[i][thisDay-1].push_back(currentQuantoLevels[i]);
@@ -2484,9 +2489,6 @@ public:
 							for (i = 0; i < numUl; i++) {
 								double thisReturn; thisReturn = ulReturns[i][thisReturnIndex];
 								ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
-								if (ulPrices[i].price[j]<0.0){
-									int jj = 1;
-								}
 							}
 							// wind back one unit
 							npPos = npPos>1 ? npPos - 1 : maxNpPos;
@@ -3300,7 +3302,9 @@ public:
 									priipsAnnRetInstances.push_back(AnnRet(thisAnnRet, thisT));
 								}
 								double bmRet = thisYears <= 0.0 ? 0.0 : (benchmarkId > 0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn);
-								if (bmRet < (unwindPayoff - 1.0)){ bmRet = (unwindPayoff - 1.0); }
+								if (isnan(bmRet)){
+									int jj = 1;
+								}if (bmRet < (unwindPayoff - 1.0)){ bmRet = (unwindPayoff - 1.0); }
 								bmAnnRets.push_back(bmRet);
 								sumYearsToBarrier += thisYears;
 								double tempBmRelLogRet = log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) - log(1 + bmRet)*thisYears;
