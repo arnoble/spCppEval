@@ -867,7 +867,7 @@ public:
 			fsts  =  SQLPrepareA(hStmt, thisSQL, SQL_NTS);                  // Prepare the SQL statement	
 			fsts  =  SQLExecute(hStmt);                                     // Execute the SQL statement
 			if (!SQL_SUCCEEDED(fsts))	{
-				extract_error("prepare() failed to SQLExecute ... trying to re-connect", "", hStmt, SQL_HANDLE_STMT);
+				extract_error("prepare() failed to SQLExecute ... trying to re-connect", (char*)thisSQL, hStmt, SQL_HANDLE_STMT);
 				// try a new connection...in case of MySQL server restart, or failed internet connection
 				SQLDisconnect(hDBC);  // Disconnect from datasource
 				SQLFreeConnect(hDBC); // Free the allocated connection handle
