@@ -1846,10 +1846,12 @@ int _tmain(int argc, WCHAR* argv[])
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
-			if (!doPriips){
+			int thisStartPoint =  thisNumIterations == 1 ? daysExtant : totalNumDays - 1;
+			int thisLastPoint  =  thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays; /*daysExtant + 1*/
+			if (!doPriips && (thisNumIterations>1 || thisStartPoint<thisLastPoint)){
 				EvalResult evalResult(0.0,0.0);
 				// first-time we set conserveRande=true and consumeRande=false
-				evalResult = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+				evalResult = spr.evaluate(totalNumDays,thisStartPoint, thisLastPoint, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false /* doPriipsStress */, 
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
