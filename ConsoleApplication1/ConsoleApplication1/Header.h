@@ -3733,8 +3733,8 @@ public:
 								sprintf(lineBuffer, "%s%s%s", lineBuffer, "',WhenEvaluated='", charBuffer);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='", probEarliest);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='", probEarly);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='", ecGain);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='", ecStrictGain);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='", ecGain>10.0 ? 10.0 : ecGain);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='", ecStrictGain>10.0 ? 10.0 : ecStrictGain);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='", ecLoss);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='", probGain);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='", probStrictGain);
