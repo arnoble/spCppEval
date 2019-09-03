@@ -3207,7 +3207,7 @@ public:
 						double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
 						double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 
-						if (b.capitalOrIncome) {
+						if (b.capitalOrIncome && b.yearsToBarrier >= 0.0) {
 							// first-hit capital barrier
 							if (!foundEarliest){ 
 								foundEarliest = true; 
