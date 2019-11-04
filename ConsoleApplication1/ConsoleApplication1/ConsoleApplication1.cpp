@@ -93,8 +93,8 @@ int _tmain(int argc, WCHAR* argv[])
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
-		int              bumpUserId(3),thisNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             doFinalAssetReturn(false), forceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
+		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
+		bool             doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisOIS(false),doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false);
@@ -176,7 +176,7 @@ int _tmain(int argc, WCHAR* argv[])
 		// process optional argumants
 		for (int i=4 - commaSepList; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
-			if (strstr(thisArg, "forceIterations"   )){ forceIterations    = true; }
+			if (strstr(thisArg, "forceIterations")){ requesterForceIterations = true; }
 			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
 			if (strstr(thisArg, "useProductFundingFractionFactor")){  useProductFundingFractionFactor  = true; }
 			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
@@ -474,7 +474,7 @@ int _tmain(int argc, WCHAR* argv[])
 		if(retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			bmSwapRate = atof(szAllPrices[0]);			
 		}
-		double projectedReturn = (thisNumIterations <= 1 ? 0.0 : (doPriips ? 0.08 : 1.0)); 
+		double projectedReturn = (requesterNumIterations <= 1 ? 0.0 : (doPriips ? 0.08 : 1.0));
 
 		double bmEarithReturn(0.0), bmVol(0.18);
 		sprintf(lineBuffer, "%s%.4lf%s","SELECT EarithReturn ArithmeticReturn_pa, esVol*sqrt(duration) Volatility from cashflows where ProductId=71 and ProjectedReturn='",projectedReturn,"'");
@@ -561,7 +561,7 @@ int _tmain(int argc, WCHAR* argv[])
 		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(optimiseNumUls, std::vector<std::vector<double>>(optimiseNumDays));
 		if (numProducts>1){ doUseThisPrice = false; }
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
-			int              numBarriers = 0, thisIteration = 0;
+			int              thisNumIterations = requesterNumIterations, numBarriers = 0, thisIteration = 0;
 			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
 			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice, baseCcyReturn, benchmarkStrike;
@@ -622,6 +622,12 @@ int _tmain(int argc, WCHAR* argv[])
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
 			retcode = mydb.fetch(true,lineBuffer);
+			int  productMaxIterations  = atoi(szAllPrices[colProductMaxIterations]);
+			bool forceIterations = requesterForceIterations;
+			if (productMaxIterations < thisNumIterations){ 
+				thisNumIterations = productMaxIterations; 
+				forceIterations = true;
+			}
 			if (thisNumIterations<1) { thisNumIterations = 1; }
 			int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
 			int  userId             = getMarketData ? 3 : userParametersId > 0 ? userParametersId : atoi(szAllPrices[colProductUserId]);
