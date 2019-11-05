@@ -3723,7 +3723,7 @@ public:
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
 								// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", earithReturn);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='", sharpeRatio);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='", sharpeRatio < -1000.0 ? -1000.0 : (sharpeRatio > 1000.0 ? 1000.0 : sharpeRatio));
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScore1to10='", riskScore1to10);
