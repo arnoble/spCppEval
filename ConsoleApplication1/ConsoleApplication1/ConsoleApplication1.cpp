@@ -2091,7 +2091,7 @@ int _tmain(int argc, WCHAR* argv[])
 							rhoBumpAmount = rhoBumpStart + rhoBumpStep*rhoBump;
 							// change rate curves
 							for (i=0; i < (int)baseCurve.size(); i++){
-								baseCurve[i].spread = holdBaseCurve[i].spread + rhoBumpAmount;
+								spr.baseCurveSpread[i] = holdBaseCurve[i].spread + rhoBumpAmount;
 							}
 							for (i=0; i < numUl; i++){
 								for (j=0; j < (int)holdOisRatesRate[i].size(); j++){
@@ -2136,7 +2136,7 @@ int _tmain(int argc, WCHAR* argv[])
 								for (int deltaBump=0; deltaBump < deltaBumps; deltaBump++){
 									deltaBumpAmount = deltaBumpStart + deltaBumpStep*deltaBump;
 									double bumpFactor = 1.0 / (1.0 + deltaBumpAmount);
-									if (true || deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || thetaBumpAmount != 0.0){
+									if (true || deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || rhoBumpAmount != 0.0){
 										// for each underlying
 										for (i=0; i < numUl; i++){
 											int ulId = ulIds[i];
@@ -2266,18 +2266,35 @@ int _tmain(int argc, WCHAR* argv[])
 												mydb.prepare((SQLCHAR *)lineBuffer, 1);
 											}
 										}
+										// ... reinstate spots
 										for (i=0; i < numUl; i++){
-											// ... reinstate spots
 											ulPrices[i].price[totalNumDays - 1] = spots[i];
-											// ... reinstate vols
-											thisMarketData.ulVolsFwdVol[i] = holdUlFwdVol[i];
-											thisMarketData.ulVolsImpVol[i] = holdUlImpVol[i];
-											thisMarketData.ulVolsStrike[i] = holdUlVolsStrike[i];
 										} // for (i=0; i < numUl; i++){	
-									} // if (deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || thetaBumpAmount != 0.0){
+									} // if (deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || rhoBumpAmount != 0.0){
 								} // for (int deltaBump=0; deltaBump < deltaBumps; deltaBump++){
+								// ... reinstate vols
+								for (i=0; i < numUl; i++){
+									thisMarketData.ulVolsFwdVol[i] = holdUlFwdVol[i];
+									thisMarketData.ulVolsImpVol[i] = holdUlImpVol[i];
+									thisMarketData.ulVolsStrike[i] = holdUlVolsStrike[i];
+								}	
 							} // for (int vegaBump=0; vegaBump < vegaBumps; vegaBump++){
+							// reinstate curves
+							for (i=0; i < (int)baseCurve.size(); i++){
+								spr.baseCurveSpread[i] = holdBaseCurve[i].spread;
+							}
+							for (i=0; i < numUl; i++){
+								for (j=0; j < (int)holdOisRatesRate[i].size(); j++){
+									oisRatesRate[i][j] = holdOisRatesRate[i][j];
+								}
+							}
 						} // for (int rhoBump=0; rhoBump < rhoBumps; rhoBump++){
+						// reinstate credit
+						// change credit curve
+						for (i=0; i < (int)cdsSpread.size(); i++){
+							cdsSpread[i] = holdCdsSpread[i];
+						}
+						buildHazardCurve(cdsSpread, cdsTenor, maxYears, recoveryRate, hazardCurve);
 					} // for (int creditBump=0; creditBump < creditBumps; creditBump++){
 				}
 			}
