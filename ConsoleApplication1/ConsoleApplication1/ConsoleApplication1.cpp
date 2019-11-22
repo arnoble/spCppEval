@@ -2260,7 +2260,7 @@ int _tmain(int argc, WCHAR* argv[])
 											sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 											mydb.prepare((SQLCHAR *)lineBuffer, 1);
 											// save vegas to product table
-											if (bumpUserId == 3 && vegaBumpAmount != 0.0 && deltaBumpAmount == 0.0 && thetaBumpAmount == 0.0){
+											if (bumpUserId == 3 && vegaBumpAmount != 0.0 && deltaBumpAmount == 0.0 && thetaBumpAmount == 0.0 && creditBumpAmount == 0.0){
 												double  vega = (bumpedFairValue - thisFairValue) / (100.0*vegaBumpAmount);
 												sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", vegaBump == 0 ? "Vega" : "VegaUp", "=", vega, ",VegaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
 												mydb.prepare((SQLCHAR *)lineBuffer, 1);
