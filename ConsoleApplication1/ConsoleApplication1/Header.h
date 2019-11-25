@@ -2085,7 +2085,7 @@ public:
 		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
 		bool                     optFirstTime;
 		bool	                 optOptimiseAnnualisedReturn(!getMarketData); 
-		bool                     matured;
+		bool                     matured(false);
 		bool                     usingProto(strcmp(useProto,"proto") == 0);
 		int                      totalNumReturns  = totalNumDays - 1;
 		int                      numTimepoints    = (int)timepointDays.size();
