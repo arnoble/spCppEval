@@ -2259,11 +2259,21 @@ int _tmain(int argc, WCHAR* argv[])
 											sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
 											sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 											mydb.prepare((SQLCHAR *)lineBuffer, 1);
-											// save vegas to product table
-											if (bumpUserId == 3 && vegaBumpAmount != 0.0 && deltaBumpAmount == 0.0 && thetaBumpAmount == 0.0 && creditBumpAmount == 0.0){
-												double  vega = (bumpedFairValue - thisFairValue) / (100.0*vegaBumpAmount);
-												sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", vegaBump == 0 ? "Vega" : "VegaUp", "=", vega, ",VegaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
-												mydb.prepare((SQLCHAR *)lineBuffer, 1);
+											// save some greeks to product table
+											if (bumpUserId == 3 && deltaBumpAmount == 0.0){
+												// save vegas to product table
+												if (vegaBumpAmount != 0.0 && thetaBumpAmount == 0.0 && creditBumpAmount == 0.0 && rhoBumpAmount == 0.0){
+													double  vega = (bumpedFairValue - thisFairValue) / (100.0*vegaBumpAmount);
+													sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", vegaBump == 0 ? "Vega" : "VegaUp", "=", vega, ",VegaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
+													mydb.prepare((SQLCHAR *)lineBuffer, 1);
+												}
+												// save rho to product table
+												if (vegaBumpAmount == 0.0 && thetaBumpAmount == 0.0 && creditBumpAmount == 0.0 && rhoBumpAmount != 0.0){
+													double  rho = (bumpedFairValue - thisFairValue) / (100.0*rhoBumpAmount);
+													sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", rhoBump == 0 ? "Rho" : "RhoUp", "=", rho, ",RhoDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
+													mydb.prepare((SQLCHAR *)lineBuffer, 1);
+												}
+
 											}
 										}
 										// ... reinstate spots
