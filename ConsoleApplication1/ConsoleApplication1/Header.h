@@ -1066,6 +1066,11 @@ public:
 		strike       = originalStrike/moneyness;
 	}
 
+	// bump this brel by someDays
+	void bumpSomeDays(const int someDays){
+		endDays          +=  someDays;
+		startDays        +=  someDays;
+	}
 
 
 	// do any averagingIn
@@ -1156,6 +1161,13 @@ public:
 		init();
 	};
 
+	// bump this barrier by someDays
+	void bumpSomeDays(const int someDays){
+		endDays          +=  someDays;
+		startDays        +=  someDays;
+		yearsToBarrier    = endDays / 365.25;
+		totalBarrierYears = (endDays + daysExtant) / 365.25;
+	}
 	void init(){
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
