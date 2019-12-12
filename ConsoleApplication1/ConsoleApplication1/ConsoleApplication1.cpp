@@ -1529,8 +1529,9 @@ int _tmain(int argc, WCHAR* argv[])
 				payoff                  = atof(szAllPrices[colPayoff]) / 100.0;
 				settlementDate          = szAllPrices[colSettlementDate];
 				double thisCoupon       = capitalOrIncome ? max(0.0, payoff - 1.0) : payoff;
-				double barrierBendAmort = (!(doBarrierBendAmort) || daysExtant <= 0)  ? 1.0 : (daysExtant > 180 ? 0.0 : (double)daysExtant / 180.0);
-				double thisBarrierBend  = getMarketData && !doUKSPA ? (thisCoupon > 0.0 ? barrierBendAmort*0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon, but limit to 5%
+				double barrierBendAmort = (!(doBarrierBendAmort) || daysExtant <= 0)  ? 1.0 : (daysExtant > 180 ? 0.0 : 1.0 - (double)daysExtant / 180.0 );
+				double thisBarrierBend  = getMarketData && !doUKSPA ? (thisCoupon > 0.0 ? 0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon, but limit to 5%
+				thisBarrierBend        *= barrierBendAmort;
 				if (doUseThisBarrierBend){ thisBarrierBend = useThisBarrierBend / 100.0; }
 
 				// PRIIPs Intermediate Scenario?
