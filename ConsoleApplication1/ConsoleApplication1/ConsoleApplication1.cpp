@@ -59,6 +59,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["forceFundingFraction"]    = "x.x";
 		argWords["useThisPrice"]            = "x.x";
 		argWords["useThisOIS"]              = "x.x";
+		argWords["useThisBarrierBend"]      = "x.x";
 		argWords["planSelect"]              = "only|none";		
 		argWords["eqFx"]                    = "eqUid:fxId:x.x   eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
@@ -95,7 +96,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             doUseThisOIS(false),doUseThisPrice(false),showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false);
 		bool             bumpEachUnderlying(false);
@@ -106,7 +107,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
+		double           useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpAmount(0.05), deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0);
 		int              thetaBumpStart(0), thetaBumpStep(0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0);
@@ -380,17 +381,18 @@ int _tmain(int argc, WCHAR* argv[])
 				getMarketData = true;
 			}
 			if (sscanf(thisArg, "Issuer:%s", lineBuffer))                 { issuerPartName          = lineBuffer; }
-			if (sscanf(thisArg, "fundingFractionFactor:%s", lineBuffer))  { fundingFractionFactor	= atof(lineBuffer);	}
-			if (sscanf(thisArg, "forceFundingFraction:%s", lineBuffer))   { forceFundingFraction	= lineBuffer; }
-		
-			else if (sscanf(thisArg, "endDate:%s",        lineBuffer)){ strcpy(endDate, lineBuffer); }
-			else if (sscanf(thisArg, "bumpUserId:%s",     lineBuffer)){ bumpUserId       = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "minnSecsTaken:%s",  lineBuffer)){ minSecsTaken     = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "maxSecsTaken:%s",   lineBuffer)){ maxSecsTaken     = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "userParameters:%s", lineBuffer)){ userParametersId = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "historyStep:%s",    lineBuffer)){ historyStep      = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "useThisPrice:%s",   lineBuffer)){ useThisPrice     = atof(lineBuffer); doUseThisPrice = true; }
-			else if (sscanf(thisArg, "useThisOIS:%s",     lineBuffer)){ useThisOIS       = atof(lineBuffer); doUseThisOIS   = true; }
+			if (sscanf(thisArg, "fundingFractionFactor:%s",   lineBuffer)){ fundingFractionFactor	= atof(lineBuffer);	}
+			if (sscanf(thisArg, "forceFundingFraction:%s",    lineBuffer)){ forceFundingFraction	= lineBuffer; }		
+			else if (sscanf(thisArg, "endDate:%s",            lineBuffer)){ strcpy(endDate, lineBuffer); }
+			else if (sscanf(thisArg, "bumpUserId:%s",         lineBuffer)){ bumpUserId         = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "minnSecsTaken:%s",      lineBuffer)){ minSecsTaken       = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "maxSecsTaken:%s",       lineBuffer)){ maxSecsTaken       = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "userParameters:%s",     lineBuffer)){ userParametersId   = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "historyStep:%s",        lineBuffer)){ historyStep        = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "useThisPrice:%s",       lineBuffer)){ useThisPrice       = atof(lineBuffer); doUseThisPrice       = true; }
+			else if (sscanf(thisArg, "useThisOIS:%s",         lineBuffer)){ useThisOIS         = atof(lineBuffer); doUseThisOIS         = true; }
+			else if (sscanf(thisArg, "useThisBarrierBend:%s", lineBuffer)){ useThisBarrierBend = atof(lineBuffer); doUseThisBarrierBend = true; }
+			
 		}
 		if (doPriips){
 			if (strlen(startDate)){
@@ -661,6 +663,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int    bootstrapStride        = atoi(szAllPrices[colProductBootstrapStride]);
 			int    settleDays             = atoi(szAllPrices[colProductSettleDays]);
 			double barrierBend            = atof(szAllPrices[colProductBarrierBend])  * (getMarketData && !doUKSPA /* && !doBumps && !doDeltas */ ? 1.0 : 0.0);
+			if (doUseThisBarrierBend){ barrierBend = useThisBarrierBend / 100.0;  }
 			
 
 			useUserParams                 = userParametersId > 0 ? true : atoi(szAllPrices[colProductUseUserParams]) == 1;
@@ -1524,7 +1527,9 @@ int _tmain(int argc, WCHAR* argv[])
 				payoff                  = atof(szAllPrices[colPayoff]) / 100.0;
 				settlementDate          = szAllPrices[colSettlementDate];
 				double thisCoupon       = capitalOrIncome ? max(0.0, payoff - 1.0) : payoff;
-				double thisBarrierBend  = getMarketData && !doUKSPA ? (thisCoupon > 0.0 ? 0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon, but limit to 5%
+				double thisBarrierBend  = getMarketData && !doUKSPA  ? (thisCoupon > 0.0 ? 0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon, but limit to 5%
+				if (doUseThisBarrierBend){ thisBarrierBend = useThisBarrierBend / 100.0; }
+
 				// PRIIPs Intermediate Scenario?
 				description             = szAllPrices[colDescription];
 				avgInAlgebra            = szAllPrices[colAvgInAlgebra];
