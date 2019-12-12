@@ -33,6 +33,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["capitalProducts"]         = "";
 		argWords["ignoreBenchmark"]         = "";
 		argWords["debug"]                   = "";
+		argWords["barrierBendAmort"]        = "";
 		argWords["silent"]                  = "";
 		argWords["priips"]                  = "";
 		argWords["doAnyIdTable"]            = "";
@@ -97,7 +98,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
+		bool             doBarrierBendAmort(false),doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false);
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -190,6 +191,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
 			if (strstr(thisArg, "silent"            )){ silent             = true; }
+			if (strstr(thisArg, "barrierBendAmort"  )){ doBarrierBendAmort = true; }
 			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }
 			if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
 			if (strstr(thisArg, "hasInventory"      )){ hasInventory       = true; }
@@ -1527,6 +1529,7 @@ int _tmain(int argc, WCHAR* argv[])
 				payoff                  = atof(szAllPrices[colPayoff]) / 100.0;
 				settlementDate          = szAllPrices[colSettlementDate];
 				double thisCoupon       = capitalOrIncome ? max(0.0, payoff - 1.0) : payoff;
+				double barrierBendAmort = (!(doBarrierBendAmort) || daysExtant <= 0)  ? 1.0 : (daysExtant > 180 ? 0.0 : (double)daysExtant / 180.0);
 				double thisBarrierBend  = getMarketData && !doUKSPA  ? (thisCoupon > 0.0 ? 0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon, but limit to 5%
 				if (doUseThisBarrierBend){ thisBarrierBend = useThisBarrierBend / 100.0; }
 
