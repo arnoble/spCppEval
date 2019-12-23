@@ -3676,7 +3676,7 @@ public:
 					double earithReturn   = sumPossiblyCreditAdjPayoffs <= 0.0 ? -1.0 : pow(sumPossiblyCreditAdjPayoffs / midPrice / numAnnRets, 1.0 / duration) - 1.0;
 					double bmRelAverage        = MyMinAbs(1000.0,bmRelUnderperfPV*benchmarkProbUnderperf + bmRelOutperfPV*benchmarkProbOutperf);
 					double productBmReturn     = bmSwapRate + cds5y / 2.0 + (esVol*pow(duration, 0.5) / bmVol)*(bmEarithReturn - bmSwapRate);
-					double productExcessReturn = earithReturn - productBmReturn;
+					double productExcessReturn = MyMinAbs(1000.0, earithReturn - productBmReturn);
 
 					int    secsTaken      = (int)difftime(time(0), startTime);
 
