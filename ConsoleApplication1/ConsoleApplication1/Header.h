@@ -3732,9 +3732,9 @@ public:
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolTest='", esVolTest);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolBelowDepo='", esVolBelowDepo);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ESvolNegRet='", esVolNegRet);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", geomReturn);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ExpectedReturn='", MyMinAbs(1000.0, geomReturn));
 								// sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='",   averageReturn);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", earithReturn);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EArithReturn='", MyMinAbs(1000.0, earithReturn));
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',SharpeRatio='", sharpeRatio < -1000.0 ? -1000.0 : (sharpeRatio > 1000.0 ? 1000.0 : sharpeRatio));
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskCategory='", riskCategory);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RiskScorePriips='", riskScorePriips);
