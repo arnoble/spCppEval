@@ -33,7 +33,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["capitalProducts"]         = "";
 		argWords["ignoreBenchmark"]         = "";
 		argWords["debug"]                   = "";
-		argWords["barrierBendAmort"]        = "";
+		argWords["barrierBendAmort"]        = "endFraction:numMonths";
 		argWords["silent"]                  = "";
 		argWords["priips"]                  = "";
 		argWords["doAnyIdTable"]            = "";
@@ -111,7 +111,7 @@ int _tmain(int argc, WCHAR* argv[])
 		double           useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpAmount(0.05), deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0);
 		int              thetaBumpStart(0), thetaBumpStep(0);
-		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0);
+		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(1.0);
 		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1),solveForThis(0);
 		boost::gregorian::date lastDate;
 		string           anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), planSelect(""),whatToSolveFor(""),lastOptimiseDate;
@@ -191,7 +191,6 @@ int _tmain(int argc, WCHAR* argv[])
 			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
 			if (strstr(thisArg, "silent"            )){ silent             = true; }
-			if (strstr(thisArg, "barrierBendAmort"  )){ doBarrierBendAmort = true; }
 			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }
 			if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
 			if (strstr(thisArg, "hasInventory"      )){ hasInventory       = true; }
@@ -291,34 +290,47 @@ int _tmain(int argc, WCHAR* argv[])
 				step  = atof(tokens[2].c_str());
 				num   = atoi(tokens[3].c_str());
 				switch (bumpIds[tokens[0].c_str()]){
-					case 1: // delta
-						deltaBumpStart     = start;
-						deltaBumpStep      = step;
-						deltaBumps         = num;
-						bumpEachUnderlying = true;
-						break;
-					case 2: // vega
-						vegaBumpStart      = start;
-						vegaBumpStep       = step;
-						vegaBumps          = num;
-						bumpEachUnderlying = true;
-						break;
-					case 3: // theta
-						thetaBumpStart  = atoi(tokens[1].c_str());
-						thetaBumpStep   = atoi(tokens[2].c_str());;
-						thetaBumps      = num;
-						break;
-					case 4: // rho
-						rhoBumpStart  = start;
-						rhoBumpStep   = step;
-						rhoBumps      = num;
-						break;
-					case 5: // credit
-						creditBumpStart  = start;
-						creditBumpStep   = step;
-						creditBumps      = num;
-						break;
+				case 1: // delta
+					deltaBumpStart     = start;
+					deltaBumpStep      = step;
+					deltaBumps         = num;
+					bumpEachUnderlying = true;
+					break;
+				case 2: // vega
+					vegaBumpStart      = start;
+					vegaBumpStep       = step;
+					vegaBumps          = num;
+					bumpEachUnderlying = true;
+					break;
+				case 3: // theta
+					thetaBumpStart  = atoi(tokens[1].c_str());
+					thetaBumpStep   = atoi(tokens[2].c_str());;
+					thetaBumps      = num;
+					break;
+				case 4: // rho
+					rhoBumpStart  = start;
+					rhoBumpStep   = step;
+					rhoBumps      = num;
+					break;
+				case 5: // credit
+					creditBumpStart  = start;
+					creditBumpStep   = step;
+					creditBumps      = num;
+					break;
 				}
+			}
+						
+			if (sscanf(thisArg, "barrierBendAmort:%s", lineBuffer)){
+				doBarrierBendAmort = true;
+				getMarketData = true;
+				char *token   = std::strtok(lineBuffer, ":");
+				std::vector<std::string> tokens;
+				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
+				if ((int)tokens.size() != 2){ cerr << "barrierBendAmort: incorrect syntax" << endl; exit(104); }
+				barrierBendEndFraction = atof(tokens[0].c_str());
+				barrierBendDays        = atof(tokens[1].c_str());
+				if (barrierBendEndFraction <0.0 || barrierBendEndFraction > 1.0){ cerr << "barrierBendAmort: first arg must be between 1.0 and 0.0" << endl; exit(104); }
+				if (barrierBendDays <1.0){ cerr << "barrierBendAmort: ssecond arg must be at least 1" << endl; exit(104); }
 			}
 			if (sscanf(thisArg, "solveFor:%s", lineBuffer)){
 				solveFor      = true;
@@ -351,7 +363,7 @@ int _tmain(int argc, WCHAR* argv[])
 				forceEqEqCorrelation    = atof(tokens[2].c_str());
 			}
 			if (sscanf(thisArg, "only:%s", lineBuffer) || sscanf(thisArg, "notOnly:%s", lineBuffer)){
-				bool notOnly = sscanf(thisArg, "notOnly:%s", lineBuffer);
+				bool notOnly = (bool)sscanf(thisArg, "notOnly:%s", lineBuffer);
 				string  notOnlyStr = notOnly ? "" : "not";
 				onlyTheseUls = true;
 				char *token = std::strtok(lineBuffer, ",");
@@ -1529,7 +1541,7 @@ int _tmain(int argc, WCHAR* argv[])
 				payoff                  = atof(szAllPrices[colPayoff]) / 100.0;
 				settlementDate          = szAllPrices[colSettlementDate];
 				double thisCoupon       = capitalOrIncome ? max(0.0, payoff - 1.0) : payoff;
-				double barrierBendAmort = (!(doBarrierBendAmort) || daysExtant <= 0)  ? 1.0 : (daysExtant > 180 ? 0.0 : 1.0 - (double)daysExtant / 180.0 );
+				double barrierBendAmort = (!(doBarrierBendAmort) || daysExtant <= 0) ? 1.0 : (daysExtant > barrierBendDays ? barrierBendEndFraction : 1.0 - (1.0 - barrierBendEndFraction)*(double)daysExtant / barrierBendDays);
 				double thisBarrierBend  = getMarketData && !doUKSPA ? (thisCoupon > 0.0 ? 0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon, but limit to 5%
 				thisBarrierBend        *= barrierBendAmort;
 				if (doUseThisBarrierBend){ thisBarrierBend = useThisBarrierBend / 100.0; }
