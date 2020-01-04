@@ -2225,7 +2225,7 @@ int _tmain(int argc, WCHAR* argv[])
 													thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
 													thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
 
-													cerr << "BUMP:" << ulId << " credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
+													cerr << "BUMP:" << ulId << " theta:" << thetaBumpAmount << " credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
 
 													// re-evaluate
 													spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
@@ -2243,8 +2243,8 @@ int _tmain(int argc, WCHAR* argv[])
 														}
 													}
 													else {
-														sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
-														sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
+														sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
+														sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 														mydb.prepare((SQLCHAR *)lineBuffer, 1);
 													}
 													// cerr << lineBuffer << endl;
@@ -2309,8 +2309,8 @@ int _tmain(int argc, WCHAR* argv[])
 												}
 											}
 											else {
-												sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,ThetaBumpAmount,RhoBumpAmount,CreditBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
-												sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", thetaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
+												sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
+												sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 												mydb.prepare((SQLCHAR *)lineBuffer, 1);
 												// save some greeks to product table
 												if (bumpUserId == 3 && deltaBumpAmount == 0.0){
