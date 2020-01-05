@@ -59,7 +59,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["Issuer"]                  = "partName";
 		argWords["fundingFractionFactor"]   = "x.x";
 		argWords["forceFundingFraction"]    = "x.x";
-		argWords["rescale"]                 = "spots|tba:fraction";
+		argWords["rescale"]                 = "spots|tba:fraction  eg spots:0.8 for a 20% fall in underlyings";
 		argWords["useThisPrice"]            = "x.x";
 		argWords["useThisOIS"]              = "x.x";
 		argWords["useThisBarrierBend"]      = "x.x";
@@ -1900,7 +1900,10 @@ int _tmain(int argc, WCHAR* argv[])
 			//  impose any rescaling of market data
 			//
 			if (doRescaleSpots){
-			
+				for (i=0; i < numUl; i++){
+					bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, thisMarketData.ulVolsStrike, rescaleFraction - 1.0, totalNumDays, daysExtant, false);
+					spots[i] = ulPrices[i].price[totalNumDays - 1];
+				}
 			}
 
 
@@ -2220,10 +2223,44 @@ int _tmain(int argc, WCHAR* argv[])
 										double bumpFactor = 1.0 / (1.0 + deltaBumpAmount);
 										if (true || deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || rhoBumpAmount != 0.0){
 											// for each underlying
-											if (bumpEachUnderlying){
+											if (bumpEachUnderlying && !doRescaleSpots){
 												for (i=0; i < numUl; i++){
 													int ulId = ulIds[i];
-													bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant);
+													if (!doTesting){
+														bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant,true);
+													}
+													else{
+														// bump spot
+														double newSpot      = spots[i] * (1.0 + (doStickySmile ? 0.0 : deltaBumpAmount));
+														double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
+														if (doStickySmile){
+															for (j=0; j < (int)thisMarketData.ulVolsTenor[i].size(); j++){
+																for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
+																	thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
+																}
+															}
+														}
+														ulPrices[i].price[totalNumDays - 1] = newSpot;
+														// re-initialise barriers
+														for (j=0; j < numBarriers; j++){
+															SpBarrier& b(spr.barrier.at(j));
+															// clear hits
+															if (b.startDays>0){ b.hit.clear(); }
+															// set/reset brel moneyness
+															int numBrel = (int)b.brel.size();
+															for (k=0; k < numBrel; k++){
+																SpBarrierRelation& thisBrel(b.brel.at(k));
+																if (ulId == thisBrel.underlying){
+																	thisBrel.calcMoneyness(newMoneyness);
+																}
+																else {
+																	thisBrel.calcMoneyness(thisBrel.originalMoneyness);
+																}
+															}
+														}
+													}
+													
+													
 													// install any bumped vols
 													thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
 													thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
@@ -2260,12 +2297,43 @@ int _tmain(int argc, WCHAR* argv[])
 												} // for (i=0; i < numUl; i++){
 											} // if (bumpEachUnderlying){
 											// for ALL underlyings
-											for (i=0; i < numUl; i++){
-												int ulId = ulIds[i];
-												bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant);
-												// install any bumped vols
-												thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
-												thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
+											if (!doRescaleSpots){
+												for (i=0; i < numUl; i++){
+													int ulId = ulIds[i];
+													if (!doTesting){
+														bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant, false);
+													}
+													else {
+														// bump spot
+														double newSpot      = spots[i] * (1.0 + (doStickySmile ? 0.0 : deltaBumpAmount));
+														double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
+														ulPrices[i].price[totalNumDays - 1] = newSpot;
+														if (doStickySmile){
+															for (j=0; j < (int)thisMarketData.ulVolsTenor.size(); j++){
+																for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
+																	thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
+																}
+															}
+														}
+														// re-initialise barriers
+														for (j=0; j < numBarriers; j++){
+															SpBarrier& b(spr.barrier.at(j));
+															// clear hits
+															if (b.startDays>0){ b.hit.clear(); }
+															// set/reset brel moneyness
+															int numBrel = (int)b.brel.size();
+															for (k=0; k < numBrel; k++){
+																SpBarrierRelation& thisBrel(b.brel.at(k));
+																if (ulId == thisBrel.underlying){
+																	thisBrel.calcMoneyness(newMoneyness);
+																}
+															}
+														}
+													}
+													// install any bumped vols
+													thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
+													thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
+												}
 											}
 											// re-evaluate
 											cerr << "BUMPALL: credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;

@@ -3889,17 +3889,18 @@ public:
 //
 // bumpSpots
 //
-void bumpSpots(SProduct                            &spr,
-	const int                                      i,
-	const std::vector<int>                         &ulIds,
-	std::vector<double>                            &spots,
-	std::vector<UlTimeseries>                      &ulPrices,
-	const bool                                     doStickySmile,
-	MarketData                                     &thisMarketData,
-	std::vector<std::vector<std::vector<double>>>  &holdUlVolsStrike,
+void bumpSpots(SProduct                                  &spr,
+	const int                                            i,
+	const std::vector<int>                               &ulIds,
+	const std::vector<double>                            &spots,
+	std::vector<UlTimeseries>                            &ulPrices,
+	const bool                                           doStickySmile,
+	MarketData                                           &thisMarketData,
+	const std::vector<std::vector<std::vector<double>>>  &holdUlVolsStrike,
 	const double                                   deltaBumpAmount,
 	const int                                      totalNumDays,
-	const int                                      daysExtant){
+	const int                                      daysExtant,
+	const bool                                     reinstateOthers){
 	int j, k;
 	int    numBarriers = spr.barrier.size();
 	double bumpFactor  = 1.0 / (1.0 + deltaBumpAmount);
@@ -3926,6 +3927,9 @@ void bumpSpots(SProduct                            &spr,
 			SpBarrierRelation& thisBrel(b.brel.at(k));
 			if (ulId == thisBrel.underlying){
 				thisBrel.calcMoneyness(newMoneyness);
+			}
+			else if(reinstateOthers) {
+				thisBrel.calcMoneyness(thisBrel.originalMoneyness);
 			}
 		}
 	}
