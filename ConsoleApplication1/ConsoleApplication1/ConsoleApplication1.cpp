@@ -24,6 +24,7 @@ int _tmain(int argc, WCHAR* argv[])
 		// initialise
 		map<string, string> argWords;
 		argWords["doFAR"          ]         = "";      
+		argWords["doTesting"      ]         = "";
 		argWords["doDeltas"       ]         = "";
 		argWords["notIllustrative"]         = "";
 		argWords["hasISIN"]                 = "";
@@ -58,6 +59,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["Issuer"]                  = "partName";
 		argWords["fundingFractionFactor"]   = "x.x";
 		argWords["forceFundingFraction"]    = "x.x";
+		argWords["rescale"]                 = "spots|tba:fraction";
 		argWords["useThisPrice"]            = "x.x";
 		argWords["useThisOIS"]              = "x.x";
 		argWords["useThisBarrierBend"]      = "x.x";
@@ -96,9 +98,9 @@ int _tmain(int argc, WCHAR* argv[])
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		bool             doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
+		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doBarrierBendAmort(false),doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
+		bool             doRescaleSpots(false), doBarrierBendAmort(false), doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false);
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -108,18 +110,19 @@ int _tmain(int argc, WCHAR* argv[])
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
+		double           rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpAmount(0.05), deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0);
 		int              thetaBumpStart(0), thetaBumpStep(0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(1.0);
 		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1),solveForThis(0);
 		boost::gregorian::date lastDate;
-		string           anyString, ukspaCase(""), issuerPartName(""), forceFundingFraction(""), planSelect(""),whatToSolveFor(""),lastOptimiseDate;
+		string           anyString, ukspaCase(""), rescaleType(""),issuerPartName(""), forceFundingFraction(""), planSelect(""),whatToSolveFor(""),lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3; bumpIds["rho"] = 4; bumpIds["credit"] = 5;
 		map<string, double> ulLevels;  // name:level
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 		vector<string>   rangeFilterStrings;
+		vector<string>   rescaleTypes; rescaleTypes.push_back("spots");
 		const int        maxUls(100);
 		const int        bufSize(1000);
 
@@ -188,6 +191,7 @@ int _tmain(int argc, WCHAR* argv[])
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }				
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
+			if (strstr(thisArg, "doTesting"         )){ doTesting          = true; }				
 			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
 			if (strstr(thisArg, "silent"            )){ silent             = true; }
@@ -330,8 +334,23 @@ int _tmain(int argc, WCHAR* argv[])
 				barrierBendEndFraction = atof(tokens[0].c_str());
 				barrierBendDays        = atof(tokens[1].c_str());
 				if (barrierBendEndFraction <0.0 || barrierBendEndFraction > 1.0){ cerr << "barrierBendAmort: first arg must be between 1.0 and 0.0" << endl; exit(104); }
-				if (barrierBendDays <1.0){ cerr << "barrierBendAmort: ssecond arg must be at least 1" << endl; exit(104); }
+				if (barrierBendDays <1.0){ cerr << "barrierBendAmort: second arg must be at least 1" << endl; exit(104); }
 			}
+			
+			if (sscanf(thisArg, "rescale:%s", lineBuffer)){
+				doRescaleSpots = true;
+				getMarketData  = true;
+				char *token    = std::strtok(lineBuffer, ":");
+				std::vector<std::string> tokens;
+				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
+				if ((int)tokens.size() != 2){ cerr << "rescale: incorrect syntax" << endl; exit(104); }
+				rescaleType       = tokens[0].c_str();
+				rescaleFraction   = atof(tokens[1].c_str());
+				std::vector<string>::iterator it = std::find(rescaleTypes.begin(), rescaleTypes.end(), rescaleType);
+				if (it == rescaleTypes.end()){ cerr << "rescale: first arg not recognised"         << endl; exit(1041); }
+				if (rescaleFraction <= 0.0)  { cerr << "rescale: second arg must be at least 0.0"  << endl; exit(1041); }
+			}
+
 			if (sscanf(thisArg, "solveFor:%s", lineBuffer)){
 				solveFor      = true;
 				getMarketData = true;
@@ -1876,7 +1895,18 @@ int _tmain(int argc, WCHAR* argv[])
 			numMonPoints = (int)monDateIndx.size();
 			if (productHasMatured || !numMonPoints || (numMonPoints == 1 && monDateIndx[0] == 0)){ continue; }
 
+
+			//
+			//  impose any rescaling of market data
+			//
+			if (doRescaleSpots){
+			
+			}
+
+
+
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
+			// *** this call to evaluate() establishes baseCase "thisFairValue" for subsequent bumps
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
 			int thisStartPoint =  thisNumIterations == 1 ? daysExtant : totalNumDays - 1;
 			int thisLastPoint  =  thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays; /*daysExtant + 1*/
@@ -2193,39 +2223,12 @@ int _tmain(int argc, WCHAR* argv[])
 											if (bumpEachUnderlying){
 												for (i=0; i < numUl; i++){
 													int ulId = ulIds[i];
-													// bump spot
-													double newSpot      = spots[i] * (1.0 + (doStickySmile ? 0.0 : deltaBumpAmount));
-													double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
-													if (doStickySmile){
-														for (j=0; j < (int)thisMarketData.ulVolsTenor[i].size(); j++){
-															for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
-																thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
-															}
-														}
-													}
-													ulPrices[i].price[totalNumDays - 1] = newSpot;
-													// re-initialise barriers
-													for (j=0; j < numBarriers; j++){
-														SpBarrier& b(spr.barrier.at(j));
-														// clear hits
-														if (b.startDays>0){ b.hit.clear(); }
-														// set/reset brel moneyness
-														int numBrel = (int)b.brel.size();
-														for (k=0; k < numBrel; k++){
-															SpBarrierRelation& thisBrel(b.brel.at(k));
-															if (ulId == thisBrel.underlying){
-																thisBrel.calcMoneyness(newMoneyness);
-															}
-															else {
-																thisBrel.calcMoneyness(thisBrel.originalMoneyness);
-															}
-														}
-													}
-													// bump vols
+													bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant);
+													// install any bumped vols
 													thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
 													thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
 
-													cerr << "BUMP:" << ulId << " theta:" << thetaBumpAmount << " credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
+													cerr << "BUMP: UnderlyingId:" << ulId << " theta:" << thetaBumpAmount << " credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
 
 													// re-evaluate
 													spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
@@ -2259,32 +2262,8 @@ int _tmain(int argc, WCHAR* argv[])
 											// for ALL underlyings
 											for (i=0; i < numUl; i++){
 												int ulId = ulIds[i];
-												// bump spot
-												double newSpot      = spots[i] * (1.0 + (doStickySmile ? 0.0 : deltaBumpAmount));
-												double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
-												ulPrices[i].price[totalNumDays - 1] = newSpot;
-												if (doStickySmile){
-													for (j=0; j < (int)thisMarketData.ulVolsTenor.size(); j++){
-														for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
-															thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
-														}
-													}
-												}
-												// re-initialise barriers
-												for (j=0; j < numBarriers; j++){
-													SpBarrier& b(spr.barrier.at(j));
-													// clear hits
-													if (b.startDays>0){ b.hit.clear(); }
-													// set/reset brel moneyness
-													int numBrel = (int)b.brel.size();
-													for (k=0; k < numBrel; k++){
-														SpBarrierRelation& thisBrel(b.brel.at(k));
-														if (ulId == thisBrel.underlying){
-															thisBrel.calcMoneyness(newMoneyness);
-														}
-													}
-												}
-												// bump vols
+												bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant);
+												// install any bumped vols
 												thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
 												thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
 											}

@@ -652,9 +652,6 @@ double interpVector(const std::vector<double> &vector,
 
 
 
-
-
-
 // ************** sundry functions
 double calcRiskCategory(const std::vector<double> &buckets,const double scaledVol,const double start){
 	double riskCategory(start);  
@@ -3887,4 +3884,52 @@ public:
 	}  // evaluate()
 
 }; // class SProduct
+
+
+//
+// bumpSpots
+//
+void bumpSpots(SProduct                            &spr,
+	const int                                      i,
+	const std::vector<int>                         &ulIds,
+	std::vector<double>                            &spots,
+	std::vector<UlTimeseries>                      &ulPrices,
+	const bool                                     doStickySmile,
+	MarketData                                     &thisMarketData,
+	std::vector<std::vector<std::vector<double>>>  &holdUlVolsStrike,
+	const double                                   deltaBumpAmount,
+	const int                                      totalNumDays,
+	const int                                      daysExtant){
+	int j, k;
+	int    numBarriers = spr.barrier.size();
+	double bumpFactor  = 1.0 / (1.0 + deltaBumpAmount);
+	int    ulId        = ulIds[i];
+	// bump spot
+	double newSpot      = spots[i] * (1.0 + (doStickySmile ? 0.0 : deltaBumpAmount));
+	double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
+	ulPrices[i].price[totalNumDays - 1] = newSpot;
+	if (doStickySmile){
+		for (j=0; j < (int)thisMarketData.ulVolsTenor.size(); j++){
+			for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
+				thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
+			}
+		}
+	}
+	// re-initialise barriers
+	for (j=0; j < numBarriers; j++){
+		SpBarrier& b(spr.barrier.at(j));
+		// clear hits
+		if (b.startDays>0){ b.hit.clear(); }
+		// set/reset brel moneyness
+		int numBrel = (int)b.brel.size();
+		for (k=0; k < numBrel; k++){
+			SpBarrierRelation& thisBrel(b.brel.at(k));
+			if (ulId == thisBrel.underlying){
+				thisBrel.calcMoneyness(newMoneyness);
+			}
+		}
+	}
+}
+
+
 	
