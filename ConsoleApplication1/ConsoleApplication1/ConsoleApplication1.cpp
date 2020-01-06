@@ -100,7 +100,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doRescaleSpots(false), doBarrierBendAmort(false), doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
+		bool             doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false);
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -113,7 +113,7 @@ int _tmain(int argc, WCHAR* argv[])
 		double           rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpAmount(0.05), deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0);
 		int              thetaBumpStart(0), thetaBumpStep(0);
-		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(1.0);
+		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(180.0);
 		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1),solveForThis(0);
 		boost::gregorian::date lastDate;
 		string           anyString, ukspaCase(""), rescaleType(""),issuerPartName(""), forceFundingFraction(""), planSelect(""),whatToSolveFor(""),lastOptimiseDate;
@@ -1100,11 +1100,11 @@ int _tmain(int argc, WCHAR* argv[])
 			totalNumReturns      = totalNumDays - 1;
 			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
 			int daysExtant = (bLastDataDate - bProductStartDate).days();
-			// change to ASK; to use MID do: (bidPrice + askPrice) / (2.0*issuePrice)
+			// change to BID/ASK for post/pre-strike; to use MID do: (bidPrice + askPrice) / (2.0*issuePrice)
 			bool ignoreBidAsk    = ((bidAskDateString < lastDataDateString) || stalePrice);
 			bool validFairValue  = (fairValueDateString == lastDataDateString) && (daysExtant > 14) && fairValuePrice>0.0;
 			bool isPostStrike    = productStartDateString < lastDataDateString;
-			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue && isPostStrike ? fairValuePrice : issuePrice) : askPrice)) / issuePrice;
+			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue && isPostStrike ? fairValuePrice : issuePrice) : (isPostStrike ? bidPrice:askPrice))) / issuePrice;
 			if (strlen(endDate)){
 				// get ASK from productprices if exists
 				sprintf(lineBuffer, "%s%d%s%s%s", "select Ask from productprices where ProductId=", productId," and date<='",endDate,"' order by Date desc limit 1");
