@@ -2223,7 +2223,7 @@ int _tmain(int argc, WCHAR* argv[])
 										double bumpFactor = 1.0 / (1.0 + deltaBumpAmount);
 										if (true || deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || rhoBumpAmount != 0.0){
 											// for each underlying
-											if (bumpEachUnderlying && !doRescaleSpots){
+											if (bumpEachUnderlying){
 												for (i=0; i < numUl; i++){
 													int ulId = ulIds[i];
 													if (!doTesting){
@@ -2297,7 +2297,7 @@ int _tmain(int argc, WCHAR* argv[])
 												} // for (i=0; i < numUl; i++){
 											} // if (bumpEachUnderlying){
 											// for ALL underlyings
-											if (!doRescaleSpots){
+											if (!doRescaleSpots || bumpedFairValue){
 												for (i=0; i < numUl; i++){
 													int ulId = ulIds[i];
 													if (!doTesting){
