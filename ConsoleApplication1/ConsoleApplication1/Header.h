@@ -3769,7 +3769,7 @@ public:
 							}
 						}
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
-						std::cout << lineBuffer << std::endl;
+						if (!silent) { std::cout << lineBuffer << std::endl; }
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 						if (!doBumps && analyseCase == 0){
 							sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
