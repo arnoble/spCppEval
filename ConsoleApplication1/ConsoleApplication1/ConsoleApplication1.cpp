@@ -100,7 +100,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
+		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false);
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -338,6 +338,7 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			
 			if (sscanf(thisArg, "rescale:%s", lineBuffer)){
+				doRescale      = true;
 				doRescaleSpots = true;
 				getMarketData  = true;
 				char *token    = std::strtok(lineBuffer, ":");
@@ -1920,7 +1921,8 @@ int _tmain(int argc, WCHAR* argv[])
 					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false /* doPriipsStress */, 
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
-					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */!doBumps && !solveFor);
+					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
+					/* updateCashflows */!doBumps && !solveFor && !doRescale);
 				if (solveFor){
 					// Newton-Raphson		
 					int maxit    = 100;
