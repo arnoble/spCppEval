@@ -69,7 +69,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["ulLevel"]                 = "name:level       eg UK100:6500";
 		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier and add :commit to save solution";
 		argWords["stickySmile"]             = "";
-		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta|vega|rho|credit:-0.05:0.05:3 >";
+		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta|vega|rho|credit|corr~name~name:-0.05:0.05:3 >";
 		argWords["forOptimisation"]         = "";
 		argWords["duration"]                = "<number ~ number, or just number(min)>";
 		argWords["volatility"]              = "<number ~ number, or just number(min) PERCENT>";
@@ -93,15 +93,17 @@ int _tmain(int argc, WCHAR* argv[])
 			exit(100);
 		}
 		
-		
+
+
 		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
+		int              corrUidx, corrOtherUidx, corrOtherIndex;
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
-		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false);
+		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -113,16 +115,17 @@ int _tmain(int argc, WCHAR* argv[])
 		double           rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpAmount(0.05), deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0);
 		int              thetaBumpStart(0), thetaBumpStep(0);
-		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(180.0);
-		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1),solveForThis(0);
+		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), corrBumpStart(0.0), corrBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(180.0);
+		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1), corrBumps(1), solveForThis(0);
 		boost::gregorian::date lastDate;
-		string           anyString, ukspaCase(""), rescaleType(""),issuerPartName(""), forceFundingFraction(""), planSelect(""),whatToSolveFor(""),lastOptimiseDate;
+		string           anyString, ukspaCase(""), rescaleType(""), issuerPartName(""), forceFundingFraction(""), planSelect(""), whatToSolveFor(""), lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
-		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3; bumpIds["rho"] = 4; bumpIds["credit"] = 5;
+		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3; bumpIds["rho"] = 4; bumpIds["credit"] = 5; bumpIds["corr"] = 6;
 		map<string, double> ulLevels;  // name:level
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
-		vector<string>   rangeFilterStrings;
+		vector<string>   rangeFilterStrings,corrNames;
 		vector<string>   rescaleTypes; rescaleTypes.push_back("spots");
+		vector<double>   *corrVecPtr;
 		const int        maxUls(100);
 		const int        bufSize(1000);
 
@@ -130,7 +133,7 @@ int _tmain(int argc, WCHAR* argv[])
 		SomeCurve        anyCurve;
 		time_t           startTime = time(0);
 		char             **szAllPrices = new char*[maxUls];
-		vector<int>      optimiseProductIds,allProductIds; allProductIds.reserve(1000);
+		vector<int>      corrIds,optimiseProductIds,allProductIds; allProductIds.reserve(1000);
 		vector<int>::iterator intIterator, intIterator1;
 		for (int i = 0; i < maxUls; i++){
 			szAllPrices[i] = new char[bufSize];
@@ -293,6 +296,36 @@ int _tmain(int argc, WCHAR* argv[])
 				start = atof(tokens[1].c_str());
 				step  = atof(tokens[2].c_str());
 				num   = atoi(tokens[3].c_str());
+				// check for correlation string
+				size_t pos = 0;	
+				const std::string corrKey("corr");
+				if ((pos = tokens[0].find(corrKey)) != std::string::npos){
+					std::string frag;
+					tokens[0].erase(0, pos + corrKey.length() + 1);
+					while ((pos = tokens[0].find("~")) != std::string::npos) {
+						frag = tokens[0].substr(0, pos);
+						corrNames.push_back(frag);
+						tokens[0].erase(0, pos + 1);
+					}
+					corrNames.push_back(tokens[0]);
+					if ((int)corrNames.size() != 2){ cerr << "bump: corr: incorrect syntax - need 2 names separated by '~' " << endl; exit(1041); }
+					tokens[0] = corrKey;
+					// find the correlation ids
+					bool done=false;
+					for (int i=0; !done && i < 2; i++){
+						sprintf(lineBuffer, "%s%s%s%s%s%d", "select c.UnderlyingId,c.OtherId from correlation c join underlying u1 using (UnderlyingId)  join underlying u2 on (c.OtherId=u2.UnderlyingId) where UserId=3 and u1.Name='", corrNames[0].c_str(), "' and u2.Name= '", corrNames[1].c_str(), "' and OtherIdIsCcy=", i);
+						mydb.prepare((SQLCHAR *)lineBuffer, 2);
+						retcode = mydb.fetch(false, lineBuffer);
+						if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+							corrIds.push_back(atoi(szAllPrices[0]));
+							corrIds.push_back(atoi(szAllPrices[1]));
+							corrsAreEqEq = i == 0;
+							done = true;
+						}
+						if (!done){ cerr << "bump: corr: cannot find eq/eq or fx/fx underlyings for " << corrNames[0].c_str() << " and " << corrNames[1].c_str() << endl; exit(1042); }
+					}
+				}
+				
 				switch (bumpIds[tokens[0].c_str()]){
 				case 1: // delta
 					deltaBumpStart     = start;
@@ -320,6 +353,11 @@ int _tmain(int argc, WCHAR* argv[])
 					creditBumpStart  = start;
 					creditBumpStep   = step;
 					creditBumps      = num;
+					break;
+				case 6: // correlation
+					corrBumpStart  = start;
+					corrBumpStep   = step;
+					corrBumps      = num;
 					break;
 				}
 			}
@@ -1446,17 +1484,28 @@ int _tmain(int argc, WCHAR* argv[])
 					// .. parse each record <Date,price0,...,pricen>
 					mydb.prepare((SQLCHAR *)ulSql, 3);
 					retcode   = mydb.fetch(false, ulSql);
+					std::vector<std::tuple<int, int>> foundCorr;
 					while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 						int    thisUid    = atoi(szAllPrices[0]);
 						int    otherId    = atoi(szAllPrices[1]);
 						int    thisUidx   = ulIdNameMap.at(thisUid);
 						int    otherUidx  = ulIdNameMap.at(otherId);
 						double thisCorr   = atof(szAllPrices[2]);
-						corrsOtherId[thisUidx].push_back(otherUidx);
 						if (forceEqEqCorr && ((eqCorrelationUid == thisUid && eqCorrelationOtherId == otherId) || (eqCorrelationUid == otherId && eqCorrelationOtherId == thisUid))){
 							thisCorr = forceEqEqCorrelation;
 						}
-						corrsCorrelation[thisUidx].push_back(thisCorr);
+						// if we already have this correlation (correlation table may have also entered the correlation the other way round)
+						bool done = false;
+						for (int i=0; !done && i < foundCorr.size(); i++){
+							if (std::get<0>(foundCorr[i]) == thisUid && std::get<1>(foundCorr[i]) == otherId){
+								done = true;
+							}
+						}
+						if (!done){
+							corrsOtherId[thisUidx].push_back(otherUidx);
+							corrsCorrelation[thisUidx].push_back(thisCorr);
+							foundCorr.push_back(std::make_tuple(otherId, thisUid));
+						}
 						retcode = mydb.fetch(false, "");
 					}
 				}
@@ -1469,16 +1518,43 @@ int _tmain(int argc, WCHAR* argv[])
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 3);
 				retcode   = mydb.fetch(false, ulSql);
+				std::vector<std::tuple<int, int>> foundFxCorr;
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					int    thisUid    = atoi(szAllPrices[0]);
 					int    thisUidx   = ulIdNameMap.at(thisUid);
 					int    otherId    = atoi(szAllPrices[1]);
 					int    otherUidx  = ulIdNameMap.at(otherId);
 					double thisCorr   = atof(szAllPrices[2]);
-					fxcorrsOtherId[thisUidx].push_back(otherUidx);
-					fxcorrsCorrelation[thisUidx].push_back(forceEqFxCorr &&	fxCorrelationUid == thisUid && fxCorrelationOtherId == otherId ? forceEqFxCorrelation : thisCorr);
+					// if we already have this correlation (correlation table may have also entered the correlation the other way round)
+					bool done = false;
+					for (int i=0; !done && i < foundFxCorr.size(); i++){
+						if (std::get<0>(foundFxCorr[i]) == thisUid && std::get<1>(foundFxCorr[i]) == otherId){
+							done = true;
+						}
+					}
+					if (!done){
+						fxcorrsOtherId[thisUidx].push_back(otherUidx);
+						fxcorrsCorrelation[thisUidx].push_back(forceEqFxCorr &&	fxCorrelationUid == thisUid && fxCorrelationOtherId == otherId ? forceEqFxCorrelation : thisCorr);
+						foundFxCorr.push_back(std::make_tuple(otherId, thisUid));
+					}
 					retcode = mydb.fetch(false, "");
 				}
+				// initialise any correlation bumps
+				if (corrNames.size()>0){
+					corrUidx       = ulIdNameMap.at(corrIds[0]);
+					corrOtherUidx  = ulIdNameMap.at(corrIds[1]);
+					if (corrsAreEqEq){
+						corrOtherIndex = getIndexInVector(corrsOtherId[corrUidx], corrOtherUidx);
+					}
+					else{
+						corrOtherIndex = getIndexInVector(fxcorrsOtherId[corrUidx], corrOtherUidx);
+					}
+					if (corrOtherIndex<0){
+						cerr << " correlation  between " << corrNames[0].c_str() << " and " << corrNames[0].c_str() << " not involved in this product" << endl;
+						exit(1111);
+					}
+				}
+				
 				// check we have data for all underlyings
 				for (i = 0; i < numUl; i++) {
 					if ((int)ulVolsTenor[i].size() == 0){
@@ -1513,6 +1589,9 @@ int _tmain(int argc, WCHAR* argv[])
 				continue;
 			}
 
+			// sundry init
+			std::vector<double> &corrBumpVector(corrsAreEqEq ? thisMarketData.corrsCorrelation[corrUidx] : thisMarketData.fxcorrsCorrelation[corrUidx]);
+			const double  holdCorr = corrBumpVector[corrOtherIndex];
 
 			// create product
 			if (AMC != 0.0){
@@ -2112,7 +2191,7 @@ int _tmain(int argc, WCHAR* argv[])
 
 				
 				
-				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), rhoBumpAmount(0.0), creditBumpAmount(0.0);
+				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), rhoBumpAmount(0.0), creditBumpAmount(0.0), corrBumpAmount(0.0);
 				int    thetaBumpAmount(0);
 				if (doBumps && (deltaBumps || vegaBumps || thetaBumps || rhoBumps || creditBumps)  /* && daysExtant>0 */){
 					vector< vector<vector<double>> >  holdUlFwdVol(thisMarketData.ulVolsFwdVol);
@@ -2218,172 +2297,160 @@ int _tmain(int argc, WCHAR* argv[])
 									} // END recalculate forward vols
 
 									/*
-									* delta loop
+									* correlation loop
 									*/
-									for (int deltaBump=0; deltaBump < deltaBumps; deltaBump++){
-										deltaBumpAmount = deltaBumpStart + deltaBumpStep*deltaBump;
-										double bumpFactor = 1.0 / (1.0 + deltaBumpAmount);
-										if (true || deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || rhoBumpAmount != 0.0){
-											// for each underlying
-											if (bumpEachUnderlying){
-												for (i=0; i < numUl; i++){
-													int ulId = ulIds[i];
-													if (!doTesting){
-														bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant,true);
-													}
-													else{
-														// bump spot
-														double newSpot      = spots[i] * (1.0 + (doStickySmile ? 0.0 : deltaBumpAmount));
-														double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
-														if (doStickySmile){
-															for (j=0; j < (int)thisMarketData.ulVolsTenor[i].size(); j++){
-																for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
-																	thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
+									// maybe bump correlations
+									for (int corrBump=0; corrBump < corrBumps; corrBump++){
+										corrBumpAmount = corrBumpStart + corrBumpStep*corrBump;
+										// change correlations
+										if (corrBumpAmount != 0.0){
+											corrBumpVector[corrOtherIndex] = max(-1.0,min(1.0,corrBumpVector[corrOtherIndex] + corrBumpAmount));
+										}
+
+										/*
+										* delta loop
+										*/
+										for (int deltaBump=0; deltaBump < deltaBumps; deltaBump++){
+											deltaBumpAmount = deltaBumpStart + deltaBumpStep*deltaBump;
+											double bumpFactor = 1.0 / (1.0 + deltaBumpAmount);
+											if (true || deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || rhoBumpAmount != 0.0){
+												// for each underlying
+												if (bumpEachUnderlying){
+													for (i=0; i < numUl; i++){
+														int ulId = ulIds[i];
+														if (!doTesting){
+															bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant, true);
+														}
+														else{
+															// bump spot
+															double newSpot      = spots[i] * (1.0 + (doStickySmile ? 0.0 : deltaBumpAmount));
+															double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
+															if (doStickySmile){
+																for (j=0; j < (int)thisMarketData.ulVolsTenor[i].size(); j++){
+																	for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
+																		thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
+																	}
+																}
+															}
+															ulPrices[i].price[totalNumDays - 1] = newSpot;
+															// re-initialise barriers
+															for (j=0; j < numBarriers; j++){
+																SpBarrier& b(spr.barrier.at(j));
+																// clear hits
+																if (b.startDays>0){ b.hit.clear(); }
+																// set/reset brel moneyness
+																int numBrel = (int)b.brel.size();
+																for (k=0; k < numBrel; k++){
+																	SpBarrierRelation& thisBrel(b.brel.at(k));
+																	if (ulId == thisBrel.underlying){
+																		thisBrel.calcMoneyness(newMoneyness);
+																	}
+																	else {
+																		thisBrel.calcMoneyness(thisBrel.originalMoneyness);
+																	}
 																}
 															}
 														}
-														ulPrices[i].price[totalNumDays - 1] = newSpot;
-														// re-initialise barriers
-														for (j=0; j < numBarriers; j++){
-															SpBarrier& b(spr.barrier.at(j));
-															// clear hits
-															if (b.startDays>0){ b.hit.clear(); }
-															// set/reset brel moneyness
-															int numBrel = (int)b.brel.size();
-															for (k=0; k < numBrel; k++){
-																SpBarrierRelation& thisBrel(b.brel.at(k));
-																if (ulId == thisBrel.underlying){
-																	thisBrel.calcMoneyness(newMoneyness);
-																}
-																else {
-																	thisBrel.calcMoneyness(thisBrel.originalMoneyness);
-																}
+
+
+														// install any bumped vols
+														thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
+														thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
+
+														cerr << "BUMP: UnderlyingId:" << ulId << " theta:" << thetaBumpAmount << " credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " corr:" << corrBumpAmount << " delta:" << deltaBumpAmount << endl;
+
+														// re-evaluate
+														spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+															numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+															contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
+															cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */,
+															productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
+														if (doDeltas){
+															if (deltaBumpAmount != 0.0){
+																//  Elasticity: double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
+																double  delta = (bumpedFairValue - thisFairValue) / deltaBumpAmount / issuePrice;
+																sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
+																sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", ulIds[i], ",", productId, ")");
+																mydb.prepare((SQLCHAR *)lineBuffer, 1);
 															}
 														}
+														else {
+															sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
+															sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
+															mydb.prepare((SQLCHAR *)lineBuffer, 1);
+														}
+														// cerr << lineBuffer << endl;
+														// ... reinstate spots
+														ulPrices[i].price[totalNumDays - 1] = spots[i];
+														// ... reinstate vols
+														thisMarketData.ulVolsFwdVol[i] = holdUlFwdVol[i];
+														thisMarketData.ulVolsImpVol[i] = holdUlImpVol[i];
+														thisMarketData.ulVolsStrike[i] = holdUlVolsStrike[i];
+													} // for (i=0; i < numUl; i++){
+												} // if (bumpEachUnderlying){
+												// for ALL underlyings
+												if (!doRescaleSpots || bumpedFairValue){
+													for (i=0; i < numUl; i++){
+														int ulId = ulIds[i];
+														bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant, false);
+														// install any bumped vols
+														thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
+														thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
 													}
-													
-													
-													// install any bumped vols
-													thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
-													thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
-
-													cerr << "BUMP: UnderlyingId:" << ulId << " theta:" << thetaBumpAmount << " credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
-
-													// re-evaluate
-													spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-														numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-														contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
-														cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */,
-														productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
-													if (doDeltas){
-														if (deltaBumpAmount != 0.0){
-															//  Elasticity: double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
-															double  delta = (bumpedFairValue - thisFairValue) / deltaBumpAmount / issuePrice;
-															sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
-															sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", ulIds[i], ",", productId, ")");
+												}
+												// re-evaluate
+												cerr << "BUMPALL: credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " corr:" << corrBumpAmount << " delta:" << deltaBumpAmount << endl;
+												spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+													numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+													contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
+													cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true,
+													productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
+												if (doDeltas) {
+													if (deltaBumpAmount != 0.0){
+														//  Elasticity: double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
+														double  delta = (bumpedFairValue - thisFairValue) / deltaBumpAmount / issuePrice;
+														sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
+														sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", 0, ",", productId, ")");
+														mydb.prepare((SQLCHAR *)lineBuffer, 1);
+														if (bumpUserId == 3){
+															sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", deltaBump == 0 ? "DeltaDown" : "DeltaUp", "=", delta, ",DeltaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
 															mydb.prepare((SQLCHAR *)lineBuffer, 1);
 														}
 													}
-													else {
-														sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
-														sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
-														mydb.prepare((SQLCHAR *)lineBuffer, 1);
-													}
-													// cerr << lineBuffer << endl;
-													// ... reinstate spots
-													ulPrices[i].price[totalNumDays - 1] = spots[i];
-													// ... reinstate vols
-													thisMarketData.ulVolsFwdVol[i] = holdUlFwdVol[i];
-													thisMarketData.ulVolsImpVol[i] = holdUlImpVol[i];
-													thisMarketData.ulVolsStrike[i] = holdUlVolsStrike[i];
-												} // for (i=0; i < numUl; i++){
-											} // if (bumpEachUnderlying){
-											// for ALL underlyings
-											if (!doRescaleSpots || bumpedFairValue){
-												for (i=0; i < numUl; i++){
-													int ulId = ulIds[i];
-													if (!doTesting){
-														bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant, false);
-													}
-													else {
-														// bump spot
-														double newSpot      = spots[i] * (1.0 + (doStickySmile ? 0.0 : deltaBumpAmount));
-														double newMoneyness = newSpot / ulPrices[i].price[totalNumDays - 1 - daysExtant];
-														ulPrices[i].price[totalNumDays - 1] = newSpot;
-														if (doStickySmile){
-															for (j=0; j < (int)thisMarketData.ulVolsTenor.size(); j++){
-																for (k=0; k < (int)thisMarketData.ulVolsStrike[i][j].size(); k++){
-																	thisMarketData.ulVolsStrike[i][j][k] = holdUlVolsStrike[i][j][k] * bumpFactor;
-																}
-															}
-														}
-														// re-initialise barriers
-														for (j=0; j < numBarriers; j++){
-															SpBarrier& b(spr.barrier.at(j));
-															// clear hits
-															if (b.startDays>0){ b.hit.clear(); }
-															// set/reset brel moneyness
-															int numBrel = (int)b.brel.size();
-															for (k=0; k < numBrel; k++){
-																SpBarrierRelation& thisBrel(b.brel.at(k));
-																if (ulId == thisBrel.underlying){
-																	thisBrel.calcMoneyness(newMoneyness);
-																}
-															}
-														}
-													}
-													// install any bumped vols
-													thisMarketData.ulVolsFwdVol[i] = theseUlFwdVol[i];
-													thisMarketData.ulVolsImpVol[i] = theseUlImpVol[i];
 												}
-											}
-											// re-evaluate
-											cerr << "BUMPALL: credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " delta:" << deltaBumpAmount << endl;
-											spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-												numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-												contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
-												cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true,
-												productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
-											if (doDeltas) {
-												if (deltaBumpAmount != 0.0){
-													//  Elasticity: double  delta = (bumpedFairValue / thisFairValue - 1.0) / deltaBumpAmount;
-													double  delta = (bumpedFairValue - thisFairValue) / deltaBumpAmount / issuePrice;
-													sprintf(lineBuffer, "%s", "insert into deltas (Delta,DeltaType,LastDataDate,UnderlyingId,ProductId) values (");
-													sprintf(lineBuffer, "%s%.5lf%s%d%s%s%s%d%s%d%s", lineBuffer, delta, ",", deltaBump == 0 ? 0 : 1, ",'", lastDataDateString.c_str(), "',", 0, ",", productId, ")");
+												else {
+													sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
+													sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 													mydb.prepare((SQLCHAR *)lineBuffer, 1);
-													if (bumpUserId == 3){
-														sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", deltaBump == 0 ? "DeltaDown" : "DeltaUp", "=", delta, ",DeltaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
-														mydb.prepare((SQLCHAR *)lineBuffer, 1);
-													}
-												}
-											}
-											else {
-												sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
-												sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
-												mydb.prepare((SQLCHAR *)lineBuffer, 1);
-												// save some greeks to product table
-												if (bumpUserId == 3 && deltaBumpAmount == 0.0){
-													// save vegas to product table
-													if (vegaBumpAmount != 0.0 && thetaBumpAmount == 0.0 && creditBumpAmount == 0.0 && rhoBumpAmount == 0.0){
-														double  vega = (bumpedFairValue - thisFairValue) / (100.0*vegaBumpAmount);
-														sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", vegaBump == 0 ? "Vega" : "VegaUp", "=", vega, ",VegaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
-														mydb.prepare((SQLCHAR *)lineBuffer, 1);
-													}
-													// save rho to product table
-													if (vegaBumpAmount == 0.0 && thetaBumpAmount == 0.0 && creditBumpAmount == 0.0 && rhoBumpAmount != 0.0){
-														double  rho = (bumpedFairValue - thisFairValue) / (100.0*rhoBumpAmount);
-														sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", rhoBump == 0 ? "Rho" : "RhoUp", "=", rho, ",RhoDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
-														mydb.prepare((SQLCHAR *)lineBuffer, 1);
-													}
+													// save some greeks to product table
+													if (bumpUserId == 3 && deltaBumpAmount == 0.0){
+														// save vegas to product table
+														if (vegaBumpAmount != 0.0 && thetaBumpAmount == 0.0 && creditBumpAmount == 0.0 && rhoBumpAmount == 0.0){
+															double  vega = (bumpedFairValue - thisFairValue) / (100.0*vegaBumpAmount);
+															sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", vegaBump == 0 ? "Vega" : "VegaUp", "=", vega, ",VegaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
+															mydb.prepare((SQLCHAR *)lineBuffer, 1);
+														}
+														// save rho to product table
+														if (vegaBumpAmount == 0.0 && thetaBumpAmount == 0.0 && creditBumpAmount == 0.0 && rhoBumpAmount != 0.0){
+															double  rho = (bumpedFairValue - thisFairValue) / (100.0*rhoBumpAmount);
+															sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", rhoBump == 0 ? "Rho" : "RhoUp", "=", rho, ",RhoDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
+															mydb.prepare((SQLCHAR *)lineBuffer, 1);
+														}
 
+													}
 												}
-											}
-											// ... reinstate spots
-											for (i=0; i < numUl; i++){
-												ulPrices[i].price[totalNumDays - 1] = spots[i];
-											} // for (i=0; i < numUl; i++){	
-										} // if (deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || rhoBumpAmount != 0.0){
-									} // for (int deltaBump=0; deltaBump < deltaBumps; deltaBump++){
+
+												// ... reinstate spots
+												for (i=0; i < numUl; i++){
+													ulPrices[i].price[totalNumDays - 1] = spots[i];
+												} // for (i=0; i < numUl; i++){	
+											} // if (deltaBumpAmount != 0.0 || vegaBumpAmount != 0.0 || rhoBumpAmount != 0.0){
+										} // for (int deltaBump=0; deltaBump < deltaBumps; deltaBump++){
+										// reinstate correlations
+										if (corrBumpAmount != 0.0){
+											corrBumpVector[corrOtherIndex] = holdCorr;
+										}
+									}  // for (int corrBump=0; corrBump < corrBumps; corrBump++){
 									// ... reinstate vols
 									for (i=0; i < numUl; i++){
 										thisMarketData.ulVolsFwdVol[i] = holdUlFwdVol[i];

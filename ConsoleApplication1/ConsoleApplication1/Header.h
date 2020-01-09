@@ -3889,6 +3889,17 @@ public:
 
 
 //
+// get index of needle in vec
+//
+int getIndexInVector(std::vector<int> vec, const int needle){
+	std::vector<int>::iterator it = std::find(vec.begin(), vec.end(), needle);
+	if (it != vec.end()) {
+		return it - vec.begin();
+	}
+	return -1;
+}
+
+//
 // bumpSpots
 //
 void bumpSpots(SProduct                                  &spr,
