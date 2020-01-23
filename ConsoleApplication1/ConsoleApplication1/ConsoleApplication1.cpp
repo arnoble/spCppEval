@@ -653,10 +653,11 @@ int _tmain(int argc, WCHAR* argv[])
 			int              thisNumIterations = requesterNumIterations, numBarriers = 0, thisIteration = 0;
 			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
-			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice, baseCcyReturn, benchmarkStrike;
+			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
+			double           compoIntoCcyStrikePrice,baseCcyReturn, benchmarkStrike;
 			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
-			bool             useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
+			bool             hasCompoIntoCcy(false),useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
 			vector<int>      monDateIndx, reportableMonDateIndx, accrualMonDateIndx;
 			vector<double>   monDateT, accrualMonDateT;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
@@ -1022,17 +1023,9 @@ int _tmain(int argc, WCHAR* argv[])
 					cerr << " no underlying found for compoIntoCcy:" << anyString.c_str() << endl;
 					exit(1071);
 				}
-
-				// get return-to-date
-				sprintf(lineBuffer, "%s%s%s%s%s%s%s", "select p1.Price/p0.Price from prices p0 join prices p1 using (underlyingid) join underlying u using (underlyingid) where u.name='",
-					anyString.c_str(), "' and p0.date='", productStartDateString.c_str(), "' and p1.date='", lastDataDateString.c_str(), "'");
-				mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				retcode = mydb.fetch(false, "");
-				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					baseCcyReturn = atof(szAllPrices[0]);
-				}
+				hasCompoIntoCcy = true;
 			}
-			int  addCompoIntoCcy = compoIntoCcyUid == 0 ? 0 : 1;
+			int  addCompoIntoCcy = hasCompoIntoCcy ? 1 : 0;
 
 
 			// read underlying prices
@@ -1209,6 +1202,24 @@ int _tmain(int argc, WCHAR* argv[])
 			if (doUseThisPrice){ midPrice = useThisPrice / issuePrice; }
 			ulPrices             = ulOriginalPrices; // copy constructor called
 			cout << "NumPrices: " << totalNumDays << "  FirstDataDate: " << ulOriginalPrices.at(0).date[0] << " LastDataDate: " << lastDataDateString << "  MidPriceUsed: " << midPrice << endl;
+
+			if (hasCompoIntoCcy){
+				// get compoIntoCcy return-to-date
+				if (daysExtant > 0){
+					sprintf(lineBuffer, "%s%s%s%s%s%s%s", "select p0.Price,p1.Price/p0.Price from prices p0 join prices p1 using (underlyingid) join underlying u using (underlyingid) where u.name='",
+						anyString.c_str(), "' and p0.date='", productStartDateString.c_str(), "' and p1.date='", lastDataDateString.c_str(), "'");
+					mydb.prepare((SQLCHAR *)lineBuffer, 2);
+					retcode = mydb.fetch(false, "");
+					if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+						compoIntoCcyStrikePrice = atof(szAllPrices[0]);
+						baseCcyReturn           = atof(szAllPrices[1]);
+					}
+				}				
+				else{
+					compoIntoCcyStrikePrice = ulOriginalPrices.at(numUl).price[totalNumDays - 1];
+				}
+			}
+			
 			// save spots
 			vector<double> spots;
 			for (i=0; i < numUl; i++){ spots.push_back(ulPrices[i].price[totalNumDays-1]); }
@@ -1639,7 +1650,7 @@ int _tmain(int argc, WCHAR* argv[])
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
-				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, doBumps, stochasticDrift, localVol, ulFixedDivs);
+				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,hasCompoIntoCcy);
 			numBarriers = 0;
 
 			// get barriers from DB

@@ -1686,8 +1686,9 @@ public:
 
 		return(thisPayoff);
 	}
-	void storePayoff(const std::string thisDateString, const double amount, const double couponValue, const double proportion, 
+	void storePayoff(const int thisMonPoint,const std::string thisDateString, const double amount, const double couponValue, const double proportion, 
 		const double finalAssetReturn, const int finalAssetIndx, const int barrierIndx, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn, const bool doAccruals){
+		
 		sumPayoffs     += amount;
 		if (amount >  midPrice){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
 		if (amount >= midPrice){ sumPosPayoffs    += amount; numPosPayoffs++; }
@@ -1851,9 +1852,9 @@ private:
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate,&bLastDataDate;
 	const int                       bootstrapStride, daysExtant, productIndx;
-	const double                    benchmarkStrike,fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
+	const double                    compoIntoCcyStrikePrice, benchmarkStrike, fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      localVol,doBumps, silent, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      hasCompoIntoCcy,localVol, doBumps, silent, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 
@@ -1907,7 +1908,9 @@ public:
 		const bool                      doBumps,
 		const bool                      stochasticDrift,
 		const bool                      localVol,
-		const std::vector<bool>         &ulFixedDivs
+		const std::vector<bool>         &ulFixedDivs,
+		const double                    compoIntoCcyStrikePrice, 
+		const bool                      hasCompoIntoCcy
 		)
 		: mydb(mydb),lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date), 
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -1919,14 +1922,14 @@ public:
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps), stochasticDrift(stochasticDrift),
-		localVol(localVol), ulFixedDivs(ulFixedDivs){};
+		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy) {};
 
 	// public members: DOME consider making private
 	MyDB                           &mydb;
 	char                           *lineBuffer;
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips, notUKSPA, stochasticDrift;
-	int                             numIncomeBarriers, settleDays, maxProductDays, productDays, numUls;
+	int                             addCompoIntoCcy,numIncomeBarriers, settleDays, maxProductDays, productDays, numUls;
 	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
@@ -1959,7 +1962,7 @@ public:
 		notUKSPA = ukspaCase == "";
 
 		// sundry
-		
+		addCompoIntoCcy  =  hasCompoIntoCcy ? 1 : 0;
 	}
 
 	// re-initialise barriers
@@ -2495,7 +2498,7 @@ public:
 
 							// SLOW: thisReturnIndex = _notionalIx % totalNumReturns;
 							thisReturnIndex = returnsSeq[_notionalIx];
-							for (i = 0; i < numUl; i++) {
+							for (i = 0; i < numUl + hasCompoIntoCcy; i++) {
 								double thisReturn; thisReturn = ulReturns[i][thisReturnIndex];
 								ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
 							}
@@ -2606,14 +2609,14 @@ public:
 				double                 finalAssetReturn  = 1.0e9;
 				int                    finalAssetIndx;
 				double                 benchmarkReturn   = 1.0e9;
-				std::vector<double>    thesePrices(numUl), startLevels(numUl), lookbackLevel(numUl), overrideThesePrices(numUl);
+				std::vector<double>    thesePrices(numUl + hasCompoIntoCcy), startLevels(numUl + hasCompoIntoCcy), lookbackLevel(numUl + hasCompoIntoCcy), overrideThesePrices(numUl + hasCompoIntoCcy);
 
 				// set up barriers
 				/*
 				* BEWARE ... startLevels[] has same underlyings-order as ulPrices[], so make sure any comparison with them is in the same order
 				*        ... and watch out for useUlMap argument which tells callee function that array arguments are already in the correct synchronised order
 				*/
-				for (i = 0; i < numUl; i++) { startLevels.at(i) = ulPrices.at(i).price.at(thisPoint); }
+				for (i = 0; i < numUl+hasCompoIntoCcy; i++) { startLevels.at(i) = ulPrices.at(i).price.at(thisPoint); }
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					// if (barrierDisabled[thisBarrier]){ std::cerr << "BarrierDisabled:" << thisBarrier << std::endl;  }
 					barrierDisabled[thisBarrier]= false;
@@ -2689,8 +2692,8 @@ public:
 					int thisMonDays  = monDateIndx[thisMonIndx];
 					int thisMonPoint = thisPoint + thisMonDays;
 					const std::string   thisDateString(allDates.at(thisMonPoint));
-					for (i = 0; i < numUl; i++) {
-						thesePrices[i] = ulPrices[i].price.at(thisMonPoint);;
+					for (i = 0; i < numUl + addCompoIntoCcy; i++) {
+						thesePrices[i] = ulPrices[i].price.at(thisMonPoint);
 					}
 					int lastTradingIndx = thisMonPoint - (thisMonPoint>0 ? 1:0);
 					while (lastTradingIndx && ulPrices[0].nonTradingDay[lastTradingIndx]){ lastTradingIndx -= 1; }
@@ -2724,7 +2727,12 @@ public:
 								double thisOptionPayoff;
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, 
 									finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl,thisPoint,ulPrices,lockedIn);
-
+								if (hasCompoIntoCcy){
+									double thisFxLevel   = ulPrices[numUl].price.at(thisMonPoint);
+									double startFxLevel  = ulPrices[numUl].price.at(thisPoint);
+									double fxReturn      = thisFxLevel / startFxLevel;
+									thisPayoff          *=  fxReturn;
+								}
 								// process barrier commands
 								if (b.barrierCommands != ""){
 									std::vector<std::string> barrierCommands = split(b.barrierCommands, ';');
@@ -2879,7 +2887,8 @@ public:
 													}
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
-													bOther.storePayoff(thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false, doAccruals);
+													bOther.storePayoff(thisMonPoint,thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, 
+														finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false, doAccruals);
 													//}
 												}
 											}
@@ -2889,7 +2898,7 @@ public:
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
 								thisAmount = b.proportionHits*thisPayoff*baseCcyReturn;
-								b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
+								b.storePayoff(thisMonPoint,thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
 									finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);																
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}
