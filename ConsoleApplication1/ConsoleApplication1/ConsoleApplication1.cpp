@@ -1022,7 +1022,6 @@ int _tmain(int argc, WCHAR* argv[])
 					cerr << " no underlying found for compoIntoCcy:" << anyString.c_str() << endl;
 					exit(1071);
 				}
-				int  addCompoIntoCcy = compoIntoCcyUid == 0 ? 0:1;
 
 				// get return-to-date
 				sprintf(lineBuffer, "%s%s%s%s%s%s%s", "select p1.Price/p0.Price from prices p0 join prices p1 using (underlyingid) join underlying u using (underlyingid) where u.name='",
@@ -1033,12 +1032,12 @@ int _tmain(int argc, WCHAR* argv[])
 					baseCcyReturn = atof(szAllPrices[0]);
 				}
 			}
-
+			int  addCompoIntoCcy = compoIntoCcyUid == 0 ? 0 : 1;
 
 
 			// read underlying prices
 			vector<double>   ulReturns[maxUls], originalUlReturns[maxUls];
-			for (i = 0; i < numUl; i++) {
+			for (i = 0; i < numUl + addCompoIntoCcy; i++) {
 				ulReturns[i].reserve(10000); 
 				ulOriginalPrices[i].date.reserve(10000);
 				ulOriginalPrices[i].price.reserve(10000);
@@ -1089,12 +1088,12 @@ int _tmain(int argc, WCHAR* argv[])
 			strcat(ulSql, " order by Date");
 			// cerr << ulSql << endl;
 			// ...call DB
-			mydb.prepare((SQLCHAR *)ulSql, numUl + 1);
+			mydb.prepare((SQLCHAR *)ulSql, numUl + 1 + addCompoIntoCcy);
 			firstTime = true;
-			vector<double> previousPrice(numUl);
+			vector<double> previousPrice(numUl + addCompoIntoCcy);
 			vector<double> minPrices, maxPrices, shiftPrices;
 			vector<bool>   doShiftPrices;
-			for (i = 0; i < numUl; i++) {
+			for (i = 0; i < numUl + addCompoIntoCcy; i++) {
 				minPrices.push_back(DBL_MAX);
 				maxPrices.push_back(-DBL_MAX);
 				shiftPrices.push_back(0.0);
@@ -1116,7 +1115,7 @@ int _tmain(int argc, WCHAR* argv[])
 						}						
 					}
 				}
-				for (i = 0; i < numUl; i++) {
+				for (i = 0; i < numUl + addCompoIntoCcy; i++) {
 					double thisPrice;
 					thisPrice = atof(szAllPrices[i + 1]);
 					if (thisPrice < minPrices[i]){ minPrices[i] = thisPrice; }
@@ -1888,7 +1887,7 @@ int _tmain(int argc, WCHAR* argv[])
 				bTempDate += boost::gregorian::days(1);
 				string tempString = boost::gregorian::to_iso_extended_string(bTempDate);
 				sprintf(charBuffer, "%s", tempString.c_str());
-				for (i = 0; i < numUl; i++) {
+				for (i = 0; i < numUl + addCompoIntoCcy; i++) {
 					ulOriginalPrices.at(i).date.push_back(charBuffer);						ulPrices.at(i).date.push_back(charBuffer);
 					ulOriginalPrices.at(i).price.push_back(0.0);							ulPrices.at(i).price.push_back(0.0);
 					// DOME: crudely mimic-ing weekends
