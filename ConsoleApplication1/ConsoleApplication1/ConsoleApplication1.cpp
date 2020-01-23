@@ -99,7 +99,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		int              corrUidx, corrOtherUidx, corrOtherIndex;
+		int              corrUidx(0), corrOtherUidx(0), corrOtherIndex(0), compoIntoCcyUid(0);
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
@@ -125,7 +125,6 @@ int _tmain(int argc, WCHAR* argv[])
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 		vector<string>   rangeFilterStrings,corrNames;
 		vector<string>   rescaleTypes; rescaleTypes.push_back("spots");
-		vector<double>   *corrVecPtr;
 		const int        maxUls(100);
 		const int        bufSize(1000);
 
@@ -312,18 +311,29 @@ int _tmain(int argc, WCHAR* argv[])
 					tokens[0] = corrKey;
 					// find the correlation ids
 					bool done=false;
-					for (int i=0; !done && i < 2; i++){
-						sprintf(lineBuffer, "%s%s%s%s%s%d", "select c.UnderlyingId,c.OtherId from correlation c join underlying u1 using (UnderlyingId)  join underlying u2 on (c.OtherId=u2.UnderlyingId) where UserId=3 and u1.Name='", corrNames[0].c_str(), "' and u2.Name= '", corrNames[1].c_str(), "' and OtherIdIsCcy=", i);
+					// are corrNames eq/eq
+					sprintf(lineBuffer, "%s%s%s%s%s", "select c.UnderlyingId,c.OtherId from correlation c join underlying u1 using (UnderlyingId)  join underlying u2 on (c.OtherId=u2.UnderlyingId) where UserId=3 and u1.Name='", corrNames[0].c_str(), "' and u2.Name= '", corrNames[1].c_str(), "' and OtherIdIsCcy=0");
+					mydb.prepare((SQLCHAR *)lineBuffer, 2);
+					retcode = mydb.fetch(false, lineBuffer);
+					if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+						corrIds.push_back(atoi(szAllPrices[0]));
+						corrIds.push_back(atoi(szAllPrices[1]));
+						corrsAreEqEq = true;
+						done         = true;
+					}
+					// are corrNames eq/fx
+					else {
+						sprintf(lineBuffer, "%s%s%s%s%s", "select c.UnderlyingId,c.OtherId from correlation c join underlying u1 using (UnderlyingId)  join currencies u2 on (c.OtherId=u2.CcyId) where UserId=3 and u1.Name='", corrNames[0].c_str(), "' and u2.Name= '", corrNames[1].c_str(), "' and OtherIdIsCcy=1");
 						mydb.prepare((SQLCHAR *)lineBuffer, 2);
 						retcode = mydb.fetch(false, lineBuffer);
 						if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 							corrIds.push_back(atoi(szAllPrices[0]));
 							corrIds.push_back(atoi(szAllPrices[1]));
-							corrsAreEqEq = i == 0;
-							done = true;
+							corrsAreEqEq = false;
+							done         = true;
 						}
-						if (!done){ cerr << "bump: corr: cannot find eq/eq or fx/fx underlyings for " << corrNames[0].c_str() << " and " << corrNames[1].c_str() << endl; exit(1042); }
 					}
+					if (!done){ cerr << "bump: corr: cannot find eq/eq or fx/fx underlyings for " << corrNames[0].c_str() << " and " << corrNames[1].c_str() << endl; exit(1042); }
 				}
 				
 				switch (bumpIds[tokens[0].c_str()]){
@@ -644,7 +654,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
 			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice, baseCcyReturn, benchmarkStrike;
-			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, productBaseCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
+			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
 			vector<int>      monDateIndx, reportableMonDateIndx, accrualMonDateIndx;
@@ -696,7 +706,7 @@ int _tmain(int argc, WCHAR* argv[])
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
 				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, 
-				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductLast
+				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductCompoIntoCcy,colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -736,6 +746,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int    settleDays             = atoi(szAllPrices[colProductSettleDays]);
 			double barrierBend            = atof(szAllPrices[colProductBarrierBend])  * (getMarketData && !doUKSPA /* && !doBumps && !doDeltas */ ? 1.0 : 0.0);
 			if (doUseThisBarrierBend){ barrierBend = useThisBarrierBend / 100.0;  }
+			string compoIntoCcy           = szAllPrices[colProductCompoIntoCcy];
 			
 
 			useUserParams                 = userParametersId > 0 ? true : atoi(szAllPrices[colProductUseUserParams]) == 1;
@@ -752,8 +763,6 @@ int _tmain(int argc, WCHAR* argv[])
 			productStartDateString  = szAllPrices[colProductStrikeDate];
 			productCcy              = szAllPrices[colProductCcy];
 			std::transform(std::begin(productCcy), std::end(productCcy), std::begin(productCcy), ::toupper);
-			productBaseCcy          = szAllPrices[colProductBaseCcy];
-			std::transform(std::begin(productBaseCcy), std::end(productBaseCcy), std::begin(productBaseCcy), ::toupper);
 			fixedCoupon             = atof(szAllPrices[colProductFixedCoupon]);
 			bidPrice                = atof(szAllPrices[colProductBid]);
 			askPrice                = atof(szAllPrices[colProductAsk]);
@@ -871,7 +880,10 @@ int _tmain(int argc, WCHAR* argv[])
 				retcode = mydb.fetch(false,"");
 			}
 
-
+			// get any compoIntoCcy data ... NOTE THIS ONLY uses the FX return to FULL TERM
+			if (compoIntoCcy != ""){
+				std::transform(std::begin(compoIntoCcy), std::end(compoIntoCcy), std::begin(compoIntoCcy), ::toupper);
+			}
 			// get underlyingids for this product from DB
 			// they can come in any order of UnderlyingId (this is deliberate to avoid the code becoming dependent on any ordering
 			double maxTZhrs(0.0);
@@ -995,6 +1007,34 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 
 
+			// calc baseCcyReturn: this caters for products like #1093 where GBP invests in USD and is quoted in GBP, so has to reflect the USDGBP return since StrikeDate
+			baseCcyReturn = 1.0;
+			if (compoIntoCcy != ""){
+				anyString = productCcy + compoIntoCcy;
+				// get uid
+				sprintf(lineBuffer, "%s%s%s", "select UnderlyingId from underlying u where u.name='", anyString.c_str(), "'");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(false, "");
+				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					compoIntoCcyUid = atoi(szAllPrices[0]);
+				}
+				else{
+					cerr << " no underlying found for compoIntoCcy:" << anyString.c_str() << endl;
+					exit(1071);
+				}
+				int  addCompoIntoCcy = compoIntoCcyUid == 0 ? 0:1;
+
+				// get return-to-date
+				sprintf(lineBuffer, "%s%s%s%s%s%s%s", "select p1.Price/p0.Price from prices p0 join prices p1 using (underlyingid) join underlying u using (underlyingid) where u.name='",
+					anyString.c_str(), "' and p0.date='", productStartDateString.c_str(), "' and p1.date='", lastDataDateString.c_str(), "'");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(false, "");
+				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					baseCcyReturn = atof(szAllPrices[0]);
+				}
+			}
+
+
 
 			// read underlying prices
 			vector<double>   ulReturns[maxUls], originalUlReturns[maxUls];
@@ -1014,11 +1054,19 @@ int _tmain(int argc, WCHAR* argv[])
 				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", "*p",(numUl + i),".price");}
 				sprintf(lineBuffer, "%s%d%s%s%s%d", ",p", i, ".price", (crossRateUids[i] ? crossRateBuffer : ""), " Price", i); strcat(ulSql, lineBuffer);
 			}
+			// perhaps add compoIntoCcy
+			if (compoIntoCcyUid != 0){
+				sprintf(lineBuffer, "%s%d%s%s%s%d", ",p", numUl, ".price","", " Price", numUl); strcat(ulSql, lineBuffer);
+			}
 			strcat(ulSql, " from prices p0 ");
 			if (crossRateUids[0]){ sprintf(crossRateBuffer, "%s%d%s", " join prices p", numUl, " using (Date) "); strcat(ulSql, crossRateBuffer); }
 			for (i = 1; i < numUl; i++) { 
 				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", " join prices p",(numUl + i)," using (Date) "); }
 				sprintf(lineBuffer, "%s%d%s%s", " join prices p", i, " using (Date) ", (crossRateUids[i] ? crossRateBuffer : "")); strcat(ulSql, lineBuffer);
+			}
+			// perhaps add compoIntoCcy
+			if (compoIntoCcyUid != 0){
+				sprintf(lineBuffer, "%s%d%s%s", " join prices p", numUl, " using (Date) ", ""); strcat(ulSql, lineBuffer);
 			}
 			sprintf(lineBuffer, "%s%d%s", " where p0.underlyingId = '", ulIds.at(0), "'");
 			strcat(ulSql, lineBuffer);
@@ -1026,6 +1074,10 @@ int _tmain(int argc, WCHAR* argv[])
 			for (i = 1; i < numUl; i++) {
 				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s%d%s", " and p",(numUl + i),".underlyingid='",crossRateUids[i],"'" ); }
 				sprintf(lineBuffer, "%s%d%s%d%s%s", " and p", i, ".underlyingId='", ulIds.at(i), "'", (crossRateUids[i] ? crossRateBuffer : "")); strcat(ulSql, lineBuffer);
+			}
+			// perhaps add compoIntoCcy
+			if (compoIntoCcyUid != 0){
+				sprintf(lineBuffer, "%s%d%s%d%s%s", " and p", numUl, ".underlyingId='", compoIntoCcyUid, "'", ""); strcat(ulSql, lineBuffer);
 			}
 			if (strlen(startDate)) { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", startDate, "'"); }
 			else {
@@ -1170,20 +1222,6 @@ int _tmain(int argc, WCHAR* argv[])
 			int tradingDaysExtant(0);
 			for (i = 0; ulOriginalPrices.at(0).date[totalNumDays - 1 - i] > productStartDateString; i++){
 				tradingDaysExtant += 1;
-			}
-
-
-			// calc baseCcyReturn: this caters for products like #1093 where GBP invests in USD and is quoted in GBP, so has to reflect the USDGBP return since StrikeDate
-			baseCcyReturn = 1.0;
-			if (productBaseCcy != ""){
-				anyString = productCcy + productBaseCcy;
-				sprintf(lineBuffer, "%s%s%s%s%s%s%s", "select p1.Price/p0.Price from prices p0 join prices p1 using (underlyingid) join underlying u using (underlyingid) where u.name='", 
-					anyString.c_str(), "' and p0.date='", productStartDateString.c_str(), "' and p1.date='", lastDataDateString.c_str(),"'");
-				mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				retcode = mydb.fetch(false, "");
-				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					baseCcyReturn = atof(szAllPrices[0]);
-				}
 			}
 
 
@@ -1591,7 +1629,8 @@ int _tmain(int argc, WCHAR* argv[])
 
 			// sundry init
 			std::vector<double> &corrBumpVector(corrsAreEqEq ? thisMarketData.corrsCorrelation[corrUidx] : thisMarketData.fxcorrsCorrelation[corrUidx]);
-			const double  holdCorr = corrBumpVector[corrOtherIndex];
+			const double  holdCorr = corrNames.size()>0 ? corrBumpVector[corrOtherIndex] : 0.0;
+			std::string  corrString(""); for (int i=0; i < corrNames.size(); i++){ corrString = corrString + corrNames[i] + " "; } 
 
 			// create product
 			if (AMC != 0.0){
@@ -2375,8 +2414,8 @@ int _tmain(int argc, WCHAR* argv[])
 															}
 														}
 														else {
-															sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
-															sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
+															sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,CorrBumpAmount,CorrNames,FairValue,BumpedFairValue,LastDataDate) values (");
+															sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%s%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", ulIds[i], ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", corrBumpAmount, ",'", corrString.c_str(), "',", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 															mydb.prepare((SQLCHAR *)lineBuffer, 1);
 														}
 														// cerr << lineBuffer << endl;
@@ -2419,8 +2458,8 @@ int _tmain(int argc, WCHAR* argv[])
 													}
 												}
 												else {
-													sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,FairValue,BumpedFairValue,LastDataDate) values (");
-													sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
+													sprintf(lineBuffer, "%s", "insert into bump (ProductId,UserId,UnderlyingId,DeltaBumpAmount,VegaBumpAmount,RhoBumpAmount,CreditBumpAmount,ThetaBumpAmount,CorrBumpAmount,CorrNames,FairValue,BumpedFairValue,LastDataDate) values (");
+													sprintf(lineBuffer, "%s%d%s%d%s%d%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%d%s%.5lf%s%s%s%.5lf%s%.5lf%s%s%s", lineBuffer, productId, ",", bumpUserId, ",", 0, ",", deltaBumpAmount, ",", vegaBumpAmount, ",", rhoBumpAmount, ",", creditBumpAmount, ",", thetaBumpAmount, ",", corrBumpAmount, ",'", corrString.c_str(), "',", thisFairValue, ",", bumpedFairValue, ",'", lastDataDateString.c_str(), "')");
 													mydb.prepare((SQLCHAR *)lineBuffer, 1);
 													// save some greeks to product table
 													if (bumpUserId == 3 && deltaBumpAmount == 0.0){
