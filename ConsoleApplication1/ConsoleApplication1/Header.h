@@ -3388,6 +3388,10 @@ public:
 					if (numNegInstances > 0)    { eNegPayoff    /= numNegInstances; }
 
 					int numAnnRets((int)allAnnRets.size());
+					if (numAnnRets == 0){
+						std::cerr << "Product seems not to have hit ANY barriers " << "\n"; 
+						exit(10001); 
+					}
 					double duration  = sumDuration / numAnnRets;
 
 					// winlose ratios for different cutoff returns
