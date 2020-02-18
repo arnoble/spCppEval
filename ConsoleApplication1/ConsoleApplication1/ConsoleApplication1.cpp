@@ -2277,13 +2277,13 @@ int _tmain(int argc, WCHAR* argv[])
 							SpBarrier& b(spr.barrier.at(j));
 							// clear hits
 							if (b.startDays>0){ b.hit.clear(); }
-							// bump barrier
-							b.bumpSomeDays(-thetaBumpAmount);
+							// bump barrier  LENGTHENING product ... shortening it can force it past a barrier, causing a large theta if barrier is thereby made not to have hit (esp if FV expects it to hit)
+							b.bumpSomeDays(thetaBumpAmount);
 							// set/reset brel days
 							int numBrel = (int)b.brel.size();
 							for (k=0; k < numBrel; k++){
 								SpBarrierRelation& thisBrel(b.brel.at(k));
-								thisBrel.bumpSomeDays(-thetaBumpAmount);
+								thisBrel.bumpSomeDays(thetaBumpAmount);
 							}
 						}
 						// bump observation points
@@ -2532,12 +2532,12 @@ int _tmain(int argc, WCHAR* argv[])
 						for (j=0; j < numBarriers; j++){
 							SpBarrier& b(spr.barrier.at(j));
 							// bump barrier
-							b.bumpSomeDays(thetaBumpAmount);
+							b.bumpSomeDays(-thetaBumpAmount);
 							// set/reset brel days
 							int numBrel = (int)b.brel.size();
 							for (k=0; k < numBrel; k++){
 								SpBarrierRelation& thisBrel(b.brel.at(k));
-								thisBrel.bumpSomeDays(thetaBumpAmount);
+								thisBrel.bumpSomeDays(-thetaBumpAmount);
 							}
 						}
 						// bump observation points
