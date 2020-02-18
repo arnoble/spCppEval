@@ -2288,8 +2288,8 @@ int _tmain(int argc, WCHAR* argv[])
 						}
 						// bump observation points
 						for (j=0; j < monDateIndx.size(); j++){
-							monDateIndx[j] -= thetaBumpAmount;
-							monDateT   [j] -= thetaBumpAmount;
+							monDateIndx[j] += thetaBumpAmount;
+							monDateT   [j] += thetaBumpAmount;
 						}
 
 						/*
@@ -2542,8 +2542,8 @@ int _tmain(int argc, WCHAR* argv[])
 						}
 						// bump observation points
 						for (j=0; j < numBarriers; j++){
-							monDateIndx[j] += thetaBumpAmount;
-							monDateT   [j] += thetaBumpAmount;
+							monDateIndx[j] -= thetaBumpAmount;
+							monDateT   [j] -= thetaBumpAmount;
 						}
 					} // for (int thetaBump=0; thetaBump < thetaBumps; thetaBump++){
 										
