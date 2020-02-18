@@ -29,7 +29,8 @@ union ArtsRandomNumber {
 
 struct EvalResult	{
 	double value, stdErr;
-	EvalResult(double value, double stdErr) : value(value), stdErr(stdErr) {}
+	int    errorCode;
+	EvalResult(double value, double stdErr, int errorCode) : value(value), stdErr(stdErr), errorCode(errorCode) {}
 };
 
 
@@ -2091,7 +2092,7 @@ public:
 		const bool                priipsUsingRNdrifts,
 		const bool                updateCashflows
 		){
-		EvalResult               evalResult(0.0,0.0);
+		EvalResult               evalResult(0.0,0.0,0);
 		std::vector<bool>		 barrierDisabled;
 		const int                optMaxNumToSend = 1000;
 		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
@@ -3390,7 +3391,8 @@ public:
 					int numAnnRets((int)allAnnRets.size());
 					if (numAnnRets == 0){
 						std::cerr << "Product seems not to have hit ANY barriers " << "\n"; 
-						exit(10001); 
+						evalResult.errorCode = 10001;
+						return(evalResult);
 					}
 					double duration  = sumDuration / numAnnRets;
 

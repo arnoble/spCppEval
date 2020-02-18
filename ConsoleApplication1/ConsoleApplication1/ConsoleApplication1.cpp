@@ -2015,7 +2015,8 @@ int _tmain(int argc, WCHAR* argv[])
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			bool   productHasMatured(false);
-			spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
+			EvalResult accrualEvalResult(0.0, 0.0, 0);
+			accrualEvalResult = spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
 				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, accrualMonDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
 				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, false /* getMarketData */,useUserParams,thisMarketData,
 				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ false,/* updateCashflows */false);
@@ -2043,7 +2044,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int thisStartPoint =  thisNumIterations == 1 ? daysExtant : totalNumDays - 1;
 			int thisLastPoint  =  thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays; /*daysExtant + 1*/
 			if (!doPriips && (thisNumIterations>1 || thisStartPoint<thisLastPoint)){
-				EvalResult evalResult(0.0,0.0);
+				EvalResult evalResult(0.0,0.0,0);
 				// first-time we set conserveRande=true and consumeRande=false
 				evalResult = spr.evaluate(totalNumDays,thisStartPoint, thisLastPoint, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, startTime, benchmarkId, benchmarkMoneyness,
@@ -2051,6 +2052,9 @@ int _tmain(int argc, WCHAR* argv[])
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
 					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 					/* updateCashflows */!doBumps && !solveFor && !doRescale);
+				if (evalResult.errorCode != 0){
+					continue;
+				}
 				if (solveFor){
 					// Newton-Raphson		
 					int maxit    = 100;
@@ -2061,7 +2065,7 @@ int _tmain(int argc, WCHAR* argv[])
 					double solverParam(0.0);
 					int  j;
 					double  dx, dxold, f,f2, df, fh, fl, temp, xh, xl, rts;
-					EvalResult evalResult1(0.0, 0.0), evalResult2(0.0, 0.0);
+					EvalResult evalResult1(0.0, 0.0,0), evalResult2(0.0, 0.0,0);
 					string adviceString = " - please choose a TargetValue closer to the current FairValue, or modify the product so as to have a FairValue closer to your TargetValue";
 					// check product has some starting data
 					bool couponFound(false);
