@@ -34,7 +34,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["capitalProducts"]         = "";
 		argWords["ignoreBenchmark"]         = "";
 		argWords["debug"]                   = "";
-		argWords["barrierBendAmort"]        = "endFraction:numMonths";
+		argWords["barrierBendAmort"]        = "endFraction:numDays";
 		argWords["silent"]                  = "";
 		argWords["priips"]                  = "";
 		argWords["doAnyIdTable"]            = "";
@@ -62,7 +62,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["rescale"]                 = "spots|tba:fraction  eg spots:0.8 for a 20% fall in underlyings";
 		argWords["useThisPrice"]            = "x.x";
 		argWords["useThisOIS"]              = "x.x";
-		argWords["useThisBarrierBend"]      = "x.x";
+		argWords["useThisBarrierBend"]      = "x.x (percent)";
 		argWords["planSelect"]              = "only|none";		
 		argWords["eqFx"]                    = "eqUid:fxId:x.x   eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
@@ -104,6 +104,7 @@ int _tmain(int argc, WCHAR* argv[])
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
+		bool             cmdLineBarrierBend(false);
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -373,9 +374,10 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 						
 			if (sscanf(thisArg, "barrierBendAmort:%s", lineBuffer)){
-				doBarrierBendAmort = true;
-				getMarketData = true;
-				char *token   = std::strtok(lineBuffer, ":");
+				doBarrierBendAmort  = true;
+				cmdLineBarrierBend  = true;
+				getMarketData       = true;
+				char *token         = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
 				if ((int)tokens.size() != 2){ cerr << "barrierBendAmort: incorrect syntax" << endl; exit(104); }
@@ -654,7 +656,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
 			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
-			double           compoIntoCcyStrikePrice,baseCcyReturn, benchmarkStrike;
+			double           compoIntoCcyStrikePrice, baseCcyReturn, benchmarkStrike, thisBarrierBendDays, thisBarrierBendFraction;
 			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             hasCompoIntoCcy(false),useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
@@ -707,7 +709,7 @@ int _tmain(int argc, WCHAR* argv[])
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
 				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, 
-				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductCompoIntoCcy,colProductLast
+				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductCompoIntoCcy, colProductBarrierBendDays, colProductBarrierBendFraction, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -747,8 +749,19 @@ int _tmain(int argc, WCHAR* argv[])
 			int    settleDays             = atoi(szAllPrices[colProductSettleDays]);
 			double barrierBend            = atof(szAllPrices[colProductBarrierBend])  * (getMarketData && !doUKSPA /* && !doBumps && !doDeltas */ ? 1.0 : 0.0);
 			if (doUseThisBarrierBend){ barrierBend = useThisBarrierBend / 100.0;  }
-			string compoIntoCcy           = szAllPrices[colProductCompoIntoCcy];
-			
+			string compoIntoCcy             = szAllPrices[colProductCompoIntoCcy];
+			double forceBarrierBendDays     = atoi(szAllPrices[colProductBarrierBendDays]);
+			double forceBarrierBendFraction = atof(szAllPrices[colProductBarrierBendFraction]);
+			if (forceBarrierBendDays>0 && !cmdLineBarrierBend){  // does not overrise commandLine
+				thisBarrierBendFraction    = forceBarrierBendFraction;
+				thisBarrierBendDays        = forceBarrierBendDays;
+			}
+			else{
+				thisBarrierBendDays     = barrierBendDays;
+				thisBarrierBendFraction = barrierBendEndFraction;
+			}
+			if (thisBarrierBendFraction <0.0 || thisBarrierBendFraction > 1.0){ cerr << "barrierBendAmort: first arg must be between 1.0 and 0.0" << endl; exit(104); }
+			if (thisBarrierBendDays <1.0){ cerr << "barrierBendAmort: second arg must be at least 1" << endl; exit(104); }
 
 			useUserParams                 = userParametersId > 0 ? true : atoi(szAllPrices[colProductUseUserParams]) == 1;
 			string forceStartDate         = szAllPrices[colProductForceStartDate];
@@ -1689,8 +1702,8 @@ int _tmain(int argc, WCHAR* argv[])
 				payoff                  = atof(szAllPrices[colPayoff]) / 100.0;
 				settlementDate          = szAllPrices[colSettlementDate];
 				double thisCoupon       = capitalOrIncome ? max(0.0, payoff - 1.0) : payoff;
-				double barrierBendAmort = (!(doBarrierBendAmort) || daysExtant <= 0) ? 1.0 : (daysExtant > barrierBendDays ? barrierBendEndFraction : 1.0 - (1.0 - barrierBendEndFraction)*(double)daysExtant / barrierBendDays);
-				double thisBarrierBend  = getMarketData && !doUKSPA ? (thisCoupon > 0.0 ? 0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon, but limit to 5%
+				double barrierBendAmort = (!(doBarrierBendAmort) || daysExtant <= 0) ? 1.0 : (daysExtant > thisBarrierBendDays ? thisBarrierBendFraction : 1.0 - (1.0 - thisBarrierBendFraction)*(double)daysExtant / thisBarrierBendDays);
+				double thisBarrierBend  = getMarketData && !doUKSPA ? (!doUseThisBarrierBend && thisCoupon > 0.0 ? 0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon, but limit to 5%
 				thisBarrierBend        *= barrierBendAmort;
 				if (doUseThisBarrierBend){ thisBarrierBend = useThisBarrierBend / 100.0; }
 
