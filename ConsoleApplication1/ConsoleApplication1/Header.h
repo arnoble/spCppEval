@@ -1855,7 +1855,7 @@ private:
 	const int                       bootstrapStride, daysExtant, productIndx;
 	const double                    compoIntoCcyStrikePrice, benchmarkStrike, fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      hasCompoIntoCcy,localVol, doBumps, silent, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      hasCompoIntoCcy, localVol, doBumps, silent, verbose, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 
@@ -1906,6 +1906,7 @@ public:
 		const int                       bootstrapStride,
 		const int                       settleDays,
 		const bool                      silent,
+		const bool                      verbose,
 		const bool                      doBumps,
 		const bool                      stochasticDrift,
 		const bool                      localVol,
@@ -1922,7 +1923,7 @@ public:
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
-		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), doBumps(doBumps), stochasticDrift(stochasticDrift),
+		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy) {};
 
 	// public members: DOME consider making private
@@ -2928,7 +2929,7 @@ public:
 				int j = 1;
 			}
 			// end-this-iteration convergence test
-			if (!silent && ((thisIteration + 1) % 1000) == 0){
+			if (verbose && ((thisIteration + 1) % 1000) == 0){
 				std::cout << ".";
 			}
 			if (thisIteration>750 && (thisIteration + 1) % 10000 == 0){
@@ -2945,7 +2946,7 @@ public:
 					}
 					stdevRatioPctChange = sumChanges / numSigChanges;
 				} 
-				if (!silent) { std::cout << std::endl << " MeanPayoff:" << thisMean << " StdevRatio:" << thisStdevRatio << " StdevRatioChange:" << stdevRatioPctChange; }
+				if (verbose) { std::cout << std::endl << " MeanPayoff:" << thisMean << " StdevRatio:" << thisStdevRatio << " StdevRatioChange:" << stdevRatioPctChange; }
 				stdevRatio = thisStdevRatio;
 			}
 		} // END LOOP McIterations
