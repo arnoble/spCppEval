@@ -2326,9 +2326,9 @@ public:
 				ObsDateVols[i] = someVolSurface;
 			}
 		}
-		if (numMcIterations <= 25000){ accuracyTol = 2.0; }
-		else if (numMcIterations <= 50000){ accuracyTol = 1.0; }
-		else if (numMcIterations > 200000){ accuracyTol = 0.01; }
+		if (     !getMarketData && numMcIterations <= 25000){ accuracyTol = 2.0; }
+		else if (!getMarketData && numMcIterations <= 50000){ accuracyTol = 1.0; }
+		else if ( getMarketData || numMcIterations > 200000){ accuracyTol = 0.01; }
 		// ***********************
 		// START LOOP McIterations
 		// ***********************
