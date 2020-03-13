@@ -84,13 +84,6 @@ struct fAndDf	{
 /*
 * functions
 */
-double ArtsRan(){
-	static ArtsRandomNumber randomNumber;
-	static const double normalizer(1.0 / ARTS_MAX_RAND);
-	randomNumber.bucket = randomNumber.bucket * 1664525 + 1013904223;
-	double answer = randomNumber.bits[0] * normalizer;
-	return(answer);
-}
 /*
 * evalAlgebra
 */
@@ -524,47 +517,6 @@ void CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vect
 	}
 }
 
-void GenerateCorrelatedNormal(const int numUnderlyings,
-	std::vector<double>                    &correlatedRandom,
-	const std::vector<std::vector<double>> &cholMatrix,
-	std::vector<double>                    &normalRandom,
-	const bool                             useAntithetic,
-	const int                              antitheticRow,
-	std::vector<std::vector<double>>       &antitheticRandom,
-	const bool                             conserveRands,
-	const bool                             consumeRands,
-	int                                    &randnoIndx,
-	std::vector<double>                    &randnosStore) {
-	int    j, k;
-	double anyDouble;
-	// get correlated standard Normal shocks
-	for (j = 0; j<numUnderlyings; j++){
-		if (useAntithetic) {
-			normalRandom[j] = -antitheticRandom[antitheticRow][j];
-		}
-		else {
-			double thisRandno;
-			if (consumeRands){
-				thisRandno = randnosStore[randnoIndx++];
-			}
-			else{
-				thisRandno = /*(double)rand() / RAND_MAX*/ ArtsRan();
-				if (conserveRands){
-					randnosStore.push_back(thisRandno);
-				}
-			}
-			normalRandom[j]   = NormSInv(thisRandno);
-			antitheticRandom[antitheticRow][j] = normalRandom[j];
-		}
-	}
-	for (j = 0; j<numUnderlyings; j++){
-		anyDouble = 0.0;
-		for (k = 0; k<numUnderlyings; k++){
-			anyDouble = anyDouble + normalRandom[k] * cholMatrix[k][j];
-		}
-		correlatedRandom[j] = anyDouble;
-	}
-}
 
 // arrayPosition - get first value in a 1-d array that is equal-to-or-larger than 'theValue'
 int ArrayPosition(const std::vector<double> &theArray, 
@@ -1943,6 +1895,75 @@ public:
 	std::vector<int>                    &optimiseUlIdNameMap;
 	std::vector<int>                reportableMonDateIndx;
 	
+	void GenerateCorrelatedNormal(const int numUnderlyings,
+		std::vector<double>                    &correlatedRandom,
+		const std::vector<std::vector<double>> &cholMatrix,
+		std::vector<double>                    &normalRandom,
+		const bool                             useAntithetic,
+		const int                              antitheticRow,
+		std::vector<std::vector<double>>       &antitheticRandom,
+		const bool                             conserveRands,
+		const bool                             consumeRands,
+		int                                    &randnoIndx,
+		std::vector<double>                    &randnosStore) {
+		int    j, k;
+		double anyDouble;
+		// get correlated standard Normal shocks
+		for (j = 0; j<numUnderlyings; j++){
+			if (useAntithetic) {
+				normalRandom[j] = -antitheticRandom[antitheticRow][j];
+			}
+			else {
+				double thisRandno;
+				if (consumeRands){
+					thisRandno = randnosStore[randnoIndx++];
+				}
+				else{
+					thisRandno = /*(double)rand() / RAND_MAX*/ ArtsRan();
+					if (conserveRands){
+						randnosStore.push_back(thisRandno);
+					}
+				}
+				normalRandom[j]   = NormSInv(thisRandno);
+				antitheticRandom[antitheticRow][j] = normalRandom[j];
+			}
+		}
+		for (j = 0; j<numUnderlyings; j++){
+			anyDouble = 0.0;
+			for (k = 0; k<numUnderlyings; k++){
+				anyDouble = anyDouble + normalRandom[k] * cholMatrix[k][j];
+			}
+			correlatedRandom[j] = anyDouble;
+		}
+	}
+
+	/*
+	*   for occasional use, seeing what random numbers are actua;;y being generated
+	*/
+	std::vector<unsigned int> randomNumbers;
+	unsigned int reportSomeRandomNumbersCounter = 0;
+	bool         reportSomeRandomNumbersDone    = false;
+	void ReportSomeRandomNumbers(const unsigned int thisRandomNumber){		
+		if (!reportSomeRandomNumbersDone){
+			if (reportSomeRandomNumbersCounter++ > 5){
+				for (int i=0; i < randomNumbers.size(); i++){
+					std::cerr << "randNo:" << randomNumbers[i] << std::endl;
+				}
+				reportSomeRandomNumbersDone = true;
+			}
+			else {
+				randomNumbers.push_back(thisRandomNumber);
+			}
+		}
+	}
+	ArtsRandomNumber artsRandomNumber;
+	double ArtsRan(){
+		static const double normalizer(1.0 / ARTS_MAX_RAND);
+		artsRandomNumber.bucket = artsRandomNumber.bucket * 1664525 + 1013904223;
+		// ReportSomeRandomNumbers(artsRandomNumber.bits[0]);
+		return(artsRandomNumber.bits[0] * normalizer);
+	}
+
 	// init
 	void init(const double maxYears){
 		// ...prebuild all dates outside loop
