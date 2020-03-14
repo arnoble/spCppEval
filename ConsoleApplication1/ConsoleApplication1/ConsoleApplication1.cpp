@@ -1264,6 +1264,7 @@ int _tmain(int argc, WCHAR* argv[])
 
 			// market data
 			vector< vector<double> >          ulVolsTenor(numUl);
+			vector< vector<double> >          ulFwdsAtVolTenor(numUl);
 			vector< vector<vector<double>> >  ulVolsStrike(numUl);
 			vector< vector<vector<double>> >  ulVolsImpVol(numUl);
 			vector< vector<vector<double>> >  ulVolsFwdVol(numUl);
@@ -1630,6 +1631,22 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 				}
 			}
+			/*
+			*  build forwards at vol-tenors ... in case we need to recalcLocalVol()
+			*/
+			for (i = 0; i < numUl; i++) {
+				for (j=0; j < (int)ulVolsTenor[i].size(); j++){
+					double thisTenor   = ulVolsTenor[i][j];
+					double thisOisRate = interpVector(oisRatesRate [i], oisRatesTenor [i], thisTenor);
+					double thisDivRate = interpVector(divYieldsRate[i], divYieldsTenor[i], thisTenor);
+					ulFwdsAtVolTenor[i].push_back(exp((thisOisRate - thisDivRate)*thisTenor));
+				}
+			}
+
+
+			/*
+			*  collect all market data
+			*/
 			MarketData  thisMarketData(ulVolsTenor,
 			ulVolsStrike,
 			ulVolsImpVol,
