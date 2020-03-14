@@ -231,12 +231,22 @@ void recalcLocalVol(
 	* build localVol
 	*/
 	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
+		ulVolsBumpedLocalVol[thisUidx].resize(0);
 		numTenors = ulVolsTenor[thisUidx].size();
+		double defaultVariance = 0.2*0.2;
 		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+			thisT      = ulVolsTenor[thisUidx][thisTenorIdx];
 			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
 			someVect.resize(0);
 			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
-				someVect.push_back(sqrt(dWbyDt[thisUidx][thisTenorIdx][thisStrikeIdx] / denom[thisUidx][thisTenorIdx][thisStrikeIdx]));
+				thisStrike       = ulVolsStrike[thisUidx][thisTenorIdx][thisStrikeIdx];
+				double thisValue = dWbyDt[thisUidx][thisTenorIdx][thisStrikeIdx] / denom[thisUidx][thisTenorIdx][thisStrikeIdx];
+				if (thisValue <= 0.0){ 
+					std::cerr << "recalcLocalVol set to default: uidx:" << thisUidx << " tenor:" << thisT << " strike:" << thisStrike << std::endl;
+					thisValue = defaultVariance;
+				}  // default 20% vol if something goes wrong
+				someVect.push_back(sqrt(thisValue));
+				defaultVariance = thisValue;
 			}
 			ulVolsBumpedLocalVol[thisUidx].push_back(someVect);
 		}
