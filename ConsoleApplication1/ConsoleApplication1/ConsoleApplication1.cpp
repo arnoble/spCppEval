@@ -42,6 +42,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["getMarketData"]           = "";
 		argWords["proto"]                   = "";
 		argWords["bsPricer"]                = "";
+		argWords["forceLocalVol"]           = "";
 		argWords["stochasticDrift"]         = "";
 		argWords["dbServer"]                = "spCloud|newSp|spIPRL";
 		argWords["forceIterations"]         = "";
@@ -104,7 +105,7 @@ int _tmain(int argc, WCHAR* argv[])
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
-		bool             localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
+		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
 		bool             cmdLineBarrierBend(false);
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -191,7 +192,9 @@ int _tmain(int argc, WCHAR* argv[])
 			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
 			if (strstr(thisArg, "useProductFundingFractionFactor")){  useProductFundingFractionFactor  = true; }
 			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
-			if (strstr(thisArg, "bsPricer"          )){ localVol           = false; }
+			if (strstr(thisArg, "bsPricer"          )){ bsPricer = true;  localVol           = false; }
+			if (strstr(thisArg, "forceLocalVol"     )){ forceLocalVol      = true; }
+			
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }				
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
@@ -1633,25 +1636,6 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 			}
 			/*
-			*  build forwards at vol-tenors ... in case we need to recalcLocalVol()
-			*/
-			for (i = 0; i < numUl; i++) {
-				for (j=0; j < (int)ulVolsTenor[i].size(); j++){
-					double thisTenor   = ulVolsTenor[i][j];
-					double thisOisRate = interpVector(oisRatesRate [i], oisRatesTenor [i], thisTenor);
-					double thisDivRate = interpVector(divYieldsRate[i], divYieldsTenor[i], thisTenor);
-					ulFwdsAtVolTenor[i].push_back(exp((thisOisRate - thisDivRate)*thisTenor));
-				}
-			}
-			recalcLocalVol(
-				ulVolsTenor,
-				ulVolsStrike,
-				ulVolsImpVol,
-				ulFwdsAtVolTenor,
-				ulVolsBumpedLocalVol
-				);
-
-			/*
 			*  collect all market data
 			*/
 			MarketData  thisMarketData(ulVolsTenor,
@@ -1668,6 +1652,30 @@ int _tmain(int argc, WCHAR* argv[])
 			fxcorrsOtherId,
 			fxcorrsCorrelation 
 			);
+
+			/*
+			*  build forwards at vol-tenors ... in case we need to recalcLocalVol()
+			*/
+			if (forceLocalVol && bsPricer){
+				localVol = true;
+
+				for (i = 0; i < numUl; i++) {
+					for (j=0; j < (int)ulVolsTenor[i].size(); j++){
+						double thisTenor   = ulVolsTenor[i][j];
+						double thisOisRate = interpVector(oisRatesRate[i], oisRatesTenor[i], thisTenor);
+						double thisDivRate = interpVector(divYieldsRate[i], divYieldsTenor[i], thisTenor);
+						ulFwdsAtVolTenor[i].push_back(exp((thisOisRate - thisDivRate)*thisTenor));
+					}
+				}
+				recalcLocalVol(
+					ulVolsTenor,
+					ulVolsStrike,
+					ulVolsImpVol,
+					ulFwdsAtVolTenor,
+					ulVolsBumpedLocalVol
+					);
+				thisMarketData.ulVolsImpVol = ulVolsBumpedLocalVol;
+			}
 
 			// enough data?
 			if (totalNumDays - 1 < daysExtant){
