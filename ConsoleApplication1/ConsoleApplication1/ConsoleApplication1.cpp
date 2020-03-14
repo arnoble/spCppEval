@@ -1267,6 +1267,7 @@ int _tmain(int argc, WCHAR* argv[])
 			vector< vector<double> >          ulFwdsAtVolTenor(numUl);
 			vector< vector<vector<double>> >  ulVolsStrike(numUl);
 			vector< vector<vector<double>> >  ulVolsImpVol(numUl);
+			vector< vector<vector<double>> >  ulVolsBumpedLocalVol(numUl);
 			vector< vector<vector<double>> >  ulVolsFwdVol(numUl);
 			vector<vector<double>>            oisRatesTenor(numUl);
 			vector<vector<double>>            oisRatesRate(numUl);
@@ -1642,7 +1643,13 @@ int _tmain(int argc, WCHAR* argv[])
 					ulFwdsAtVolTenor[i].push_back(exp((thisOisRate - thisDivRate)*thisTenor));
 				}
 			}
-
+			recalcLocalVol(
+				ulVolsTenor,
+				ulVolsStrike,
+				ulVolsImpVol,
+				ulFwdsAtVolTenor,
+				ulVolsBumpedLocalVol
+				);
 
 			/*
 			*  collect all market data

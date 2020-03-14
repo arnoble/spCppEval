@@ -84,6 +84,165 @@ struct fAndDf	{
 /*
 * functions
 */
+int iMax(const int a, const int b){ return a > b ? a : b; }
+int iMin(const int a, const int b){ return a < b ? a : b; }
+/*
+* recalcLocalVol() from impvol
+*   - follows Gatheral
+*/
+void recalcLocalVol(
+	const std::vector<std::vector<double>>                    &ulVolsTenor,
+	const std::vector<std::vector<std::vector<double>> >      &ulVolsStrike,
+	const std::vector<std::vector<std::vector<double>> >      &ulVolsImpvol,
+	const std::vector<std::vector<double>>                    &ulFwdsAtVolTenor,
+	std::vector<std::vector<std::vector<double>> >            &ulVolsBumpedLocalVol
+	){
+	int thisUidx,thisTenorIdx, thisStrikeIdx, j, iUp,iDown,jUp,jDown,numTenors,numStrikes;
+	double dI,dJ,thisT,thisStrike,thisVariance,thisVol,thisValue, thisFwd;
+	std::vector<double> someVect;
+	int numUl = ulVolsTenor.size();
+
+	/*
+	* build w=totalVarianceMatrix 
+	*/
+	std::vector<std::vector<std::vector<double>> >      totalVariance(numUl);
+	for(thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
+		numTenors = ulVolsTenor[thisUidx].size();
+		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+			thisT = ulVolsTenor[thisUidx][thisTenorIdx];
+			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			someVect.resize(0); 
+			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
+				thisStrike   = ulVolsStrike[thisUidx][thisTenorIdx][thisStrikeIdx];
+				thisVol      = ulVolsImpvol[thisUidx][thisTenorIdx][thisStrikeIdx];
+				thisVariance = thisT * thisVol * thisVol;
+				someVect.push_back(thisVariance);
+			}
+			totalVariance[thisUidx].push_back(someVect);
+		}
+	}
+	/*
+	* build dWbyDt
+	*/
+	std::vector<std::vector<std::vector<double>> >      dWbyDt(numUl);
+	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
+		numTenors = ulVolsTenor[thisUidx].size();
+		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			someVect.resize(0); 
+			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
+				iDown = iMax(thisTenorIdx - 1, 0);
+				iUp   = iMin(thisTenorIdx + 1, numTenors - 1);
+				jDown = iDown;
+				jUp   = iUp;
+				dI    = ulVolsTenor  [thisUidx]               [iUp] - ulVolsTenor  [thisUidx]                [iDown];
+				dJ    = totalVariance[thisUidx][jUp][thisStrikeIdx] - totalVariance[thisUidx][jDown][thisStrikeIdx];
+				someVect.push_back(dJ / dI);
+			}
+			dWbyDt[thisUidx].push_back(someVect);
+		}
+	}
+	/*
+	* build y=logStrikeByFwd
+	*/
+	std::vector<std::vector<std::vector<double>> >      logStrikeByFwd(numUl);
+	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
+		numTenors = ulVolsTenor[thisUidx].size();
+		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+			thisFwd    = ulFwdsAtVolTenor[thisUidx][thisTenorIdx];
+			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			someVect.resize(0);
+			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
+				thisStrike   = ulVolsStrike[thisUidx][thisTenorIdx][thisStrikeIdx];
+				someVect.push_back(log(thisStrike/thisFwd));
+			}
+			logStrikeByFwd[thisUidx].push_back(someVect);
+		}
+	}
+	/*
+	* build dWbyDy
+	*/
+	std::vector<std::vector<std::vector<double>> >      dWbyDy(numUl);
+	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
+		numTenors = ulVolsTenor[thisUidx].size();
+		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			someVect.resize(0);
+			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
+				jDown = iMax(thisStrikeIdx - 1, 0);
+				jUp   = iMin(thisStrikeIdx + 1, numStrikes - 1);
+				dI    = logStrikeByFwd[thisUidx][thisTenorIdx][jUp] - logStrikeByFwd[thisUidx][thisTenorIdx][jDown];
+				dJ    = totalVariance [thisUidx][thisTenorIdx][jUp] - totalVariance [thisUidx][thisTenorIdx][jDown];
+				someVect.push_back(dJ / dI);
+			}
+			dWbyDy[thisUidx].push_back(someVect);
+		}
+	}
+	/*
+	* build d2WbyDy2
+	*/
+	std::vector<std::vector<std::vector<double>> >      d2WbyDy2(numUl);
+	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
+		numTenors = ulVolsTenor[thisUidx].size();
+		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			someVect.resize(0);
+			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
+				if (thisStrikeIdx == 0 || thisStrikeIdx == (numStrikes-1)){
+					jDown = iMax(thisStrikeIdx - 1, 0);
+					jUp   = iMin(thisStrikeIdx + 1, numStrikes - 1);
+					dI    = logStrikeByFwd[thisUidx][thisTenorIdx][jUp] - logStrikeByFwd[thisUidx][thisTenorIdx][jDown];
+					dJ    = dWbyDy[thisUidx][thisTenorIdx][jUp] - dWbyDy[thisUidx][thisTenorIdx][jDown];
+					someVect.push_back(dJ / dI);
+				}
+				else{   // more exact second derivative of w
+					double base1 = logStrikeByFwd[thisUidx][thisTenorIdx][thisStrikeIdx - 1];
+					double base2 = logStrikeByFwd[thisUidx][thisTenorIdx][thisStrikeIdx    ];
+					double base3 = logStrikeByFwd[thisUidx][thisTenorIdx][thisStrikeIdx + 1];
+					double part1 = totalVariance[thisUidx][thisTenorIdx][thisStrikeIdx - 1] / ((base2 - base1)*(base3 - base1));
+					double part2 = totalVariance[thisUidx][thisTenorIdx][thisStrikeIdx    ] / ((base3 - base2)*(base2 - base1));
+					double part3 = totalVariance[thisUidx][thisTenorIdx][thisStrikeIdx + 1] / ((base3 - base2)*(base3 - base1));
+					someVect.push_back(2.0 *(part1 - part2 + part3));
+				}
+			}
+			d2WbyDy2[thisUidx].push_back(someVect);
+		}
+	}
+	/*
+	* build denominator
+	*/
+	std::vector<std::vector<std::vector<double>> >      denom(numUl);
+	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
+		numTenors = ulVolsTenor[thisUidx].size();
+		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			someVect.resize(0);
+			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
+				double thisDwByDy    = dWbyDy[thisUidx][thisTenorIdx][thisStrikeIdx];
+				double thisLogStrike = logStrikeByFwd[thisUidx][thisTenorIdx][thisStrikeIdx];
+				double thisVariance  = totalVariance[thisUidx][thisTenorIdx][thisStrikeIdx];
+				double thisD2eByDy2  = d2WbyDy2[thisUidx][thisTenorIdx][thisStrikeIdx];
+				someVect.push_back(1.0 - thisDwByDy*thisLogStrike / thisVariance + 0.25*(-0.25 - 1 / thisVariance + thisLogStrike*thisLogStrike / thisVariance / thisVariance)*(thisDwByDy*thisDwByDy) + 0.5*thisD2eByDy2);
+			}
+			denom[thisUidx].push_back(someVect);
+		}
+	}
+	/*
+	* build localVol
+	*/
+	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
+		numTenors = ulVolsTenor[thisUidx].size();
+		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			someVect.resize(0);
+			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
+				someVect.push_back(sqrt(dWbyDt[thisUidx][thisTenorIdx][thisStrikeIdx] / denom[thisUidx][thisTenorIdx][thisStrikeIdx]));
+			}
+			ulVolsBumpedLocalVol[thisUidx].push_back(someVect);
+		}
+	}
+	return;
+}
 /*
 * evalAlgebra
 */
@@ -104,7 +263,7 @@ double evalAlgebra(const std::vector<double> data, std::string algebra){
 		token = std::strtok(NULL, "_");
 	}
 
-	int numTokens = (int) tokens.size();
+	int numTokens =(int) tokens.size();
 	double result = 0.0;
 	std::vector<double> stack;    for (i=0; i<numValues; i++){ stack.push_back(data[i]); }
 	double extremum;
