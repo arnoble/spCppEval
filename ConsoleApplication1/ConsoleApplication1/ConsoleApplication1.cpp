@@ -1703,6 +1703,18 @@ int _tmain(int argc, WCHAR* argv[])
 					);
 				thisMarketData.ulVolsImpVol = ulVolsBumpedLocalVol;
 			}
+			else {
+				// deep copy of impliedVols
+				for (i=0; i < numUl; i++){
+					for (j=0; j < (int)ulVolsTenor[i].size(); j++){
+						vector<double>  someImpVol;
+						for (k=0; k < (int)ulVolsStrike[i][j].size(); k++){
+							someImpVol.push_back(ulVolsImpVol[i][j][k]);
+						}
+						ulVolsBumpedLocalVol[i].push_back(someImpVol);
+					}
+				}
+			}
 
 			// enough data?
 			if (totalNumDays - 1 < daysExtant){
@@ -2349,22 +2361,25 @@ int _tmain(int argc, WCHAR* argv[])
 								}
 							}
 							strikeIndx = j-1;
-							if (ulVolsBsImpVol[i][tenorIndx][strikeIndx]  + bumpPointAmount > 0.0){ 
-								ulVolsBsImpVol[i][tenorIndx][strikeIndx]  += bumpPointAmount; 
+							vector<double> &thisVolSlice(bsPricer ? ulVolsBsImpVol[i][tenorIndx] : ulVolsBumpedLocalVol[i][tenorIndx]);
+							if (thisVolSlice[strikeIndx] + bumpPointAmount > 0.0){
+								thisVolSlice[strikeIndx]  += bumpPointAmount;
 							}
 							else {
 								std::cerr << "bumpVolPoint for underlying indx:" << i << " tenor:" << bumpPointTenor << " strike:" << bumpPointTenor << " amount:" << bumpPointAmount << " would create non-positive vols" << std::endl;
 							}
 							
 						}
-						// recalc localVol
-						recalcLocalVol(
-							ulVolsTenor,
-							ulVolsStrike,
-							ulVolsBsImpVol,
-							ulFwdsAtVolTenor,
-							ulVolsBumpedLocalVol
-							);
+						if (bsPricer){
+							// recalc localVol
+							recalcLocalVol(
+								ulVolsTenor,
+								ulVolsStrike,
+								ulVolsBsImpVol,
+								ulFwdsAtVolTenor,
+								ulVolsBumpedLocalVol
+								);
+						}						
 					}
 					// delta - bump each underlying
 					if (doDeltas){
