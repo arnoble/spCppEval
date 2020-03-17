@@ -682,8 +682,8 @@ int _tmain(int argc, WCHAR* argv[])
 			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             hasCompoIntoCcy(false),useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
-			vector<int>      monDateIndx, reportableMonDateIndx, accrualMonDateIndx;
-			vector<double>   monDateT, accrualMonDateT;
+			vector<int>      barrierMonDateIndx,volsMonDateIndx,monDateIndx, reportableMonDateIndx, accrualMonDateIndx;
+			vector<double>   barrierMonDateT, volsMonDateT, monDateT, accrualMonDateT;
 			vector<UlTimeseries>  ulOriginalPrices(maxUls), ulPrices(maxUls); // underlying prices	
 
 			// init
@@ -1922,7 +1922,9 @@ int _tmain(int argc, WCHAR* argv[])
 					if (thisBarrier.isExtremum || !thisBarrier.isContinuous || (thisBarrier.isStrikeReset && !thisBarrier.isStopLoss)){
 						if (find(monDateIndx.begin(), monDateIndx.end(), thisEndDays) == monDateIndx.end()) {
 							monDateIndx.push_back((int)thisEndDays);
+							barrierMonDateIndx.push_back((int)thisEndDays);
 							monDateT.push_back(thisEndDays);
+							barrierMonDateT.push_back(thisEndDays);
 						}
 					}
 					else {  // daily monitoring
@@ -1939,7 +1941,12 @@ int _tmain(int argc, WCHAR* argv[])
 								for (j=startDays; j <= endDays; j++){
 									if (find(monDateIndx.begin(), monDateIndx.end(), j) == monDateIndx.end()) {
 										monDateIndx.push_back(j);
-										monDateT.push_back((double)j / 365.25);
+										barrierMonDateIndx.push_back(j);
+										// don't think these should have divided by 365.25 ... so leaving monDateT as #days
+										monDateT.push_back((double)j);
+										barrierMonDateT.push_back((double)j);
+										//  monDateT.push_back((double)j / 365.25);
+										//  barrierMonDateT.push_back((double)j / 365.25);
 									}
 								}
 							}
@@ -1969,7 +1976,9 @@ int _tmain(int argc, WCHAR* argv[])
 					int theseDays = (int)floor(thisT);
 					if (maxObsDays >= theseDays && find(monDateIndx.begin(), monDateIndx.end(), theseDays) == monDateIndx.end()) {
 						monDateIndx.push_back((int)theseDays);
+						volsMonDateIndx.push_back((int)theseDays);
 						monDateT.push_back(thisT);
+						volsMonDateT.push_back(thisT);
 					}
 				}
 				sort(monDateIndx.begin(), monDateIndx.end());
@@ -2338,7 +2347,12 @@ int _tmain(int argc, WCHAR* argv[])
 					vector<vector<vector<double>>>    holdUlVolsStrike(thisMarketData.ulVolsStrike);
 					vector<double>                    holdCdsSpread(cdsSpread);
 					vector<SomeCurve>                 holdBaseCurve(baseCurve);
-
+					vector <int>                      holdMonDateIndx;
+					vector <double>                   holdMonDateT;
+					for (j=0; j < monDateIndx.size(); j++){
+						holdMonDateIndx.push_back(monDateIndx[j]);
+						holdMonDateT.push_back(monDateT[j]);
+					}
 					// bumpVolPoint
 					if (bumpPointTenor > 0.0){
 						bool done;
@@ -2415,11 +2429,20 @@ int _tmain(int argc, WCHAR* argv[])
 								thisBrel.bumpSomeDays(-thetaBumpAmount);
 							}
 						}
-						// bump observation points
-						for (j=0; j < monDateIndx.size(); j++){
-							monDateIndx[j] -= thetaBumpAmount;
-							monDateT   [j] -= thetaBumpAmount;
+						// bump barrier observation pointsm but keep vol tenors the same
+						monDateIndx.resize(0);
+						monDateT.resize(0);
+						for (j=0; j < barrierMonDateIndx.size(); j++){
+							monDateIndx.push_back(barrierMonDateIndx[j] - thetaBumpAmount);
+							monDateT.push_back(barrierMonDateT[j] - thetaBumpAmount);
 						}
+						for (j=0; j < volsMonDateIndx.size(); j++){
+							monDateIndx.push_back(volsMonDateIndx[j]);
+							monDateT.push_back(volsMonDateT[j]);
+						}
+						sort(monDateIndx.begin(), monDateIndx.end());
+						sort(monDateT.begin(), monDateT.end());
+
 						spr.productDays  -= thetaBumpAmount;
 
 						/*
@@ -2689,10 +2712,10 @@ int _tmain(int argc, WCHAR* argv[])
 								thisBrel.bumpSomeDays(thetaBumpAmount);
 							}
 						}
-						// bump observation points
-						for (j=0; j < numBarriers; j++){
-							monDateIndx[j] += thetaBumpAmount;
-							monDateT   [j] += thetaBumpAmount;
+						// reinstate observation points
+						for (j=0; j < monDateIndx.size(); j++){
+							monDateIndx[j] = holdMonDateIndx[j];
+							monDateT[j] = holdMonDateT[j];
 						}
 						spr.productDays  += thetaBumpAmount;
 					} // for (int thetaBump=0; thetaBump < thetaBumps; thetaBump++){
