@@ -23,8 +23,9 @@ int _tmain(int argc, WCHAR* argv[])
 	try{
 		// initialise
 		map<string, string> argWords;
-		argWords["doFAR"          ]         = "";      
-		argWords["doTesting"      ]         = "";
+		argWords["doFAR"          ]            = "";      
+		argWords["slidingTheta"] = "";      
+		argWords["doTesting"]                  = "";
 		argWords["doDeltas"       ]         = "";
 		argWords["notIllustrative"]         = "";
 		argWords["hasISIN"]                 = "";
@@ -107,7 +108,8 @@ int _tmain(int argc, WCHAR* argv[])
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
-		bool             cmdLineBarrierBend(false);
+		bool             slidingTheta(false),cmdLineBarrierBend(false);
+		
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
@@ -200,6 +202,7 @@ int _tmain(int argc, WCHAR* argv[])
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }				
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
+			if (strstr(thisArg, "slidingTheta"      )){ slidingTheta       = true; }
 			if (strstr(thisArg, "doTesting"         )){ doTesting          = true; }				
 			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
 			if (strstr(thisArg, "debug"             )){ doDebug            = true; }
@@ -2429,20 +2432,29 @@ int _tmain(int argc, WCHAR* argv[])
 								thisBrel.bumpSomeDays(-thetaBumpAmount);
 							}
 						}
-						// bump barrier observation pointsm but keep vol tenors the same
-						monDateIndx.resize(0);
-						monDateT.resize(0);
-						for (j=0; j < barrierMonDateIndx.size(); j++){
-							monDateIndx.push_back(barrierMonDateIndx[j] - thetaBumpAmount);
-							monDateT.push_back(barrierMonDateT[j] - thetaBumpAmount);
+						if (slidingTheta){  //theta Slides Along VolSurface
+							// bump observation points
+							for (j=0; j < monDateIndx.size(); j++){
+								monDateIndx[j] -= thetaBumpAmount;
+								monDateT[j] -= thetaBumpAmount;
+							}
 						}
-						for (j=0; j < volsMonDateIndx.size(); j++){
-							monDateIndx.push_back(volsMonDateIndx[j]);
-							monDateT.push_back(volsMonDateT[j]);
+						else{
+							// bump barrier observation pointsm but keep vol tenors the same
+							monDateIndx.resize(0);
+							monDateT.resize(0);
+							for (j=0; j < barrierMonDateIndx.size(); j++){
+								monDateIndx.push_back(barrierMonDateIndx[j] - thetaBumpAmount);
+								monDateT.push_back(barrierMonDateT[j] - thetaBumpAmount);
+							}
+							for (j=0; j < volsMonDateIndx.size(); j++){
+								monDateIndx.push_back(volsMonDateIndx[j]);
+								monDateT.push_back(volsMonDateT[j]);
+							}
+							sort(monDateIndx.begin(), monDateIndx.end());
+							sort(monDateT.begin(), monDateT.end());
 						}
-						sort(monDateIndx.begin(), monDateIndx.end());
-						sort(monDateT.begin(), monDateT.end());
-
+						
 						spr.productDays  -= thetaBumpAmount;
 
 						/*
@@ -2712,10 +2724,19 @@ int _tmain(int argc, WCHAR* argv[])
 								thisBrel.bumpSomeDays(thetaBumpAmount);
 							}
 						}
-						// reinstate observation points
-						for (j=0; j < monDateIndx.size(); j++){
-							monDateIndx[j] = holdMonDateIndx[j];
-							monDateT[j] = holdMonDateT[j];
+						if (slidingTheta){
+							// unbump ALL observation points
+							for (j=0; j < numBarriers; j++){
+								monDateIndx[j] += thetaBumpAmount;
+								monDateT[j] += thetaBumpAmount;
+							}
+						}
+						else{
+							// reinstate observation points
+							for (j=0; j < monDateIndx.size(); j++){
+								monDateIndx[j] = holdMonDateIndx[j];
+								monDateT[j] = holdMonDateT[j];
+							}
 						}
 						spr.productDays  += thetaBumpAmount;
 					} // for (int thetaBump=0; thetaBump < thetaBumps; thetaBump++){

@@ -97,20 +97,22 @@ void recalcLocalVol(
 	const std::vector<std::vector<double>>                    &ulFwdsAtVolTenor,
 	std::vector<std::vector<std::vector<double>> >            &ulVolsBumpedLocalVol
 	){
-	int thisUidx,thisTenorIdx, thisStrikeIdx, j, iUp,iDown,jUp,jDown,numTenors,numStrikes;
-	double dI,dJ,thisT,thisStrike,thisVariance,thisVol,thisValue, thisFwd;
+	int thisUidx, thisTenorIdx, thisStrikeIdx, iUp, iDown, jUp, jDown, numStrikes;
+	double dI,dJ,thisT,thisStrike,thisVariance,thisVol,thisFwd;
 	std::vector<double> someVect;
-	int numUl = ulVolsTenor.size();
-
+	std::vector<int> numTenors;
+	int numUl = (int)ulVolsTenor.size();
+	for (thisUidx=0; thisUidx < numUl; thisUidx++){
+		numTenors.push_back((int)ulVolsTenor[thisUidx].size());
+	}
 	/*
 	* build w=totalVarianceMatrix 
 	*/
 	std::vector<std::vector<std::vector<double>> >      totalVariance(numUl);
-	for(thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
-		numTenors = ulVolsTenor[thisUidx].size();
-		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+	for(thisUidx=0; thisUidx < numUl; thisUidx++){		
+		for (thisTenorIdx=0; thisTenorIdx < numTenors[thisUidx]; thisTenorIdx++){
 			thisT = ulVolsTenor[thisUidx][thisTenorIdx];
-			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			numStrikes = (int)ulVolsStrike[thisUidx][thisTenorIdx].size();
 			someVect.resize(0); 
 			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
 				thisStrike   = ulVolsStrike[thisUidx][thisTenorIdx][thisStrikeIdx];
@@ -125,14 +127,13 @@ void recalcLocalVol(
 	* build dWbyDt
 	*/
 	std::vector<std::vector<std::vector<double>> >      dWbyDt(numUl);
-	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
-		numTenors = ulVolsTenor[thisUidx].size();
-		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
-			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+	for (thisUidx=0; thisUidx < numUl; thisUidx++){
+		for (thisTenorIdx=0; thisTenorIdx < numTenors[thisUidx]; thisTenorIdx++){
+			numStrikes = (int)ulVolsStrike[thisUidx][thisTenorIdx].size();
 			someVect.resize(0); 
 			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
 				iDown = iMax(thisTenorIdx - 1, 0);
-				iUp   = iMin(thisTenorIdx + 1, numTenors - 1);
+				iUp   = iMin(thisTenorIdx + 1, numTenors[thisUidx] - 1);
 				jDown = iDown;
 				jUp   = iUp;
 				dI    = ulVolsTenor  [thisUidx]               [iUp] - ulVolsTenor  [thisUidx]                [iDown];
@@ -146,11 +147,10 @@ void recalcLocalVol(
 	* build y=logStrikeByFwd
 	*/
 	std::vector<std::vector<std::vector<double>> >      logStrikeByFwd(numUl);
-	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
-		numTenors = ulVolsTenor[thisUidx].size();
-		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+	for (thisUidx=0; thisUidx < numUl; thisUidx++){
+		for (thisTenorIdx=0; thisTenorIdx < numTenors[thisUidx]; thisTenorIdx++){
 			thisFwd    = ulFwdsAtVolTenor[thisUidx][thisTenorIdx];
-			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			numStrikes = (int)ulVolsStrike[thisUidx][thisTenorIdx].size();
 			someVect.resize(0);
 			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
 				thisStrike   = ulVolsStrike[thisUidx][thisTenorIdx][thisStrikeIdx];
@@ -163,10 +163,9 @@ void recalcLocalVol(
 	* build dWbyDy
 	*/
 	std::vector<std::vector<std::vector<double>> >      dWbyDy(numUl);
-	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
-		numTenors = ulVolsTenor[thisUidx].size();
-		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
-			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+	for (thisUidx=0; thisUidx < numUl; thisUidx++){
+		for (thisTenorIdx=0; thisTenorIdx < numTenors[thisUidx]; thisTenorIdx++){
+			numStrikes = (int)ulVolsStrike[thisUidx][thisTenorIdx].size();
 			someVect.resize(0);
 			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
 				jDown = iMax(thisStrikeIdx - 1, 0);
@@ -182,10 +181,9 @@ void recalcLocalVol(
 	* build d2WbyDy2
 	*/
 	std::vector<std::vector<std::vector<double>> >      d2WbyDy2(numUl);
-	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
-		numTenors = ulVolsTenor[thisUidx].size();
-		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
-			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+	for (thisUidx=0; thisUidx < numUl; thisUidx++){
+		for (thisTenorIdx=0; thisTenorIdx < numTenors[thisUidx]; thisTenorIdx++){
+			numStrikes = (int)ulVolsStrike[thisUidx][thisTenorIdx].size();
 			someVect.resize(0);
 			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
 				if (thisStrikeIdx == 0 || thisStrikeIdx == (numStrikes-1)){
@@ -212,10 +210,9 @@ void recalcLocalVol(
 	* build denominator
 	*/
 	std::vector<std::vector<std::vector<double>> >      denom(numUl);
-	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
-		numTenors = ulVolsTenor[thisUidx].size();
-		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
-			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+	for (thisUidx=0; thisUidx < numUl; thisUidx++){
+		for (thisTenorIdx=0; thisTenorIdx < numTenors[thisUidx]; thisTenorIdx++){
+			numStrikes = (int)ulVolsStrike[thisUidx][thisTenorIdx].size();
 			someVect.resize(0);
 			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
 				double thisDwByDy    = dWbyDy[thisUidx][thisTenorIdx][thisStrikeIdx];
@@ -230,13 +227,12 @@ void recalcLocalVol(
 	/*
 	* build localVol
 	*/
-	for (thisUidx=0; thisUidx < ulVolsTenor.size(); thisUidx++){
+	for (thisUidx=0; thisUidx < numUl; thisUidx++){
 		ulVolsBumpedLocalVol[thisUidx].resize(0);
-		numTenors = ulVolsTenor[thisUidx].size();
 		double defaultVariance = 0.2*0.2;
-		for (thisTenorIdx=0; thisTenorIdx < numTenors; thisTenorIdx++){
+		for (thisTenorIdx=0; thisTenorIdx < numTenors[thisUidx]; thisTenorIdx++){
 			thisT      = ulVolsTenor[thisUidx][thisTenorIdx];
-			numStrikes = ulVolsStrike[thisUidx][thisTenorIdx].size();
+			numStrikes = (int)ulVolsStrike[thisUidx][thisTenorIdx].size();
 			someVect.resize(0);
 			for (thisStrikeIdx=0; thisStrikeIdx < numStrikes; thisStrikeIdx++){
 				thisStrike       = ulVolsStrike[thisUidx][thisTenorIdx][thisStrikeIdx];
@@ -4100,7 +4096,7 @@ public:
 int getIndexInVector(std::vector<int> vec, const int needle){
 	std::vector<int>::iterator it = std::find(vec.begin(), vec.end(), needle);
 	if (it != vec.end()) {
-		return it - vec.begin();
+		return (int) (it - vec.begin());
 	}
 	return -1;
 }
@@ -4121,7 +4117,7 @@ void bumpSpots(SProduct                                  &spr,
 	const int                                      daysExtant,
 	const bool                                     reinstateOthers){
 	int j, k;
-	int    numBarriers = spr.barrier.size();
+	int    numBarriers = (int)spr.barrier.size();
 	double bumpFactor  = 1.0 / (1.0 + deltaBumpAmount);
 	int    ulId        = ulIds[i];
 	// bump spot
