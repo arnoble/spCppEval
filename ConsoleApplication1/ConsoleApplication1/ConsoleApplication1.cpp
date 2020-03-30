@@ -1226,6 +1226,10 @@ int _tmain(int argc, WCHAR* argv[])
 			bool validFairValue  = (fairValueDateString == lastDataDateString) && (daysExtant > 14) && fairValuePrice>0.0;
 			bool isPostStrike    = productStartDateString < lastDataDateString;
 			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue && isPostStrike ? fairValuePrice : issuePrice) : (isPostStrike ? bidPrice:askPrice))) / issuePrice;
+			if (midPrice <= 0.0){
+				cerr << "Product:" << productId << "midPrice <= 0.0 ... reset to 0.01 " << endl;
+				midPrice  =  0.01;
+			}
 			if (strlen(endDate)){
 				// get ASK from productprices if exists
 				sprintf(lineBuffer, "%s%d%s%s%s", "select Ask from productprices where ProductId=", productId," and date<='",endDate,"' order by Date desc limit 1");
