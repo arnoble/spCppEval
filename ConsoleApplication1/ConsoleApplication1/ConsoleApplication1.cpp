@@ -1438,7 +1438,7 @@ int _tmain(int argc, WCHAR* argv[])
 
 				}
 				else {
-					sprintf(ulSql, "%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from ",localVol && getMarketData && !useUserParams ? "local":"imp","vol where underlyingid in (", ulIds[0]);
+					sprintf(ulSql, "%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from ",localVol && !bsPricer && getMarketData && !useUserParams ? "local":"imp","vol where underlyingid in (", ulIds[0]);
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
@@ -1679,7 +1679,7 @@ int _tmain(int argc, WCHAR* argv[])
 			);
 
 			/*
-			*  build forwards at vol-tenors ... in case we need to recalcLocalVol()
+			*  build underlyings' forwardPrices at vol-tenors ... in case we need to recalcLocalVol()
 			*/
 			for (i = 0; i < numUl; i++) {
 				for (j=0; j < (int)ulVolsTenor[i].size(); j++){

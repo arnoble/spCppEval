@@ -227,9 +227,10 @@ void recalcLocalVol(
 	/*
 	* build localVol
 	*/
+	double maxVariance     = 0.7*0.7;
 	for (thisUidx=0; thisUidx < numUl; thisUidx++){
-		ulVolsBumpedLocalVol[thisUidx].resize(0);
 		double defaultVariance = 0.2*0.2;
+		ulVolsBumpedLocalVol[thisUidx].resize(0);
 		for (thisTenorIdx=0; thisTenorIdx < numTenors[thisUidx]; thisTenorIdx++){
 			thisT      = ulVolsTenor[thisUidx][thisTenorIdx];
 			numStrikes = (int)ulVolsStrike[thisUidx][thisTenorIdx].size();
@@ -241,6 +242,9 @@ void recalcLocalVol(
 					std::cerr << "recalcLocalVol set to default: uidx:" << thisUidx << " tenor:" << thisT << " strike:" << thisStrike << std::endl;
 					thisValue = defaultVariance;
 				}  // default 20% vol if something goes wrong
+				else if (thisValue > maxVariance){
+					thisValue = maxVariance;
+				}
 				someVect.push_back(sqrt(thisValue));
 				defaultVariance = thisValue;
 			}
