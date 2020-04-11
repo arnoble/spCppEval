@@ -125,7 +125,7 @@ int _tmain(int argc, WCHAR* argv[])
 		double           bumpPointTenor(0.0), bumpPointStrike(0.0), bumpPointAmount(0.0);
 		int              optimiseNumUls(0), deltaBumps(1), vegaBumps(1), thetaBumps(1), rhoBumps(1), creditBumps(1), corrBumps(1), solveForThis(0);
 		boost::gregorian::date lastDate;
-		string           anyString, ukspaCase(""), rescaleType(""), issuerPartName(""), forceFundingFraction(""), planSelect(""), whatToSolveFor(""), lastOptimiseDate;
+		string           thisCommandLine,anyString, ukspaCase(""), rescaleType(""), issuerPartName(""), forceFundingFraction(""), planSelect(""), whatToSolveFor(""), lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3; bumpIds["rho"] = 4; bumpIds["credit"] = 5; bumpIds["corr"] = 6;
 		map<string, double> ulLevels;  // name:level
@@ -146,6 +146,10 @@ int _tmain(int argc, WCHAR* argv[])
 		}
 		srand((unsigned int)time(0)); // reseed rand
 
+		// build thisCommaneLine
+		for (int i=1; i < argc; i++){
+			thisCommandLine  = thisCommandLine + WcharToChar(argv[i], &numChars) + ' ';
+		}
 
 		// open database
 		done = false;
@@ -156,7 +160,7 @@ int _tmain(int argc, WCHAR* argv[])
 				done = true;
 			}
 		}
-		MyDB  mydb((char **)szAllPrices, dbServer), mydb1((char **)szAllPrices, dbServer);
+		MyDB  mydb(thisCommandLine, (char **)szAllPrices, dbServer), mydb1(thisCommandLine,(char **)szAllPrices, dbServer);
 
 		// some inits from db
 		vector<string>   payoffType;  payoffType.push_back("");
@@ -188,7 +192,6 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 		}
 		
-
 		// process optional argumants
 		for (int i=4 - commaSepList; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
@@ -339,7 +342,7 @@ int _tmain(int argc, WCHAR* argv[])
 					bool done=false;
 					// are corrNames eq/eq
 					sprintf(lineBuffer, "%s%s%s%s%s", "select c.UnderlyingId,c.OtherId from correlation c join underlying u1 using (UnderlyingId)  join underlying u2 on (c.OtherId=u2.UnderlyingId) where UserId=3 and u1.Name='", corrNames[0].c_str(), "' and u2.Name= '", corrNames[1].c_str(), "' and OtherIdIsCcy=0");
-					mydb.prepare((SQLCHAR *)lineBuffer, 2);
+					if (mydb.prepare((SQLCHAR *)lineBuffer, 2)){ continue; }
 					retcode = mydb.fetch(false, lineBuffer);
 					if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 						corrIds.push_back(atoi(szAllPrices[0]));
@@ -350,7 +353,7 @@ int _tmain(int argc, WCHAR* argv[])
 					// are corrNames eq/fx
 					else {
 						sprintf(lineBuffer, "%s%s%s%s%s", "select c.UnderlyingId,c.OtherId from correlation c join underlying u1 using (UnderlyingId)  join currencies u2 on (c.OtherId=u2.CcyId) where UserId=3 and u1.Name='", corrNames[0].c_str(), "' and u2.Name= '", corrNames[1].c_str(), "' and OtherIdIsCcy=1");
-						mydb.prepare((SQLCHAR *)lineBuffer, 2);
+						if (mydb.prepare((SQLCHAR *)lineBuffer, 2)){ continue; }
 						retcode = mydb.fetch(false, lineBuffer);
 						if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 							corrIds.push_back(atoi(szAllPrices[0]));
@@ -1739,7 +1742,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if (AMC != 0.0){
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
-			SProduct spr(mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
+			SProduct spr(thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,

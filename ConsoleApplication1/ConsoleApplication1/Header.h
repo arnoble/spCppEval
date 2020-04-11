@@ -20,6 +20,7 @@
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
 #define YEARS_TO_INT_MULTIPLIER           1000000.0
 #define ARTS_MAX_RAND                     4294967296.0   // 2^32
+#define LARGE_RETURN                      10.0
 
 // structs
 union ArtsRandomNumber {
@@ -853,9 +854,18 @@ private:
 	SQLLEN    cbModel;		               // Model buffer bytes recieved
 	HSTMT     hStmt;
 	char     **bindBuffer;
-	std::string dataSource;
-
+	std::string dataSource, anyString;
+	const std::string thisCommandLine;
+	
 public:
+	// log an error
+	int  logAnError(std::string errorString){
+		char       lineBuffer[1000];
+		std::replace(errorString.begin(), errorString.end(), '#', 'H');
+		sprintf(lineBuffer, "%s%s%s%s%s", "insert into errors(Date,CommandString,ErrorString) values (now(),'", thisCommandLine.c_str(), "','", errorString.c_str(), "')");
+		return(prepare((SQLCHAR *)lineBuffer, 1));
+	}
+
 	// makeDbConnection();
 	bool makeDbConnection(){
 		if (dataSource == "spCloud"){
@@ -954,7 +964,7 @@ public:
 		return fsts;
 	}
 
-	MyDB(char **bindBuffer, const std::string dataSource) : dataSource(dataSource), bindBuffer(bindBuffer){
+	MyDB(const std::string thisCommandLine, char **bindBuffer, const std::string dataSource) : dataSource(dataSource), bindBuffer(bindBuffer), thisCommandLine(thisCommandLine) {
 		SQLAllocEnv(&hEnv);
 		if (!makeDbConnection()) {
 			std::cerr << "Failed to connect to " << dataSource << "\n";
@@ -966,7 +976,7 @@ public:
 		SQLFreeConnect(hDBC); // Free the allocated connection handle
 		SQLFreeEnv(hEnv);     // Free the allocated ODBC environment handle
 	}
-	void prepare(SQLCHAR* thisSQL,int numCols) {
+	int prepare(SQLCHAR* thisSQL,int numCols) {
 		int numAttempts = 0;
 		// DEBUG ONLY
 		if ((int)strlen((char*)thisSQL)>MAX_SP_BUF){
@@ -974,8 +984,10 @@ public:
 			exit(102);
 		}
 		if (strstr((char*)thisSQL, "#")){
+			anyString = (char *)thisSQL ;
 			std::cerr << "SQL must not contain hash symbol: " << thisSQL << std::endl;
-			exit(1);
+			logAnError(anyString);
+			return(1);
 		}
 
 		if (hStmt != NULL) {
@@ -1007,6 +1019,7 @@ public:
 		for (int i = 0; i < numCols;i++){
 			SQLBindCol(hStmt, i+1, SQL_C_CHAR, bindBuffer[i], bufSize, &cbModel); // bind columns
 		}
+		return(0);
 	}
 	void bind(int col,char *buffer) {
 		SQLBindCol(hStmt, col, SQL_C_CHAR, buffer, bufSize, &cbModel); // bind columns
@@ -1966,7 +1979,7 @@ class SProduct {
 private:
 	int                             productId;
 	int                             userId;
-	const std::string               productCcy;
+	const std::string               productCcy,thisCommandLine;
 	const std::vector <bool>        &allNonTradingDays;
 	const std::vector <bool>        &ulFixedDivs;
 	const std::vector <int>         &ulIds;
@@ -1982,6 +1995,7 @@ private:
 
 public:
 	SProduct(
+		const std::string               thisCommandLine,
 		MyDB                           &mydb,
 		char                           *lineBuffer,
 		const boost::gregorian::date    &bLastDataDate,
@@ -2035,7 +2049,7 @@ public:
 		const double                    compoIntoCcyStrikePrice, 
 		const bool                      hasCompoIntoCcy
 		)
-		: mydb(mydb),lineBuffer(lineBuffer),bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date), 
+		: thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
 		benchmarkStrike(benchmarkStrike), depositGteed(depositGteed), collateralised(collateralised),
@@ -2236,6 +2250,12 @@ public:
 		} // switch
 	}
 
+	// log an error
+	int  logAnError(const std::string errorString){
+		sprintf(lineBuffer, "%s%s%s%s%s", "insert into errors(Date,CommandString,ErrorString) values (now(),'", thisCommandLine.c_str(),"','", errorString.c_str(), "')");
+		mydb.prepare((SQLCHAR *)lineBuffer, 1);
+		return(0);
+	}
 	// evaluate product at this point in time
 	EvalResult evaluate(const int       totalNumDays,
 		const int                 startPoint,
@@ -2298,6 +2318,7 @@ public:
 		char                     charBuffer[1000];
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
 		double                   simulatedFairValue,thisAmount,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
+		std::string              anyString;
 		boost::gregorian::date   bFixedCouponsDate(bLastDataDate);
 		std::vector< std::vector<double> > simulatedLogReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
@@ -3467,7 +3488,7 @@ public:
 							// MeanAndStdev(thisBarrierCouponValues, avgBarrierCoupon, anyDouble, anyDouble1);
 							for (i = 0; i < (int)b.hit.size(); i++){
 								double thisAmount      = thisBarrierPayoffs[i];
-								double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(10.0, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+								double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(LARGE_RETURN, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 								if (thisAnnRet < -0.9999){ thisAnnRet = -0.9999; } // avoid later problems with log(1.0+annRets)
 								double thisCouponValue = thisBarrierCouponValues[i];
 								double thisCouponRet   = thisYears <= 0.0 || ((int)couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue < -1.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
@@ -3511,10 +3532,12 @@ public:
 									priipsInstances.push_back(PriipsStruct(thisReturn*pow(1.0 + priipsRfr, -thisT), thisT));
 									priipsAnnRetInstances.push_back(AnnRet(thisAnnRet, thisT));
 								}
-								double bmRet = thisYears <= 0.0 ? 0.0 : (benchmarkId > 0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn);
+								double bmRet = min(LARGE_RETURN,thisYears <= 0.0 ? 0.0 : (benchmarkId > 0 ? exp(log(b.bmrs[i]) / thisYears - contBenchmarkTER) - 1.0 : hurdleReturn));
 								if (isnan(bmRet)){
 									int jj = 1;
-								}if (bmRet < (unwindPayoff - 1.0)){ bmRet = (unwindPayoff - 1.0); }
+								}
+								
+								if (bmRet < (unwindPayoff - 1.0)){ bmRet = (unwindPayoff - 1.0); }
 								bmAnnRets.push_back(bmRet);
 								sumYearsToBarrier += thisYears;
 								double tempBmRelLogRet = log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) - log(1 + bmRet)*thisYears;
@@ -3800,8 +3823,12 @@ public:
 						priipsVaR          = thisPriip.pvReturn;
 						priipsDuration     = thisPriip.yearsToPayoff;
 						if (3.842 < 2.0*log(thisPriip.pvReturn)){
-							std::cerr << "Too high a percentile return " << thisPriip.pvReturn << "\n";
-							exit(1);
+							sprintf(lineBuffer, "%s%lf%s", "Too high a percentile return ", thisPriip.pvReturn, "\n");
+							anyString =  lineBuffer;
+							std::cerr << anyString << "\n";
+							logAnError(anyString);
+							evalResult.errorCode = 10002;
+							return(evalResult);
 						}
 						esVol = thisPriip.pvReturn>0.0 && priipsDuration > 0 ? (sqrt(3.842 - 2.0*log(thisPriip.pvReturn)) - 1.96) / sqrt(priipsDuration) / sqrt(duration) : 0.0;
 						// calc PRIIPs PV
@@ -3976,7 +4003,7 @@ public:
 						}
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
 						if (!silent) { std::cout << lineBuffer << std::endl; }
-						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						if (mydb.prepare((SQLCHAR *)lineBuffer, 1)) { evalResult.errorCode = 10003; return(evalResult);	}
 						if (!doBumps && analyseCase == 0){
 							sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
