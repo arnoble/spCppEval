@@ -23,9 +23,9 @@ int _tmain(int argc, WCHAR* argv[])
 	try{
 		// initialise
 		map<string, string> argWords;
-		argWords["doFAR"          ]            = "";      
-		argWords["slidingTheta"] = "";      
-		argWords["doTesting"]                  = "";
+		argWords["doFAR"          ]         = "";      
+		argWords["slidingTheta"]            = "";      
+		argWords["doTesting"]               = "";
 		argWords["doDeltas"       ]         = "";
 		argWords["notIllustrative"]         = "";
 		argWords["hasISIN"]                 = "";
@@ -1136,8 +1136,16 @@ int _tmain(int argc, WCHAR* argv[])
 			// .. parse each record <Date,price0,...,pricen>
 			retcode = mydb.fetch(true,ulSql);
 			int numGaps = 0;
-			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+			boost::gregorian::date bEndDate(boost::gregorian::from_simple_string(endDate));  
+			boost::gregorian::date_duration bOneDay(1);
+			bool extendingPrices(false);
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO || strcmp(szAllPrices[0], endDate) < 0)	{
 				int    numDayDiff;
+				// extend prices into the future if need be
+				if (retcode != SQL_SUCCESS && retcode != SQL_SUCCESS_WITH_INFO){
+					extendingPrices = true;
+					sprintf(szAllPrices[0], "%s", to_iso_extended_string(lastDate + bOneDay).c_str());
+				}
 				boost::gregorian::date bDate(boost::gregorian::from_simple_string(szAllPrices[0]));
 				if (!firstTime) {
 					boost::gregorian::date_duration dateDiff(bDate - lastDate);
@@ -1742,7 +1750,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if (AMC != 0.0){
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
-			SProduct spr(thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
+			SProduct spr(extendingPrices,thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,

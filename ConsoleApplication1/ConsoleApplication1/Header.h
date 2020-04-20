@@ -1992,9 +1992,11 @@ private:
 	const bool                      hasCompoIntoCcy, localVol, doBumps, silent, verbose, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
+	const bool                      extendingPrices;
 
 public:
 	SProduct(
+		const bool                      extendingPrices,
 		const std::string               thisCommandLine,
 		MyDB                           &mydb,
 		char                           *lineBuffer,
@@ -2049,7 +2051,7 @@ public:
 		const double                    compoIntoCcyStrikePrice, 
 		const bool                      hasCompoIntoCcy
 		)
-		: thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
+		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
 		benchmarkStrike(benchmarkStrike), depositGteed(depositGteed), collateralised(collateralised),
@@ -3303,7 +3305,8 @@ public:
 					double thisAmount    = issuePrice * (b.hitWithDate[0].amount); // -(couponPaidOut ? b.couponValues[0] : 0.0));
 					productHasMatured    = true;
 					// save capital payoff
-					sprintf(lineBuffer, "%s%lf%s%s%s%d%s", "update product join cashflows using (productid) set Matured=1,MaturityPayoff=", thisAmount, ",DateMatured='", b.settlementDate.c_str(), "' where productid=", productId, " and projectedreturn=1");
+					std::string rider(extendingPrices ? "possibly" : "");
+					sprintf(lineBuffer, "%s%s%s%s%s%lf%s%s%s%s%s%d", "update product set ", rider.c_str(), "Matured=1,", rider.c_str(), "MaturityPayoff=", thisAmount, ",", rider.c_str(), "DateMatured='", b.settlementDate.c_str(), "' where productid=", productId);
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 			} // END doAccruals
