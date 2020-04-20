@@ -418,7 +418,6 @@ int _tmain(int argc, WCHAR* argv[])
 			if (sscanf(thisArg, "rescale:%s", lineBuffer)){
 				doRescale      = true;
 				doRescaleSpots = true;
-				getMarketData  = true;
 				char *token    = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
@@ -1124,7 +1123,7 @@ int _tmain(int argc, WCHAR* argv[])
 			// ...call DB
 			mydb.prepare((SQLCHAR *)ulSql, numUl + 1 + addCompoIntoCcy);
 			firstTime = true;
-			vector<double> previousPrice(numUl + addCompoIntoCcy);
+			vector<double> previousPrice(numUl + addCompoIntoCcy), lastRealPrice(numUl + addCompoIntoCcy);
 			vector<double> minPrices, maxPrices, shiftPrices;
 			vector<bool>   doShiftPrices;
 			for (i = 0; i < numUl + addCompoIntoCcy; i++) {
@@ -1136,14 +1135,19 @@ int _tmain(int argc, WCHAR* argv[])
 			// .. parse each record <Date,price0,...,pricen>
 			retcode = mydb.fetch(true,ulSql);
 			int numGaps = 0;
-			boost::gregorian::date bEndDate(boost::gregorian::from_simple_string(endDate));  
+			boost::gregorian::date bEndDate; if (strlen(endDate)) { bEndDate =  (boost::gregorian::from_simple_string(endDate)); }
 			boost::gregorian::date_duration bOneDay(1);
 			bool extendingPrices(false);
-			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO || strcmp(szAllPrices[0], endDate) < 0)	{
+			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO || (strlen(endDate) && strcmp(szAllPrices[0], endDate) < 0))	{
 				int    numDayDiff;
 				// extend prices into the future if need be
 				if (retcode != SQL_SUCCESS && retcode != SQL_SUCCESS_WITH_INFO){
-					extendingPrices = true;
+					if (!extendingPrices){
+						for (i = 0; i < numUl + addCompoIntoCcy; i++) {
+							sprintf(szAllPrices[i + 1], "%lf", (doRescaleSpots ? rescaleFraction : 1.0) * previousPrice[i]);
+						}						
+						extendingPrices  = true;
+					}					
 					sprintf(szAllPrices[0], "%s", to_iso_extended_string(lastDate + bOneDay).c_str());
 				}
 				boost::gregorian::date bDate(boost::gregorian::from_simple_string(szAllPrices[0]));
@@ -2142,7 +2146,7 @@ int _tmain(int argc, WCHAR* argv[])
 			//
 			//  impose any rescaling of market data
 			//
-			if (doRescaleSpots){
+			if (!extendingPrices && doRescaleSpots){
 				for (i=0; i < numUl; i++){
 					bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, thisMarketData.ulVolsStrike, rescaleFraction - 1.0, totalNumDays, daysExtant, false);
 					spots[i] = ulPrices[i].price[totalNumDays - 1];
