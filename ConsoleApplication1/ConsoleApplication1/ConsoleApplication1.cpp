@@ -103,7 +103,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		int              corrUidx(0), corrOtherUidx(0), corrOtherIndex(0), compoIntoCcyUid(0);
+		int              corrUidx(0), corrOtherUidx(0), corrOtherIndex(0);
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
@@ -679,7 +679,7 @@ int _tmain(int argc, WCHAR* argv[])
 		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(optimiseNumUls, std::vector<std::vector<double>>(optimiseNumDays));
 		if (numProducts>1){ doUseThisPrice = false; }
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
-			int              thisNumIterations = requesterNumIterations, numBarriers = 0, thisIteration = 0;
+			int              thisNumIterations = requesterNumIterations, numBarriers = 0, thisIteration = 0, compoIntoCcyUid = 0;
 			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
 			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
@@ -1057,7 +1057,7 @@ int _tmain(int argc, WCHAR* argv[])
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				retcode = mydb.fetch(false, "");
 				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					compoIntoCcyUid = atoi(szAllPrices[0]);
+					compoIntoCcyUid   = atoi(szAllPrices[0]);
 				}
 				else{
 					cerr << " no underlying found for compoIntoCcy:" << anyString.c_str() << endl;
@@ -1083,7 +1083,7 @@ int _tmain(int argc, WCHAR* argv[])
 			// ...form sql joins
 			sprintf(ulSql, "%s", "select p0.Date Date");
 			for (i = 0; i<numUl; i++) { 
-				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", "*p",(numUl + i),".price");}
+				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", "*p", (numUl + numUl + i), ".price"); }
 				sprintf(lineBuffer, "%s%d%s%s%s%d", ",p", i, ".price", (crossRateUids[i] ? crossRateBuffer : ""), " Price", i); strcat(ulSql, lineBuffer);
 			}
 			// perhaps add compoIntoCcy
@@ -1091,9 +1091,9 @@ int _tmain(int argc, WCHAR* argv[])
 				sprintf(lineBuffer, "%s%d%s%s%s%d", ",p", numUl, ".price","", " Price", numUl); strcat(ulSql, lineBuffer);
 			}
 			strcat(ulSql, " from prices p0 ");
-			if (crossRateUids[0]){ sprintf(crossRateBuffer, "%s%d%s", " join prices p", numUl, " using (Date) "); strcat(ulSql, crossRateBuffer); }
+			if (crossRateUids[0]){ sprintf(crossRateBuffer, "%s%d%s", " join prices p", numUl + numUl, " using (Date) "); strcat(ulSql, crossRateBuffer); }
 			for (i = 1; i < numUl; i++) { 
-				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", " join prices p",(numUl + i)," using (Date) "); }
+				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", " join prices p", (numUl + numUl + i), " using (Date) "); }
 				sprintf(lineBuffer, "%s%d%s%s", " join prices p", i, " using (Date) ", (crossRateUids[i] ? crossRateBuffer : "")); strcat(ulSql, lineBuffer);
 			}
 			// perhaps add compoIntoCcy
@@ -1102,9 +1102,9 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			sprintf(lineBuffer, "%s%d%s", " where p0.underlyingId = '", ulIds.at(0), "'");
 			strcat(ulSql, lineBuffer);
-			if (crossRateUids[0]){ sprintf(crossRateBuffer, "%s%d%s%d%s", " and p",numUl, ".underlyingid='", crossRateUids[0], "'"); strcat(ulSql, crossRateBuffer); }
+			if (crossRateUids[0]){ sprintf(crossRateBuffer, "%s%d%s%d%s", " and p", numUl + numUl, ".underlyingid='", crossRateUids[0], "'"); strcat(ulSql, crossRateBuffer); }
 			for (i = 1; i < numUl; i++) {
-				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s%d%s", " and p",(numUl + i),".underlyingid='",crossRateUids[i],"'" ); }
+				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s%d%s", " and p", (numUl + numUl + i), ".underlyingid='", crossRateUids[i], "'"); }
 				sprintf(lineBuffer, "%s%d%s%d%s%s", " and p", i, ".underlyingId='", ulIds.at(i), "'", (crossRateUids[i] ? crossRateBuffer : "")); strcat(ulSql, lineBuffer);
 			}
 			// perhaps add compoIntoCcy
