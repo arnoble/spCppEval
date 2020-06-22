@@ -2587,18 +2587,18 @@ public:
 							std::vector<double>  theseRates   = md.oisRatesRate[i];
 							thisValue           = interpVector(theseRates, theseTenors, thisT);
 							thatValue           = interpVector(theseRates, theseTenors, thatT);
-							thisDriftRate[i]    = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
+							thisDriftRate[i]    = thatT == thisT ? thatValue : (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
 							// get forward div rate = r2.t2 = r1.t1 + dr.d
 							theseTenors = md.divYieldsTenor[i];
 							theseRates  = md.divYieldsRate[i];
 							thisValue           = interpVector(theseRates, theseTenors, thisT);
 							thatValue           = interpVector(theseRates, theseTenors, thatT);
-							thisDivYieldRate[i] = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
+							thisDivYieldRate[i] = thatT == thisT ? thatValue : (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
 							if (stochasticDrift){
 								theseRates          = md.divYieldsStdErr[i];
 								thisValue           = interpVector(theseRates, theseTenors, thisT);
 								thatValue           = interpVector(theseRates, theseTenors, thatT);
-								double thisAdj      = (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
+								double thisAdj      = thatT == thisT ? thatValue : (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
 								thisDivYieldRate[i] += thisAdj*NormSInv(ArtsRan());
 							}
 							if (ulFixedDivs[i]){
@@ -3978,8 +3978,8 @@ public:
 								sprintf(lineBuffer, "%s%s%s", lineBuffer, "',WhenEvaluated='", charBuffer);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarliest='", probEarliest);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbEarly='", probEarly);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='", ecGain>10.0 ? 10.0 : ecGain);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='", ecStrictGain>10.0 ? 10.0 : ecStrictGain);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecGain='", ecGain>1000.0 ? 1000.0 : ecGain);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecStrictGain='", ecStrictGain>1000.0 ? 1000.0 : ecStrictGain);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecLoss='", ecLoss);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probGain='", probGain);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probStrictGain='", probStrictGain);
