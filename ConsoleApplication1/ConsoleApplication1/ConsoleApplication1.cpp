@@ -128,7 +128,9 @@ int _tmain(int argc, WCHAR* argv[])
 		string           thisCommandLine,anyString, ukspaCase(""), rescaleType(""), issuerPartName(""), forceFundingFraction(""), planSelect(""), whatToSolveFor(""), lastOptimiseDate;
 		map<char, int>   avgTenor; avgTenor['d'] = 1; avgTenor['w'] = 7; avgTenor['m'] = 30; avgTenor['q'] = 91; avgTenor['s'] = 182; avgTenor['y'] = 365;
 		map<string, int> bumpIds; bumpIds["delta"] = 1; bumpIds["vega"] = 2; bumpIds["theta"] = 3; bumpIds["rho"] = 4; bumpIds["credit"] = 5; bumpIds["corr"] = 6;
-		map<string, double> ulLevels;  // name:level
+		map<string, double> ulLevels;      // name:level
+		map<string,string>  analysisTypes; // projectedReturn, name
+		analysisTypes["0"] = "historical"; analysisTypes["8"] = "PRIIPs"; analysisTypes["10"] = "UKSPA_Bear"; analysisTypes["20"] = "UKSPA_Neutral"; analysisTypes["30"] = "UKSPA_Bull"; analysisTypes["40"] = "FV"; analysisTypes["50"] = "userDefined"; analysisTypes["100"] = "stress";
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 		vector<string>   rangeFilterStrings,corrNames;
 		vector<string>   rescaleTypes; rescaleTypes.push_back("spots");
@@ -674,6 +676,7 @@ int _tmain(int argc, WCHAR* argv[])
 		}
 
 
+		
 		// loop through each product
 		std::vector<int> optimiseUlIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
 		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(optimiseNumUls, std::vector<std::vector<double>>(optimiseNumDays));
@@ -684,7 +687,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
 			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
 			double           compoIntoCcyStrikePrice, baseCcyReturn, benchmarkStrike, thisBarrierBendDays, thisBarrierBendFraction;
-			string           productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
+			string           thisProjectedReturn,productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             hasCompoIntoCcy(false),useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
 			vector<int>      barrierMonDateIndx,volsMonDateIndx,monDateIndx, reportableMonDateIndx, accrualMonDateIndx;
@@ -858,8 +861,18 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 			}
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
+
+			// monitoring info
+			thisProjectedReturn = (thisNumIterations == 1 ? "0" : (doPriips ? "8" : "100"));
+			if      (ukspaCase == "Bear")         { thisProjectedReturn = "10"; }
+			else if (ukspaCase == "Neutral")      { thisProjectedReturn = "20"; }
+			else if (ukspaCase == "Bull")         { thisProjectedReturn = "30"; }
+			if (getMarketData && ukspaCase == "") { thisProjectedReturn = "40"; }
+			if (useUserParams)                    { thisProjectedReturn = "50"; }
+			
+
 			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty..." << endl; continue; }
-			cout << endl << endl << productIndx << " of " << numProducts << "\nIterations:" << thisNumIterations << " ProductId:" << productId << endl << endl;
+			cout << endl << endl << productIndx << " of " << numProducts << "\nIterations:" << thisNumIterations << " ProductId:" << productId << " " << analysisTypes[thisProjectedReturn].c_str() << endl << endl;
 			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
 			// see if product has levelsCall payoffs ... in which case we do not do a lognormalShift of the underlyings
