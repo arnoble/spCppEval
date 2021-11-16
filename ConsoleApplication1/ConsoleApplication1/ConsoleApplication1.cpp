@@ -2916,6 +2916,11 @@ int _tmain(int argc, WCHAR* argv[])
 		cerr << "unknown error \n";
 	}
 
+    // any performance timing info?
+	for (std::map<string, long>::iterator iter = scopedTimers.begin(); iter != scopedTimers.end(); ++iter) {
+		std::cout << "\nfunc: " << std::setfill(' ') << std::setw(25) << iter->first.c_str() << " :ms: " << iter->second;
+	}
+	
 	return 0;
 }
 

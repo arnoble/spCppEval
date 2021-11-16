@@ -15,12 +15,15 @@
 #include <vector>
 #include <regex>
 #include <iomanip>
+#include <chrono>
+#include <iomanip>
 
 #define MAX_SP_BUF                         500000
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
 #define YEARS_TO_INT_MULTIPLIER           1000000.0
 #define ARTS_MAX_RAND                     4294967296.0   // 2^32
 #define LARGE_RETURN                      10.0
+
 
 // structs
 union ArtsRandomNumber {
@@ -800,6 +803,34 @@ typedef struct someCurve { double tenor, spread; } SomeCurve;
 
 
 // *************** CLASSES
+
+// performance instrumentation ... object in/out scope triggers timers
+std::map<std::string, long> scopedTimers;
+class ScopedTimer {
+public:
+	using ClockType = std::chrono::steady_clock;
+	ScopedTimer(const char* func)
+		: function_name_( func ), start_( ClockType::now() ) {
+		// int jj = 1;
+	}
+	ScopedTimer(const ScopedTimer&) = delete;
+	ScopedTimer(ScopedTimer&&) = delete;
+	auto operator=(const ScopedTimer&)->ScopedTimer& = delete;
+	auto operator=(ScopedTimer&&)->ScopedTimer& = delete;
+	~ScopedTimer() {
+		using namespace std::chrono;
+		auto stop = ClockType::now();
+		auto duration = (stop - start_);
+		auto ms = duration_cast<milliseconds>(duration).count();
+		scopedTimers[function_name_] += ms;
+		// std::cout << ms << " ms " << function_name_ << '\n';
+	}
+
+private:
+	const char* function_name_;
+	const ClockType::time_point start_;
+};
+
 
 class MapType { 
 public:
@@ -2305,7 +2336,9 @@ public:
 		const bool                priipsUsingRNdrifts,
 		const bool                updateCashflows
 		){
-		EvalResult               evalResult(0.0,0.0,0);
+		// char debugBuffer[500]; sprintf(debugBuffer, "evaluate %d", numMcIterations);		ScopedTimer timer{ debugBuffer };
+		char                     charBuffer[1000];
+		EvalResult               evalResult(0.0, 0.0, 0);
 		std::vector<bool>		 barrierDisabled;
 		const int                optMaxNumToSend = 1000;
 		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
@@ -2317,7 +2350,6 @@ public:
 		int                      numTimepoints    = (int)timepointDays.size();
 		int                      randnoIndx       =  0;
 		int                      optCount         = 0;
-		char                     charBuffer[1000];
 		int                      i, j, k, m, n, len, thisIteration, maturityBarrier;
 		double                   simulatedFairValue,thisAmount,couponValue(0.0), stdevRatio(1.0), stdevRatioPctChange(100.0);
 		std::string              anyString;
