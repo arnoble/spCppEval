@@ -2917,8 +2917,8 @@ int _tmain(int argc, WCHAR* argv[])
 	}
 
     // any performance timing info?
-	for (std::map<string, long>::iterator iter = scopedTimers.begin(); iter != scopedTimers.end(); ++iter) {
-		std::cout << "\nfunc: " << std::setfill(' ') << std::setw(25) << iter->first.c_str() << " :ms: " << iter->second;
+	for (std::map<string, TimerData>::iterator iter = scopedTimers.begin(); iter != scopedTimers.end(); ++iter) {
+		std::cout << "\nfunc: " << std::setfill(' ') << std::setw(25) << iter->first.c_str() << " :ms: " << iter->second.sumTime << " :#calls: " << iter->second.numCalls;
 	}
 	
 	return 0;

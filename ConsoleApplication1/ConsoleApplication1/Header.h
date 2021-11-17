@@ -805,11 +805,12 @@ typedef struct someCurve { double tenor, spread; } SomeCurve;
 // *************** CLASSES
 
 // performance instrumentation ... object in/out scope triggers timers
-std::map<std::string, long> scopedTimers;
+struct TimerData { long sumTime; long numCalls; };
+std::map<std::string, TimerData> scopedTimers;
 class ScopedTimer {
 public:
 	using ClockType = std::chrono::steady_clock;
-	ScopedTimer(const char* func)
+	ScopedTimer(const std::string func)
 		: function_name_( func ), start_( ClockType::now() ) {
 		// int jj = 1;
 	}
@@ -822,12 +823,13 @@ public:
 		auto stop = ClockType::now();
 		auto duration = (stop - start_);
 		auto ms = duration_cast<milliseconds>(duration).count();
-		scopedTimers[function_name_] += ms;
+		scopedTimers[function_name_].sumTime  += ms;
+		scopedTimers[function_name_].numCalls += 1;
 		// std::cout << ms << " ms " << function_name_ << '\n';
 	}
 
 private:
-	const char* function_name_;
+	const std::string function_name_;
 	const ClockType::time_point start_;
 };
 
@@ -973,6 +975,8 @@ public:
 	*/
 	// open connection to DataSource
 	SQLRETURN dbConn(SQLHENV hEnv, SQLHDBC* hDBC, SQLWCHAR *szDSN, SQLWCHAR *szUID, SQLWCHAR *szPasswd) {
+		ScopedTimer timer{ "dbConn" };
+
 		SQLRETURN  fsts;
 		int        numAttempts   = 0;
 
@@ -1007,7 +1011,9 @@ public:
 		SQLFreeConnect(hDBC); // Free the allocated connection handle
 		SQLFreeEnv(hEnv);     // Free the allocated ODBC environment handle
 	}
-	int prepare(SQLCHAR* thisSQL,int numCols) {
+	int prepare(SQLCHAR* thisSQL,const int numCols) {
+		ScopedTimer timer{ "db prepare" };
+
 		int numAttempts = 0;
 		// DEBUG ONLY
 		if ((int)strlen((char*)thisSQL)>MAX_SP_BUF){
@@ -1055,7 +1061,8 @@ public:
 	void bind(int col,char *buffer) {
 		SQLBindCol(hStmt, col, SQL_C_CHAR, buffer, bufSize, &cbModel); // bind columns
 	}
-	SQLRETURN fetch(bool checkForErrors,const std::string msg){
+	SQLRETURN fetch(const bool checkForErrors,const std::string msg){
+		ScopedTimer timer{ "db fetch" };
 		fsts = SQLFetch(hStmt);
 		if (checkForErrors){
 			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLFetch", msg, hStmt, SQL_HANDLE_STMT);	exit(1); }
@@ -1063,6 +1070,7 @@ public:
 		return fsts;
 	}
 	SQLRETURN execute(bool checkForErrors, const std::string msg){
+		ScopedTimer timer{ "db execute" };
 		fsts = SQLExecute(hStmt);
 		if (checkForErrors){
 			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", msg, hStmt, SQL_HANDLE_STMT);	exit(1); }
@@ -2336,7 +2344,7 @@ public:
 		const bool                priipsUsingRNdrifts,
 		const bool                updateCashflows
 		){
-		// char debugBuffer[500]; sprintf(debugBuffer, "evaluate %d", numMcIterations);		ScopedTimer timer{ debugBuffer };
+		ScopedTimer timer{ "evaluate " + std::to_string(numMcIterations) };
 		char                     charBuffer[1000];
 		EvalResult               evalResult(0.0, 0.0, 0);
 		std::vector<bool>		 barrierDisabled;
