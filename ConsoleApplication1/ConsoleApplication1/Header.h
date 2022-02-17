@@ -975,7 +975,7 @@ public:
 	*/
 	// open connection to DataSource
 	SQLRETURN dbConn(SQLHENV hEnv, SQLHDBC* hDBC, SQLWCHAR *szDSN, SQLWCHAR *szUID, SQLWCHAR *szPasswd) {
-		ScopedTimer timer{ "dbConn" };
+		// ScopedTimer timer{ "dbConn" };
 
 		SQLRETURN  fsts;
 		int        numAttempts   = 0;
@@ -1012,7 +1012,7 @@ public:
 		SQLFreeEnv(hEnv);     // Free the allocated ODBC environment handle
 	}
 	int prepare(SQLCHAR* thisSQL,const int numCols) {
-		ScopedTimer timer{ "db prepare" };
+		// ScopedTimer timer{ "db prepare" };
 
 		int numAttempts = 0;
 		// DEBUG ONLY
@@ -1062,7 +1062,7 @@ public:
 		SQLBindCol(hStmt, col, SQL_C_CHAR, buffer, bufSize, &cbModel); // bind columns
 	}
 	SQLRETURN fetch(const bool checkForErrors,const std::string msg){
-		ScopedTimer timer{ "db fetch" };
+		// ScopedTimer timer{ "db fetch" };
 		fsts = SQLFetch(hStmt);
 		if (checkForErrors){
 			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLFetch", msg, hStmt, SQL_HANDLE_STMT);	exit(1); }
@@ -1070,7 +1070,7 @@ public:
 		return fsts;
 	}
 	SQLRETURN execute(bool checkForErrors, const std::string msg){
-		ScopedTimer timer{ "db execute" };
+		// ScopedTimer timer{ "db execute" };
 		fsts = SQLExecute(hStmt);
 		if (checkForErrors){
 			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", msg, hStmt, SQL_HANDLE_STMT);	exit(1); }
@@ -2344,7 +2344,7 @@ public:
 		const bool                priipsUsingRNdrifts,
 		const bool                updateCashflows
 		){
-		ScopedTimer timer{ "evaluate " + std::to_string(numMcIterations) };
+		// ScopedTimer timer{ "evaluate " + std::to_string(numMcIterations) };
 		char                     charBuffer[1000];
 		EvalResult               evalResult(0.0, 0.0, 0);
 		std::vector<bool>		 barrierDisabled;

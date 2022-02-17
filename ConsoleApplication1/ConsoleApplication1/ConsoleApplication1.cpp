@@ -1213,7 +1213,7 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			
 			// see if there is enough data
-			if (ulOriginalPrices.at(0).date[0] > productStartDateString){
+			if (!getMarketData && ulOriginalPrices.at(0).date[0] > productStartDateString){
 				cerr << "Not enough data: prices start on:" << ulOriginalPrices.at(0).date[0] << " but product strike is:" << productStartDateString << endl;
 				continue;
 			}
@@ -1299,10 +1299,6 @@ int _tmain(int argc, WCHAR* argv[])
 			if (daysExtant < 0){
 				if (!doUKSPA && !doPriips){ forwardStartT = daysExtant / 365.25; }
 				daysExtant = 0; 
-			}
-			int tradingDaysExtant(0);
-			for (i = 0; ulOriginalPrices.at(0).date[totalNumDays - 1 - i] > productStartDateString; i++){
-				tradingDaysExtant += 1;
 			}
 
 
