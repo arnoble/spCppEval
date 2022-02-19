@@ -1669,7 +1669,7 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 					if (corrOtherIndex<0){
 						cerr << " correlation  between " << corrNames[0].c_str() << " and " << corrNames[0].c_str() << " not involved in this product" << endl;
-						exit(1111);
+						continue;
 					}
 				}
 				
