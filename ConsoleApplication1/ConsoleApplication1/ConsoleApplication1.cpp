@@ -53,6 +53,8 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["startDate"]               = "YYYY-mm-dd";
 		argWords["endDate"]                 = "YYYY-mm-dd";
 		argWords["arcVolDate"]              = "YYYY-mm-dd";
+		argWords["arcCorDate"]              = "YYYY-mm-dd";
+		argWords["arcDivDate"]              = "YYYY-mm-dd";
 		argWords["bumpUserId"]              = "nnn";
 		argWords["minSecsTaken"]            = "nnn";
 		argWords["maxSecsTaken"]            = "nnn";
@@ -118,6 +120,10 @@ int _tmain(int argc, WCHAR* argv[])
 		char             endDate[11]              = "";
 		char             arcVolDate[11]           = "";
 		char             arcVolDateString[50]     = "";
+		char             arcCorDate[11]           = "";
+		char             arcCorDateString[50]     = "";
+		char             arcDivDate[11]           = "";
+		char             arcDivDateString[50]     = "";
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
@@ -501,6 +507,8 @@ int _tmain(int argc, WCHAR* argv[])
 			if (sscanf(thisArg, "forceFundingFraction:%s",    lineBuffer)){ forceFundingFraction	= lineBuffer; }		
 			else if (sscanf(thisArg, "endDate:%s",            lineBuffer)){ strcpy(endDate,    lineBuffer); }
 			else if (sscanf(thisArg, "arcVolDate:%s",         lineBuffer)){	strcpy(arcVolDate, lineBuffer); sprintf(arcVolDateString,"%s%s%s", " and LastDataDate='", arcVolDate, "' "); }
+			else if (sscanf(thisArg, "arcCorDate:%s",         lineBuffer)){ strcpy(arcCorDate, lineBuffer); sprintf(arcCorDateString,"%s%s%s", " and LastDataDate='", arcCorDate, "' "); }
+			else if (sscanf(thisArg, "arcDivDate:%s",         lineBuffer)){ strcpy(arcDivDate, lineBuffer); sprintf(arcDivDateString,"%s%s%s", " and LastDataDate='", arcDivDate, "' "); }
 			else if (sscanf(thisArg, "bumpUserId:%s",         lineBuffer)){ bumpUserId         = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "minnSecsTaken:%s",      lineBuffer)){ minSecsTaken       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s",       lineBuffer)){ maxSecsTaken       = atoi(lineBuffer); }
@@ -1339,16 +1347,19 @@ int _tmain(int argc, WCHAR* argv[])
 			// get divs for a number of analysis cases
 			if (doPriips || getMarketData || useUserParams){
 				//  divYields
-				sprintf(ulSql, "%s%s%s%s%s%d", "select d.underlyingid,",
+				sprintf(ulSql, "%s%s%s%s%s%s%s%d", "select d.underlyingid,",
 					doUKSPA || doPriips ? "100 Tenor,(d.divyield+dd.divyield)/2.0" : "Tenor,impdivyield",
 					" Rate,IsTotalReturn,d.StdErr from ",
-					doUKSPA || doPriips ? "divyield dd join divyield d using (underlyingid,userid)" : "impdivyield d",
+					doUKSPA || doPriips ? "divyield dd join divyield " : "impdivyield",
+					!doUKSPA && !doPriips && strlen(arcDivDate) ? "archive" : "",
+					doUKSPA || doPriips ? "d using (underlyingid,userid)" : " d",
 					" join underlying u using (underlyingid) where d.UnderlyingId in (", ulIds[0]);
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 				}
-				sprintf(ulSql, "%s%s%d%s%s", ulSql, ") and d.userid=", userId,
+				sprintf(ulSql, "%s%s%d%s%s%s", ulSql, ") and d.userid=", userId,
 					doUKSPA || doPriips ? " and dd.tenor=1 and d.tenor=5 " : "",
+					arcDivDateString,
 					" order by UnderlyingId,Tenor ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 5);
@@ -1601,7 +1612,9 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 				}
 				else {
-					sprintf(ulSql, "%s%d", "select UnderlyingId,OtherId,Correlation from correlation c where OtherIdIsCcy=0 and UnderlyingId in (", ulIds[0]);
+					sprintf(ulSql, "%s%s%s%d", "select UnderlyingId,OtherId,Correlation from correlation",
+						strlen(arcCorDate) ? "archive" : "",
+						" c where OtherIdIsCcy=0 and UnderlyingId in (", ulIds[0]);
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
@@ -1609,7 +1622,9 @@ int _tmain(int argc, WCHAR* argv[])
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
-					sprintf(ulSql, "%s%s%d%s", ulSql, ")  and userid=", userId, " order by UnderlyingId,OtherId ");
+					sprintf(ulSql, "%s%s%d%s%s", ulSql, ")  and userid=", userId,
+						arcCorDateString,
+						" order by UnderlyingId,OtherId ");
 					// .. parse each record <Date,price0,...,pricen>
 					mydb.prepare((SQLCHAR *)ulSql, 3);
 					retcode   = mydb.fetch(false, ulSql);
