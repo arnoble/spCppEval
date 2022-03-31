@@ -55,6 +55,9 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["arcVolDate"]              = "YYYY-mm-dd";
 		argWords["arcCorDate"]              = "YYYY-mm-dd";
 		argWords["arcDivDate"]              = "YYYY-mm-dd";
+		argWords["arcOnCurveDate"]          = "YYYY-mm-dd";
+		argWords["arcCurveDate"]            = "YYYY-mm-dd";
+		argWords["arcCdsDate"]              = "YYYY-mm-dd";
 		argWords["bumpUserId"]              = "nnn";
 		argWords["minSecsTaken"]            = "nnn";
 		argWords["maxSecsTaken"]            = "nnn";
@@ -124,6 +127,12 @@ int _tmain(int argc, WCHAR* argv[])
 		char             arcCorDateString[50]     = "";
 		char             arcDivDate[11]           = "";
 		char             arcDivDateString[50]     = "";
+		char             arcOnCurveDate[11]       = "";
+		char             arcOnCurveDateString[50] = "";
+		char             arcCurveDate[11]         = "";
+		char             arcCurveDateString[50]   = "";
+		char             arcCdsDate[11]           = "";
+		char             arcCdsDateString[50]     = "";
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
@@ -505,10 +514,13 @@ int _tmain(int argc, WCHAR* argv[])
 			if (sscanf(thisArg, "Issuer:%s", lineBuffer))                 { issuerPartName          = lineBuffer; }
 			if (sscanf(thisArg, "fundingFractionFactor:%s",   lineBuffer)){ fundingFractionFactor	= atof(lineBuffer);	}
 			if (sscanf(thisArg, "forceFundingFraction:%s",    lineBuffer)){ forceFundingFraction	= lineBuffer; }		
-			else if (sscanf(thisArg, "endDate:%s",            lineBuffer)){ strcpy(endDate,    lineBuffer); }
-			else if (sscanf(thisArg, "arcVolDate:%s",         lineBuffer)){	strcpy(arcVolDate, lineBuffer); sprintf(arcVolDateString,"%s%s%s", " and LastDataDate='", arcVolDate, "' "); }
-			else if (sscanf(thisArg, "arcCorDate:%s",         lineBuffer)){ strcpy(arcCorDate, lineBuffer); sprintf(arcCorDateString,"%s%s%s", " and LastDataDate='", arcCorDate, "' "); }
-			else if (sscanf(thisArg, "arcDivDate:%s",         lineBuffer)){ strcpy(arcDivDate, lineBuffer); sprintf(arcDivDateString,"%s%s%s", " and LastDataDate='", arcDivDate, "' "); }
+			else if (sscanf(thisArg, "endDate:%s",            lineBuffer)){ strcpy(endDate,        lineBuffer); }
+			else if (sscanf(thisArg, "arcVolDate:%s",         lineBuffer)){	strcpy(arcVolDate,     lineBuffer); sprintf(arcVolDateString,    "%s%s%s", " and LastDataDate='", arcVolDate,     "' "); }
+			else if (sscanf(thisArg, "arcCorDate:%s",         lineBuffer)){ strcpy(arcCorDate,     lineBuffer); sprintf(arcCorDateString,    "%s%s%s", " and LastDataDate='", arcCorDate,     "' "); }
+			else if (sscanf(thisArg, "arcDivDate:%s",         lineBuffer)){ strcpy(arcDivDate,     lineBuffer); sprintf(arcDivDateString,    "%s%s%s", " and LastDataDate='", arcDivDate,     "' "); }
+			else if (sscanf(thisArg, "arcOnCurveDate:%s",     lineBuffer)){ strcpy(arcOnCurveDate, lineBuffer); sprintf(arcOnCurveDateString,"%s%s%s", " and LastDataDate='", arcOnCurveDate, "' "); }
+			else if (sscanf(thisArg, "arcCurveDate:%s",       lineBuffer)){ strcpy(arcCurveDate,   lineBuffer); sprintf(arcCurveDateString,  "%s%s%s", " and LastDataDate='", arcCurveDate,   "' "); }
+			else if (sscanf(thisArg, "arcCdsDate:%s",         lineBuffer)){ strcpy(arcCdsDate,     lineBuffer); sprintf(arcCdsDateString,    "%s%s%s", " and LastDataDate='", arcCdsDate,     "' "); }
 			else if (sscanf(thisArg, "bumpUserId:%s",         lineBuffer)){ bumpUserId         = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "minnSecsTaken:%s",      lineBuffer)){ minSecsTaken       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s",       lineBuffer)){ maxSecsTaken       = atoi(lineBuffer); }
@@ -911,13 +923,32 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 
 			if (counterpartyNames.size()>1){
-				sprintf(lineBuffer, "%s%s%s", "select Maturity,avg(Spread) Spread from cdsspread join institution using (institutionid) where EntityName in (", charBuffer,
-					") and spread is not null and ccy = '' group by Maturity order by Maturity");
+				sprintf(lineBuffer, "%s%s%s%s%s%s%s", 
+					"select Maturity,avg(Spread) Spread from cdsspread",
+					strlen(arcCdsDate) ? "archive" : "",
+					" join institution using (institutionid) where EntityName in (",
+					charBuffer,
+					") ",
+					arcCdsDateString,
+					" and spread is not null and ccy = '' group by Maturity order by Maturity");
 			}
 			// see if there are ccy-specific spreads
 			else {
-				sprintf(lineBuffer, "%s%d%s%s%s%d%s","select * from (select maturity,spread from cdsspread where institutionid=", counterpartyId,
-					" and ccy='", productCcy.c_str(), "'  and spread is not null union select maturity,spread from cdsspread where institutionid=",counterpartyId,"  and ccy=''  and spread is not null)x group by Maturity order by Maturity");
+				sprintf(lineBuffer, "%s%s%s%d%s%s%s%s%s%s%s%d%s%s",
+					"select * from (select maturity,spread from cdsspread",
+					strlen(arcCdsDate) ? "archive" : "",
+					" where institutionid=",
+					counterpartyId,
+					" and ccy='", 
+					productCcy.c_str(), 
+					"' ",
+					arcCdsDateString,
+					" and spread is not null union select maturity,spread from cdsspread",
+					strlen(arcCdsDate) ? "archive" : "",
+					" where institutionid=",
+					counterpartyId,
+					arcCdsDateString,
+					"  and ccy=''  and spread is not null)x group by Maturity order by Maturity");
 			}
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
 			retcode = mydb.fetch(false,lineBuffer);
@@ -935,8 +966,14 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 
 			// get baseCurve
-			sprintf(lineBuffer, "%s%s%s", "select Tenor,Rate/100 Spread from curve where ccy='", productCcy.c_str(),
-				"' order by Tenor");
+			sprintf(lineBuffer, "%s%s%s%s%s%s%s", 
+				"select Tenor,Rate/100 Spread from curve",
+				strlen(arcCurveDate) ? "archive" : "",
+				" where ccy='", 
+				productCcy.c_str(),
+				"' ",
+				arcCurveDateString,
+				" order by Tenor");
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
 			retcode = mydb.fetch(false,lineBuffer);
 			vector<SomeCurve> baseCurve;
@@ -1546,11 +1583,15 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 				} // END vols
 				//  OIS rates
-				sprintf(ulSql, "%s%s", "select ccy,Tenor,Rate from oncurve v where ccy in ('", ulCcys[0].c_str());
+				sprintf(ulSql, "%s%s%s%s", "select ccy,Tenor,Rate from oncurve",
+					strlen(arcOnCurveDate) ? "archive" : "",
+					" v where ccy in ('", ulCcys[0].c_str());
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%s", ulSql, "','", ulCcys[i].c_str());
 				}
-				sprintf(ulSql, "%s%s", ulSql, "') order by ccy,Tenor");
+				sprintf(ulSql, "%s%s%s%s", ulSql, "') ",
+					arcOnCurveDateString,
+					" order by ccy,Tenor");
 				// .. parse each record <Date,price0,...,pricen>
 				string thisCcy = "";
 				mydb.prepare((SQLCHAR *)ulSql, 3);
