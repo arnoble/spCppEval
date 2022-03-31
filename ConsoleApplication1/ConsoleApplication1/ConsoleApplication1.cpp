@@ -52,6 +52,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["historyStep"]             = "nnn";
 		argWords["startDate"]               = "YYYY-mm-dd";
 		argWords["endDate"]                 = "YYYY-mm-dd";
+		argWords["arcVolDate"]              = "YYYY-mm-dd";
 		argWords["bumpUserId"]              = "nnn";
 		argWords["minSecsTaken"]            = "nnn";
 		argWords["maxSecsTaken"]            = "nnn";
@@ -115,6 +116,8 @@ int _tmain(int argc, WCHAR* argv[])
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
 		char             endDate[11]              = "";
+		char             arcVolDate[11]           = "";
+		char             arcVolDateString[50]     = "";
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
@@ -496,7 +499,8 @@ int _tmain(int argc, WCHAR* argv[])
 			if (sscanf(thisArg, "Issuer:%s", lineBuffer))                 { issuerPartName          = lineBuffer; }
 			if (sscanf(thisArg, "fundingFractionFactor:%s",   lineBuffer)){ fundingFractionFactor	= atof(lineBuffer);	}
 			if (sscanf(thisArg, "forceFundingFraction:%s",    lineBuffer)){ forceFundingFraction	= lineBuffer; }		
-			else if (sscanf(thisArg, "endDate:%s",            lineBuffer)){ strcpy(endDate, lineBuffer); }
+			else if (sscanf(thisArg, "endDate:%s",            lineBuffer)){ strcpy(endDate,    lineBuffer); }
+			else if (sscanf(thisArg, "arcVolDate:%s",         lineBuffer)){	strcpy(arcVolDate, lineBuffer); sprintf(arcVolDateString,"%s%s%s", " and LastDataDate='", arcVolDate, "' "); }
 			else if (sscanf(thisArg, "bumpUserId:%s",         lineBuffer)){ bumpUserId         = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "minnSecsTaken:%s",      lineBuffer)){ minSecsTaken       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s",       lineBuffer)){ maxSecsTaken       = atoi(lineBuffer); }
@@ -1463,11 +1467,18 @@ int _tmain(int argc, WCHAR* argv[])
 
 				}
 				else {
-					sprintf(ulSql, "%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from ",localVol && !bsPricer && getMarketData && !useUserParams ? "local":"imp","vol where underlyingid in (", ulIds[0]);
+					sprintf(ulSql, "%s%s%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from ",
+						localVol && !bsPricer && getMarketData && !useUserParams ? "local":"imp",
+						"vol",
+						strlen(arcVolDate) ? "archive" : "",
+						" where underlyingid in (", ulIds[0]);
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
-					sprintf(ulSql, "%s%s%d%s", ulSql, ") and userid=", userId, " order by UnderlyingId, Tenor, Strike");
+					sprintf(ulSql, "%s%s%d%s%s", ulSql, 
+						") and userid=", userId, 
+						arcVolDateString,
+						" order by UnderlyingId, Tenor, Strike");
 					// .. parse each record <UnderlyingId,Tenor,Strike,Impvol>
 					thisUidx    = 0;          // underlying index
 					thisTenor   = -1.0;
