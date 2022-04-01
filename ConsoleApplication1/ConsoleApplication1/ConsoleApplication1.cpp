@@ -976,6 +976,7 @@ int _tmain(int argc, WCHAR* argv[])
 				" order by Tenor");
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
 			retcode = mydb.fetch(false,lineBuffer);
+			// cerr << "baseCurve:" << lineBuffer << endl;
 			vector<SomeCurve> baseCurve;
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				anyCurve.tenor  = atof(szAllPrices[0]);

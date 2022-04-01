@@ -3604,7 +3604,7 @@ public:
 						double annReturn         = returnToAnnualise > 0.0 && numInstances && b.yearsToBarrier > 0 && midPrice > 0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
 						// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
 						if (!silent) {
-							std::cout << "EventProbabilityAndPayoff: " << b.description << ": Prob:" << prob << " ConditionalPayoff:" << mean << " ExpectedPayoff:" << mean*prob << " DiscountFactor:" << thisDiscountFactor << " PV:" << mean*prob*thisDiscountFactor << std::endl;
+							std::cout << "EventProbabilityAndPayoff: " << b.description << ": Prob:" << prob << " ConditionalPayoff:" << mean << " ExpPayoff:" << mean*prob << " DiscFact:" << thisDiscountFactor << " DiscRate:" << thisDiscountRate << " fwdRate" << b.forwardRate << " ffract:" << fundingFraction << " y:" << b.yearsToBarrier << std::endl;
 						}
 						// ** SQL 
 						// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
