@@ -51,6 +51,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["showMatured"]             = "";
 		argWords["historyStep"]             = "nnn";
 		argWords["startDate"]               = "YYYY-mm-dd";
+		argWords["spotsDate"]               = "YYYY-mm-dd";
 		argWords["endDate"]                 = "YYYY-mm-dd";
 		argWords["arcVolDate"]              = "YYYY-mm-dd";
 		argWords["arcCorDate"]              = "YYYY-mm-dd";
@@ -120,6 +121,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
 		char             onlyTheseUlsBuffer[1000] = "";
 		char             startDate[11]            = "";
+		char             spotsDate[11]            = "";
 		char             endDate[11]              = "";
 		char             arcVolDate[11]           = "";
 		char             arcVolDateString[50]     = "";
@@ -514,7 +516,8 @@ int _tmain(int argc, WCHAR* argv[])
 			if (sscanf(thisArg, "Issuer:%s", lineBuffer))                 { issuerPartName          = lineBuffer; }
 			if (sscanf(thisArg, "fundingFractionFactor:%s",   lineBuffer)){ fundingFractionFactor	= atof(lineBuffer);	}
 			if (sscanf(thisArg, "forceFundingFraction:%s",    lineBuffer)){ forceFundingFraction	= lineBuffer; }		
-			else if (sscanf(thisArg, "endDate:%s",            lineBuffer)){ strcpy(endDate,        lineBuffer); }
+			else if (sscanf(thisArg, "spotsDate:%s",          lineBuffer)){ strcpy(spotsDate, lineBuffer); }
+			else if (sscanf(thisArg, "endDate:%s",            lineBuffer)){ strcpy(endDate,   lineBuffer); }
 			else if (sscanf(thisArg, "arcVolDate:%s",         lineBuffer)){	strcpy(arcVolDate,     lineBuffer); sprintf(arcVolDateString,    "%s%s%s", " and LastDataDate='", arcVolDate,     "' "); }
 			else if (sscanf(thisArg, "arcCorDate:%s",         lineBuffer)){ strcpy(arcCorDate,     lineBuffer); sprintf(arcCorDateString,    "%s%s%s", " and LastDataDate='", arcCorDate,     "' "); }
 			else if (sscanf(thisArg, "arcDivDate:%s",         lineBuffer)){ strcpy(arcDivDate,     lineBuffer); sprintf(arcDivDateString,    "%s%s%s", " and LastDataDate='", arcDivDate,     "' "); }
@@ -1140,7 +1143,7 @@ int _tmain(int argc, WCHAR* argv[])
 				ulOriginalPrices[i].price.reserve(10000);
 				ulOriginalPrices[i].nonTradingDay.reserve(10000);
 			}
-			char ulSql[10000]; // enough for around 100 underlyings...
+			char ulSql[10000],holdUlSql[10000]; // enough for around 100 underlyings...
 			char crossRateBuffer[100];
 			
 
@@ -1181,6 +1184,7 @@ int _tmain(int argc, WCHAR* argv[])
 				else if (forceStartDate != "0000-00-00"){ sprintf(ulSql, "%s%s%s%s", ulSql, " and Date >='", forceStartDate.c_str(), "'"); }
 				else if (thisNumIterations>1) { strcat(ulSql, " and Date >='1992-12-31' "); }
 			}
+			strcpy(holdUlSql, ulSql);   // copy for possible reuse
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
 			strcat(ulSql, " order by Date");
 			// cerr << ulSql << endl;
@@ -1321,8 +1325,25 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 			}
 			if (doUseThisPrice){ midPrice = useThisPrice / issuePrice; }
+			// spotsDate ... change last price to those for some date
+			if (strlen(spotsDate))   {
+				int numPrices = (int)ulOriginalPrices[0].price.size();
+				sprintf(lineBuffer, "%s%s%s%s", holdUlSql, " and Date ='", spotsDate, "'");
+				mydb.prepare((SQLCHAR *)lineBuffer, numUl + 1 + addCompoIntoCcy);
+				retcode = mydb.fetch(true, lineBuffer);
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
+					for (i = 0; i < numUl + addCompoIntoCcy; i++) {
+						double thisPrice;
+						thisPrice = atof(szAllPrices[i + 1]);
+						ulOriginalPrices[i].price[numPrices-1] = thisPrice;
+					}
+					retcode = mydb.fetch(false, "");
+				}
+
+			}
 			ulPrices             = ulOriginalPrices; // copy constructor called
 			cout << "NumPrices: " << totalNumDays << "  FirstDataDate: " << ulOriginalPrices.at(0).date[0] << " LastDataDate: " << lastDataDateString << "  MidPriceUsed: " << midPrice << endl;
+			
 
 			if (hasCompoIntoCcy){
 				// get compoIntoCcy return-to-date
