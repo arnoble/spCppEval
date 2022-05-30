@@ -89,6 +89,7 @@ struct fAndDf	{
 * functions
 */
 int iMax(const int a, const int b){ return a > b ? a : b; }
+int fMax(const double a, const double b){ return a > b ? a : b; }
 int iMin(const int a, const int b){ return a < b ? a : b; }
 /*
 * recalcLocalVol() from impvol
@@ -1204,7 +1205,8 @@ public:
 							runningAverage.push_back(p/refSpot);  // express fixings as %ofSpot; re-inflate later with prevailing Spot
 							break;
 						case 1: // proportional
-							avgWasHit.push_back( above ? (p>barrierLevel && (uBarrierLevel == NULL || p<uBarrierLevel) ? true : false) : (p<barrierLevel && (uBarrierLevel == NULL || p>uBarrierLevel) ? true : false));
+						case 2: // count
+							avgWasHit.push_back(above ? (p>barrierLevel && (uBarrierLevel == NULL || p<uBarrierLevel) ? true : false) : (p<barrierLevel && (uBarrierLevel == NULL || p>uBarrierLevel) ? true : false));
 							break;
 						}
 					}
@@ -1368,6 +1370,7 @@ public:
 			isHit = &SpBarrier::isHitVanilla;
 		}
 		proportionalAveraging  = avgDays > 0 && avgType == 1;
+		countAveraging         = avgDays > 0 && avgType == 2;
 		brel.reserve(10);
 		if (doFinalAssetReturn){ fars.reserve(100000); }
 		hit.reserve(100000);
@@ -1380,7 +1383,7 @@ public:
 	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
 	const boost::gregorian::date    bProductStartDate;
-	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, isLargestN;
+	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
 	double                          payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          proportionHits, sumProportion, forwardRate;
@@ -1942,6 +1945,7 @@ public:
 				}
 				break;
 			case 1: // proportion
+			case 2: // count
 				double numHits(0.0), numPossibleHits(0.0);
 				if (daysExtant){
 					for (int i = 0, numObs = (int)brel[0].avgWasHit.size(); i < numObs; i++) {
@@ -1966,7 +1970,8 @@ public:
 						numPossibleHits += 1;
 					}
 				}
-				proportionHits = numHits / numPossibleHits;
+				proportionHits = numHits;
+				if (avgType == 1) { proportionHits /= numPossibleHits; }
 				break;
 			}
 		}
@@ -2972,7 +2977,7 @@ public:
 							// averaging/lookback - will replace thesePrices with their averages							
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls);
 							// START is barrier hit
-							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || (!b.isExtremum && (b .* (b.isHit))(thisMonPoint,ulPrices, thesePrices, true, startLevels))){
+							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.countAveraging || (!b.isExtremum && (b .* (b.isHit))(thisMonPoint, ulPrices, thesePrices, true, startLevels))){
 								barrierWasHit[thisBarrier] = true;
 
 								// for post-strike deals, record if barriers have already been hit
@@ -3061,7 +3066,7 @@ public:
 												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] &&
 													(barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
 													SpBarrier &ib(barrier[paidOutBarrier]);
-													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*ib.proportionHits*ib.payoff + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
+													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*max(ib.cap,ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
 											}
 										}
@@ -3126,7 +3131,7 @@ public:
 									
 									if (!couponPaidOut || b.endDays >= 0 || (doAccruals && b.endDays >= -settleDays)) {
 										if (!couponPaidOut || doAccruals){  // barrier coupons only accrued, so no need to forwardCouponValue
-											couponValue += b.proportionHits*thisPayoff;
+											couponValue += max(b.cap,b.proportionHits*thisPayoff);
 										}
 										else if (b.payoffTypeId != fixedPayoff){  // paid-out variable coupon
 											b.variableCoupon = b.proportionHits*thisPayoff;
@@ -3374,13 +3379,14 @@ public:
 
 
 				int    numAllEpisodes(0);
-				bool hasProportionalAvg(false);   // no couponHistogram, which only shows coupon-counts
+				bool hasProportionalAvg(false), hasCountAvg(false);   // no couponHistogram, which only shows coupon-counts
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 					const SpBarrier&    b(barrier.at(thisBarrier));
 					if (b.capitalOrIncome) {
 						numAllEpisodes += (int)b.hit.size();
 					}
-					hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
+					// hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
+					// hasCountAvg        = hasCountAvg        || barrier.at(thisBarrier).countAveraging;
 				}
 				if (numMcIterations>1 && numAllEpisodes != thisIteration){
 					numAllEpisodes = thisIteration;
@@ -3392,7 +3398,7 @@ public:
 					// ** delete old
 					sprintf(lineBuffer, "%s%d%s%d%s", "delete from couponhistogram where ProductId='", productId, "' and IsBootstrapped='", numMcIterations == 1 ? 0 : 1, "'");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					if (/* !hasProportionalAvg && */ numIncomeBarriers){
+					if (/* !hasProportionalAvg && !hasCountAvg && */ numIncomeBarriers){
 						// ** insert new
 						for (int thisNumHits=0; thisNumHits < (int)numCouponHits.size(); thisNumHits++){
 							sprintf(lineBuffer, "%s%d%s%d%s%.5lf%s%d%s",

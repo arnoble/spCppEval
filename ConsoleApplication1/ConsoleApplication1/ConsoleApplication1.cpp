@@ -1919,7 +1919,7 @@ int _tmain(int argc, WCHAR* argv[])
 				double bendDirection     = bendCallPut * bendParticipation;
 				if (ucPayoffType.find("FIXED") != std::string::npos) { bendDirection  = -1.0; }
 				strike          = max(0.0,atof(szAllPrices[colStrike]) + thisBarrierBend*bendDirection);
-				cap             = max(0.0,atof(szAllPrices[colCap])    - barrierBend*bendDirection);
+				cap             = max(-1.0,max(-1.0,atof(szAllPrices[colCap])    - barrierBend*bendDirection));
 				int     underlyingFunctionId = atoi(szAllPrices[colUnderlyingFunctionId]);
 				double  param1 = atof(szAllPrices[colParam1]);
 				if (ucPayoffType.find("BASKET") != std::string::npos){
