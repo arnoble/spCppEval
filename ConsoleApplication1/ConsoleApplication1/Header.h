@@ -1329,7 +1329,7 @@ public:
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
 		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), 
 		barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), 
-		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection)
+		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2)
 	{
 		init();
 	};
@@ -1378,7 +1378,7 @@ public:
 
 	// public members: DOME consider making private, in case we implement their content some other way
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
-	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons;
+	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
 	const double                    participation, param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
@@ -3067,7 +3067,7 @@ public:
 												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] &&
 													(barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
 													SpBarrier &ib(barrier[paidOutBarrier]);
-													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.avgType == 2 ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
+													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
 											}
 										}
@@ -3132,7 +3132,7 @@ public:
 									
 									if (!couponPaidOut || b.endDays >= 0 || (doAccruals && b.endDays >= -settleDays)) {
 										if (!couponPaidOut || doAccruals){  // barrier coupons only accrued, so no need to forwardCouponValue
-											couponValue += b.avgType == 2 ? b.participation*min(b.cap, b.proportionHits*thisPayoff) : b.proportionHits*thisPayoff;
+											couponValue += b.isCountAvg ? b.participation*min(b.cap, b.proportionHits*thisPayoff) : b.proportionHits*thisPayoff;
 										}
 										else if (b.payoffTypeId != fixedPayoff){  // paid-out variable coupon
 											b.variableCoupon = b.proportionHits*thisPayoff;
@@ -3158,7 +3158,7 @@ public:
 								} // END income barrier processing
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
-								thisAmount = (b.avgType == 2 ? b.participation*min(b.cap, b.proportionHits*thisPayoff): b.proportionHits*thisPayoff)*baseCcyReturn;
+								thisAmount = (b.isCountAvg ? b.participation*min(b.cap, b.proportionHits*thisPayoff) : b.proportionHits*thisPayoff)*baseCcyReturn;
 								b.storePayoff(thisMonPoint,thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
 									finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);																
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
@@ -3465,7 +3465,7 @@ public:
 						int                 numInstances    = (int)b.hit.size();
 						double              sumProportion   = b.sumProportion;
 						double              thisYears       = b.yearsToBarrier;
-						double              prob            = b.hasBeenHit ? 1.0 : (b.avgType == 2 ? sumProportion / b.totalNumPossibleHits : sumProportion / numAllEpisodes); // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
+						double              prob            = b.hasBeenHit ? 1.0 : (b.isCountAvg ? sumProportion / b.totalNumPossibleHits : sumProportion / numAllEpisodes); // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
 						double              thisProbDefault = probDefault(hazardCurve, thisYears);
 						int                 yearsAsMapKey   = (int)floor(b.yearsToBarrier * YEARS_TO_INT_MULTIPLIER);
 
