@@ -1329,7 +1329,7 @@ public:
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
 		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), 
 		barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), 
-		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2)
+		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2 && avgDays)
 	{
 		init();
 	};
@@ -3459,17 +3459,20 @@ public:
 					for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 						if (doDebug){ std::cerr << "Starting analyseResults  for barrier \n" << thisBarrier << std::endl; }
 						const SpBarrier&    b(barrier.at(thisBarrier));
+						int                 numHits         = (int)b.hit.size();
 						double              thisBarrierSumPayoffs(0.0), thisAmount;
 						std::vector<double> thisBarrierPayoffs; thisBarrierPayoffs.reserve(100000);
 						std::vector<double> thisBarrierCouponValues; thisBarrierCouponValues.reserve(100000);
 						int                 numInstances    = (int)b.hit.size();
 						double              sumProportion   = b.sumProportion;
 						double              thisYears       = b.yearsToBarrier;
-						double              prob            = b.hasBeenHit ? 1.0 : (b.isCountAvg ? sumProportion / b.totalNumPossibleHits : sumProportion / numAllEpisodes); // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
+						double              prob;
 						double              thisProbDefault = probDefault(hazardCurve, thisYears);
 						int                 yearsAsMapKey   = (int)floor(b.yearsToBarrier * YEARS_TO_INT_MULTIPLIER);
 
-						for (i = 0; i < (int)b.hit.size(); i++){
+						prob            = b.hasBeenHit ? 1.0 : (b.isCountAvg ? numHits * sumProportion / b.totalNumPossibleHits / numAllEpisodes : sumProportion / numAllEpisodes); // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
+
+						for (i = 0; i < numHits; i++){
 							thisAmount = b.hit[i].amount;
 							// possibly apply credit adjustment
 							if (applyCredit) {
@@ -3611,7 +3614,7 @@ public:
 						double annReturn         = returnToAnnualise > 0.0 && numInstances && b.yearsToBarrier > 0 && midPrice > 0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
 						// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
 						if (!silent) {
-							std::cout << "EventProbabilityAndPayoff: " << b.description << ": Prob:" << prob << " ConditionalPayoff:" << mean << " ExpPayoff:" << mean*prob << " DiscFact:" << thisDiscountFactor << " DiscRate:" << thisDiscountRate << " fwdRate" << b.forwardRate << " ffract:" << fundingFraction << " y:" << b.yearsToBarrier << std::endl;
+							std::cout << "EventProbabilityAndPayoff: " << b.description << ": Prob:" << prob << " ConditionalPayoff:" << mean << " ExpPayoff:" << mean*prob << " DiscFact:" << thisDiscountFactor << " PV(%):" << mean*prob*thisDiscountFactor << " DiscRate:" << thisDiscountRate << " fwdRate" << b.forwardRate << " ffract:" << fundingFraction << " y:" << b.yearsToBarrier << std::endl;
 						}
 						// ** SQL 
 						// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
