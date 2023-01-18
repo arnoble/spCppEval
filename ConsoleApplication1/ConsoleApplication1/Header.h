@@ -678,8 +678,18 @@ void CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vect
 			for (k=0; k<i; k++) {
 				element = element - L_Lower[i][k] * L_Lower[j][k];
 			}
-			if (i == j){ L_Lower[i][i] = sqrt(element); }
-			else if (i < j) { L_Lower[j][i] = element / L_Lower[i][i]; }
+			if (i == j){ 
+				if (element < 0.0){ 
+					std::cerr << "Correlation matrix infeasible " << i << "\n"; exit(221); 
+				}
+				L_Lower[i][i] = sqrt(element);
+			}
+			else if (i < j) { 
+				if (L_Lower[i][i] == 0.0){ 
+					std::cerr << "Correlation matrix infeasible " << i << "\n"; exit(222); 
+				}
+				L_Lower[j][i] = element / L_Lower[i][i]; 
+			}
 		}
 	}
 
