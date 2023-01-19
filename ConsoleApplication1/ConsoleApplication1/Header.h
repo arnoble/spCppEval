@@ -659,9 +659,10 @@ double ESnorm(double prob) { return Dnorm(NormSInv(prob)) / prob; }
 // ********************
 
 // Cholesky decomposition of (correlation) matrix
-void CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vector<double>> &outputMatrix) {
-	int i, j, k, N;
-	double element;
+EvalResult CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vector<double>> &outputMatrix) {
+	int         i, j, k, N;
+	double      element;
+	EvalResult  evalResult(0.0, 0.0, 0);
 	// init
 	N = (int)matrix.size();
 	std::vector<std::vector<double>>  a(N, std::vector<double>(N));             // the original matrix
@@ -680,13 +681,17 @@ void CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vect
 			}
 			if (i == j){ 
 				if (element < 0.0){ 
-					std::cerr << "Correlation matrix infeasible " << i << "\n"; exit(221); 
+					std::cerr << "Correlation matrix infeasible " << i << "\n"; 
+					evalResult.errorCode = 10221;
+					return(evalResult);
 				}
 				L_Lower[i][i] = sqrt(element);
 			}
 			else if (i < j) { 
 				if (L_Lower[i][i] == 0.0){ 
-					std::cerr << "Correlation matrix infeasible " << i << "\n"; exit(222); 
+					std::cerr << "Correlation matrix infeasible " << i << "\n"; 
+					evalResult.errorCode = 10222;
+					return(evalResult);
 				}
 				L_Lower[j][i] = element / L_Lower[i][i]; 
 			}
@@ -699,6 +704,7 @@ void CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std::vect
 			outputMatrix[i][j] = L_Lower[j][i];
 		}
 	}
+	return(evalResult);
 }
 
 
@@ -2532,7 +2538,10 @@ public:
 				}
 			}
 			// finally decompose this correlation matrix
-			CHOL(rnCorr, cholMatrix);
+			evalResult = CHOL(rnCorr, cholMatrix);
+			if (evalResult.errorCode != 0){
+				return(evalResult);
+			}
 
 			// set up forwardVols for the period to each obsDate
 			double oneDay  = 1.0 / 365.25;
