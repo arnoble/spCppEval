@@ -1879,7 +1879,7 @@ public:
 
 		return(thisPayoff);
 	}
-	void storePayoff(const int thisMonPoint,const std::string thisDateString, const double amount, const double couponValue, const double proportion, 
+	void storePayoff(const std::string thisDateString, const double amount, const double couponValue, const double proportion, 
 		const double finalAssetReturn, const int finalAssetIndx, const int barrierIndx, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn, const bool doAccruals){
 		
 		sumPayoffs     += amount;
@@ -2054,6 +2054,7 @@ private:
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 	const bool                      extendingPrices;
+	const bool                      issuerCallable;
 
 public:
 	SProduct(
@@ -2110,7 +2111,8 @@ public:
 		const bool                      localVol,
 		const std::vector<bool>         &ulFixedDivs,
 		const double                    compoIntoCcyStrikePrice, 
-		const bool                      hasCompoIntoCcy
+		const bool                      hasCompoIntoCcy,
+		const bool                      issuerCallable
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -2122,7 +2124,7 @@ public:
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
-		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy) {};
+		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable){};
 
 	// public members: DOME consider making private
 	MyDB                           &mydb;
@@ -3167,7 +3169,7 @@ public:
 													}
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
-													bOther.storePayoff(thisMonPoint,thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, 
+													bOther.storePayoff(thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, 
 														finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false, doAccruals);
 													//}
 												}
@@ -3178,7 +3180,26 @@ public:
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
 								thisAmount = (b.isCountAvg ? b.participation*min(b.cap, b.proportionHits*thisPayoff) : b.proportionHits*thisPayoff)*baseCcyReturn;
-								b.storePayoff(thisMonPoint,thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
+								/*
+								*  if (issuerCallable && getMarketData){
+								*    ... working backwards thatMonIndx:
+								* 			int thatMonDays  = monDateIndx[thatMonIndx];
+								*			int thatMonPoint = thisPoint + thatMonDays;
+								*			const std::string   thatDateString(allDates.at(thatMonPoint));
+								*
+								*        ... thatAmount = barrier[thatBarrier].payoff
+								*        ... if( pv(thisAmount) > thatAmount ){ 
+								*            thisDateString   = thatDateString;
+								*            thisAmount       = thatAmount;
+								*	         maturityBarrier  = thatBarrier;
+								*            couponValue      = 0.0;
+								*            barrierWasHit[thatBarrier] = true;
+								*            b                = barrier[thatBarrier];
+								*            b.proportionHits = 1.0;
+								*          }
+								*  }
+								*/
+								b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
 									finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);																
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								//}

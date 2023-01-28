@@ -766,7 +766,7 @@ int _tmain(int argc, WCHAR* argv[])
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
 				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, 
-				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductCompoIntoCcy, colProductBarrierBendDays, colProductBarrierBendFraction, colProductLast
+				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductCompoIntoCcy, colProductBarrierBendDays, colProductBarrierBendFraction, colProductIssuerCallable, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -809,6 +809,8 @@ int _tmain(int argc, WCHAR* argv[])
 			string compoIntoCcy             = szAllPrices[colProductCompoIntoCcy];
 			double forceBarrierBendDays     = atoi(szAllPrices[colProductBarrierBendDays]);
 			double forceBarrierBendFraction = atof(szAllPrices[colProductBarrierBendFraction]);
+			bool   issuerCallable           = atoi(szAllPrices[colProductIssuerCallable]) == 1;
+				
 			if (forceBarrierBendDays>0 && !cmdLineBarrierBend){  // does not overrise commandLine
 				thisBarrierBendFraction    = forceBarrierBendFraction;
 				thisBarrierBendDays        = forceBarrierBendDays;
@@ -1857,7 +1859,8 @@ int _tmain(int argc, WCHAR* argv[])
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
-				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice, hasCompoIntoCcy);
+				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice, 
+				hasCompoIntoCcy,issuerCallable);
 			numBarriers = 0;
 
 			// get barriers from DB
