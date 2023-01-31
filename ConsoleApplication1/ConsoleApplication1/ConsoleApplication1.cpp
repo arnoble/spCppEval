@@ -154,7 +154,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 		vector<string>   rangeFilterStrings,corrNames;
 		vector<string>   rescaleTypes; rescaleTypes.push_back("spots");
-		const int        maxUls(100);
+		const int        maxUls(MAX_ULS);
 		const int        bufSize(1000);
 
 		RETCODE          retcode;
@@ -1855,12 +1855,16 @@ int _tmain(int argc, WCHAR* argv[])
 			if (AMC != 0.0){
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
+			if (issuerCallable && thisNumIterations > 1 && (thisNumIterations < MIN_CALLABLE_ITERATIONS || thisNumIterations > MAX_CALLABLE_ITERATIONS)){
+				cerr << endl << "******NOTE******* issuerCallable product needs iterations in the range" << MIN_CALLABLE_ITERATIONS << ":" << MAX_CALLABLE_ITERATIONS << endl;
+				continue;
+			}
 			SProduct spr(extendingPrices,thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice, 
-				hasCompoIntoCcy,issuerCallable);
+				hasCompoIntoCcy,issuerCallable,spots);
 			numBarriers = 0;
 
 			// get barriers from DB

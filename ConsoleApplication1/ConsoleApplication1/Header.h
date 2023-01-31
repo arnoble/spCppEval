@@ -18,7 +18,11 @@
 #include <chrono>
 #include <iomanip>
 
+#define MAX_ULS                               100
 #define MAX_SP_BUF                         500000
+#define MIN_CALLABLE_ITERATIONS            1000
+#define MAX_CALLABLE_ITERATIONS          200000
+#define CALLABLE_REGRESSION_FRACTION       0.1
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
 #define YEARS_TO_INT_MULTIPLIER           1000000.0
 #define ARTS_MAX_RAND                     4294967296.0   // 2^32
@@ -1804,6 +1808,8 @@ public:
 		strike         = originalStrike;
 		int lastIndx((int)ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
 		double lastPrice(ulTimeseries.price[lastIndx]);
+		std::vector<double>  ulRegressionPrices(MAX_ULS); // underlying prices if issuerCallable	
+
 		
 		// post-strike initialisation
 		if (daysExtant){				
@@ -2666,6 +2672,7 @@ private:
 	const std::string               productCcy,thisCommandLine;
 	const std::vector <bool>        &allNonTradingDays;
 	const std::vector <bool>        &ulFixedDivs;
+	const std::vector <double>      &spots;
 	const std::vector <int>         &ulIds;
 	const std::vector<std::string>  &ulNames;
 	const std::vector <std::string> &allDates;
@@ -2735,7 +2742,8 @@ public:
 		const std::vector<bool>         &ulFixedDivs,
 		const double                    compoIntoCcyStrikePrice, 
 		const bool                      hasCompoIntoCcy,
-		const bool                      issuerCallable
+		const bool                      issuerCallable,
+		const std:: vector<double>      &spots
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -2747,7 +2755,7 @@ public:
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
-		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable){};
+		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), spots(spots){};
 
 	// public members: DOME consider making private
 	MyDB                           &mydb;
