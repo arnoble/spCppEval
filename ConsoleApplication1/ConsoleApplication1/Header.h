@@ -23,6 +23,273 @@
 #define YEARS_TO_INT_MULTIPLIER           1000000.0
 #define ARTS_MAX_RAND                     4294967296.0   // 2^32
 #define LARGE_RETURN                      10.0
+#define CI_CLOSEDOUBLE					  1.0e-1	    // for tests of equality between 2 doubles
+#define EQ                                ==
+#define NEQ                               !=
+
+
+// Numerical Recipes types
+typedef double DP;
+
+
+// NR NRVec type
+template <class T>
+class NRVec {
+private:
+	int nn;	// size of array. upper index is nn-1
+	T *v;
+public:
+	NRVec();
+	explicit NRVec(int n);		// Zero-based array
+	NRVec(const T &a, int n);	//initialize to constant value
+	NRVec(const T *a, int n);	// Initialize to array
+	NRVec(const NRVec &rhs);	// Copy constructor
+	NRVec & operator=(const NRVec &rhs);	//assignment
+	NRVec & operator=(const T &a);	//assign a to every element
+	inline T & operator[](const int i);	//i'th element
+	inline const T & operator[](const int i) const;
+	inline int size() const;
+	~NRVec();
+};
+
+template <class T>
+NRVec<T>::NRVec() : nn(0), v(0) {}
+
+template <class T>
+NRVec<T>::NRVec(int n) : nn(n), v(new T[n]) {}
+
+template <class T>
+NRVec<T>::NRVec(const T& a, int n) : nn(n), v(new T[n])
+{
+	for (int i=0; i<n; i++)
+		v[i] = a;
+}
+
+template <class T>
+NRVec<T>::NRVec(const T *a, int n) : nn(n), v(new T[n])
+{
+	for (int i=0; i<n; i++)
+		v[i] = *a++;
+}
+
+template <class T>
+NRVec<T>::NRVec(const NRVec<T> &rhs) : nn(rhs.nn), v(new T[nn])
+{
+	for (int i=0; i<nn; i++)
+		v[i] = rhs[i];
+}
+
+template <class T>
+NRVec<T> & NRVec<T>::operator=(const NRVec<T> &rhs)
+// postcondition: normal assignment via copying has been performed;
+//		if vector and rhs were different sizes, vector
+//		has been resized to match the size of rhs
+{
+	if (this != &rhs)
+	{
+		if (nn != rhs.nn) {
+			if (v != 0) delete[](v);
+			nn=rhs.nn;
+			v= new T[nn];
+		}
+		for (int i=0; i<nn; i++)
+			v[i]=rhs[i];
+	}
+	return *this;
+}
+
+template <class T>
+NRVec<T> & NRVec<T>::operator=(const T &a)	//assign a to every element
+{
+	for (int i=0; i<nn; i++)
+		v[i]=a;
+	return *this;
+}
+
+template <class T>
+inline T & NRVec<T>::operator[](const int i)	//subscripting
+{
+#if DO_BOUNDS_CHECKING  > 0
+	if (i>nn) CiError("Vector out of bounds");
+#endif
+	return v[i];
+}
+
+template <class T>
+inline const T & NRVec<T>::operator[](const int i) const	//subscripting
+{
+#if DO_BOUNDS_CHECKING  > 0
+	if (i>nn) CiError("Vector out of bounds");
+#endif
+	return v[i];
+}
+
+template <class T>
+inline int NRVec<T>::size() const
+{
+	return nn;
+}
+
+template <class T>
+NRVec<T>::~NRVec()
+{
+	if (v != 0)
+		delete[](v);
+}
+
+typedef const NRVec<DP> Vec_I_DP;
+typedef NRVec<DP> Vec_DP, Vec_O_DP, Vec_IO_DP;
+typedef const NRVec<int> Vec_I_INT;
+typedef NRVec<int> Vec_INT, Vec_O_INT, Vec_IO_INT;
+
+
+
+// NR NRMat type
+template <class T>
+class NRMat {
+private:
+	int nn;
+	int mm;
+	T **v;
+public:
+	NRMat();
+	NRMat(int n, int m);			// Zero-based array
+	NRMat(const T &a, int n, int m);	//Initialize to constant
+	NRMat(const T *a, int n, int m);	// Initialize to array
+	NRMat(const NRMat &rhs);		// Copy constructor
+	NRMat & operator=(const NRMat &rhs);	//assignment
+	NRMat & operator=(const T &a);		//assign a to every element
+	inline T* operator[](const int i);	//subscripting: pointer to row i
+	inline const T* operator[](const int i) const;
+	inline int nrows() const;
+	inline int ncols() const;
+	~NRMat();
+};
+
+template <class T>
+NRMat<T>::NRMat() : nn(0), mm(0), v(0) {}
+
+template <class T>
+NRMat<T>::NRMat(int n, int m) : nn(n), mm(m), v(new T*[n])
+{
+	v[0] = new T[m*n];
+	for (int i=1; i< n; i++)
+		v[i] = v[i - 1] + m;
+}
+
+template <class T>
+NRMat<T>::NRMat(const T &a, int n, int m) : nn(n), mm(m), v(new T*[n])
+{
+	int i, j;
+	v[0] = new T[m*n];
+	for (i=1; i< n; i++)
+		v[i] = v[i - 1] + m;
+	for (i=0; i< n; i++)
+	for (j=0; j<m; j++)
+		v[i][j] = a;
+}
+
+template <class T>
+NRMat<T>::NRMat(const T *a, int n, int m) : nn(n), mm(m), v(new T*[n])
+{
+	int i, j;
+	v[0] = new T[m*n];
+	for (i=1; i< n; i++)
+		v[i] = v[i - 1] + m;
+	for (i=0; i< n; i++)
+	for (j=0; j<m; j++)
+		v[i][j] = *a++;
+}
+
+template <class T>
+NRMat<T>::NRMat(const NRMat &rhs) : nn(rhs.nn), mm(rhs.mm), v(new T*[nn])
+{
+	int i, j;
+	v[0] = new T[mm*nn];
+	for (i=1; i< nn; i++)
+		v[i] = v[i - 1] + mm;
+	for (i=0; i< nn; i++)
+	for (j=0; j<mm; j++)
+		v[i][j] = rhs[i][j];
+}
+
+template <class T>
+NRMat<T> & NRMat<T>::operator=(const NRMat<T> &rhs)
+// postcondition: normal assignment via copying has been performed;
+//		if matrix and rhs were different sizes, matrix
+//		has been resized to match the size of rhs
+{
+	if (this != &rhs) {
+		int i, j;
+		if (nn != rhs.nn || mm != rhs.mm) {
+			if (v != 0) {
+				delete[](v[0]);
+				delete[](v);
+			}
+			nn=rhs.nn;
+			mm=rhs.mm;
+			v = new T*[nn];
+			v[0] = new T[mm*nn];
+		}
+		for (i=1; i< nn; i++)
+			v[i] = v[i - 1] + mm;
+		for (i=0; i< nn; i++)
+		for (j=0; j<mm; j++)
+			v[i][j] = rhs[i][j];
+	}
+	return *this;
+}
+
+template <class T>
+NRMat<T> & NRMat<T>::operator=(const T &a)	//assign a to every element
+{
+	for (int i=0; i< nn; i++)
+	for (int j=0; j<mm; j++)
+		v[i][j] = a;
+	return *this;
+}
+
+template <class T>
+inline T* NRMat<T>::operator[](const int i)	//subscripting: pointer to row i
+{
+#if DO_BOUNDS_CHECKING  > 0
+	if (i>nn) CiError("Vector out of bounds");
+#endif
+	return v[i];
+}
+
+template <class T>
+inline const T* NRMat<T>::operator[](const int i) const
+{
+#if DO_BOUNDS_CHECKING  > 0
+	if (i>nn) CiError("Vector out of bounds");
+#endif
+	return v[i];
+}
+
+template <class T>
+inline int NRMat<T>::nrows() const
+{
+	return nn;
+}
+
+template <class T>
+inline int NRMat<T>::ncols() const
+{
+	return mm;
+}
+
+template <class T>
+NRMat<T>::~NRMat()
+{
+	if (v != 0) {
+		delete[](v[0]);
+		delete[](v);
+	}
+}
+typedef const NRMat<DP> Mat_I_DP;
+typedef NRMat<DP> Mat_DP, Mat_O_DP, Mat_IO_DP;
+
 
 
 // structs
@@ -88,9 +355,46 @@ struct fAndDf	{
 /*
 * functions
 */
-int iMax(const int a, const int b){ return a > b ? a : b; }
-int fMax(const double a, const double b){ return a > b ? a : b; }
-int iMin(const int a, const int b){ return a < b ? a : b; }
+// little error handler
+void CiError(const std::string msg) {
+	std::cerr << msg;
+	//DebugActiveProcess(?how get this processID?);
+	//DebugBreak();
+	exit(1);
+}
+// two matrices equal?
+void MEqual(const Mat_I_DP &one, const Mat_I_DP &two){
+	char m_sBuf[1000];
+
+	if (one.nrows() NEQ two.nrows() || one.ncols() NEQ two.ncols()) CiError("MEqual: different sizes");
+	int i, j;
+
+	for (i=0; i<one.nrows(); i++)
+	for (j=0; j<one.ncols(); j++)
+	if (fabs(one[i][j] - two[i][j]) > CI_CLOSEDOUBLE)	{
+		sprintf(m_sBuf,"%s %d %d %lf %lf", "MEqual:", i, j, one[i][j], two[i][j]);
+		CiError(m_sBuf);
+	}
+}
+// tests and returns true/false rather than screen pop-ups
+bool MEqualTest(const Mat_I_DP &one, const Mat_I_DP &two){
+	if (one.nrows() NEQ two.nrows() || one.ncols() NEQ two.ncols()) CiError("MEqual: different sizes");
+	int i, j;
+
+	for (i=0; i<one.nrows(); i++)
+	for (j=0; j<one.ncols(); j++)
+	if (fabs(one[i][j] - two[i][j]) > CI_CLOSEDOUBLE)
+		return false;
+
+	return true;
+}
+
+
+
+
+int    iMax(const int a, const int b){ return a > b ? a : b; }
+double fMax(const double a, const double b){ return a > b ? a : b; }
+int    iMin(const int a, const int b){ return a < b ? a : b; }
 /*
 * recalcLocalVol() from impvol
 *   - follows Gatheral
@@ -258,6 +562,325 @@ void recalcLocalVol(
 	}
 	return;
 }
+
+// LU decomposition
+void ludcmp(Mat_IO_DP &a, Vec_O_INT &indx, DP &d) {
+	const DP TINY=1.0e-20;
+	int i, imax, j, k;
+	DP big, dum, sum, temp;
+
+	int n=a.nrows();
+	Vec_DP vv(n);
+	d=1.0;
+	for (i=0; i<n; i++) {
+		big=0.0;
+		for (j=0; j<n; j++)
+		if ((temp=fabs(a[i][j])) > big) big=temp;
+		if (big == 0.0) CiError("Singular matrix in routine ludcmp");
+		vv[i]=1.0 / big;
+	}
+	for (j=0; j<n; j++) {
+		for (i=0; i<j; i++) {
+			sum=a[i][j];
+			for (k=0; k<i; k++) sum -= a[i][k] * a[k][j];
+			a[i][j]=sum;
+		}
+		big=0.0;
+		for (i=j; i<n; i++) {
+			sum=a[i][j];
+			for (k=0; k<j; k++) sum -= a[i][k] * a[k][j];
+			a[i][j]=sum;
+			if ((dum=vv[i] * fabs(sum)) >= big) {
+				big=dum;
+				imax=i;
+			}
+		}
+		if (j != imax) {
+			for (k=0; k<n; k++) {
+				dum=a[imax][k];
+				a[imax][k]=a[j][k];
+				a[j][k]=dum;
+			}
+			d = -d;
+			vv[imax]=vv[j];
+		}
+		indx[j]=imax;
+		if (a[j][j] == 0.0) a[j][j]=TINY;
+		if (j != n - 1) {
+			dum=1.0 / (a[j][j]);
+			for (i=j + 1; i<n; i++) a[i][j] *= dum;
+		}
+	}
+}
+
+void lubksb(Mat_I_DP &a, Vec_I_INT &indx, Vec_IO_DP &b){
+	int i, ii=0, ip, j;
+	DP sum;
+
+	int n=a.nrows();
+	for (i=0; i<n; i++) {
+		ip=indx[i];
+		sum=b[ip];
+		b[ip]=b[i];
+		if (ii != 0)
+		for (j=ii - 1; j<i; j++) sum -= a[i][j] * b[j];
+		else if (sum != 0.0)
+			ii=i + 1;
+		b[i]=sum;
+	}
+	for (i=n - 1; i >= 0; i--) {
+		sum=b[i];
+		for (j=i + 1; j<n; j++) sum -= a[i][j] * b[j];
+		b[i]=sum / a[i][i];
+	}
+}
+
+
+// element by element copy
+void MatCopy(const Mat_I_DP &in, Mat_O_DP &out) {
+	const int C_ROWS(in.nrows());
+	const int C_COLS(in.ncols());
+	if (out.nrows() NEQ C_ROWS || out.ncols() NEQ C_COLS)	CiError("MatCopy: wrong sizes");
+	int i, j;
+
+	for (i=0; i<C_ROWS; i++)
+	for (j=0; j<C_COLS; j++)
+		out[i][j] = in[i][j];
+}
+// check matrix is diagonal
+// - output sum of diagonal elements
+// - if allEqual true they must all equal toThis
+bool Diagonal(const	Mat_I_DP	&mat, double *sum, const bool allEqual, const double toThis) {
+	const int C_ROWS(mat.nrows());
+	const int C_COLS(mat.ncols());
+	if (C_ROWS NEQ C_COLS) CiError("Diagonal: not square");
+	int i, j;
+	double thisSum, thisValue;
+
+	thisSum = 0.0;
+	for (i=0; i<C_ROWS; i++)
+	for (j=0; j<C_COLS; j++) {
+		thisValue = mat[i][j];
+		if (i EQ j)	{
+			if (allEqual EQ true && fabs(thisValue - toThis) > CI_CLOSEDOUBLE) {/*CCointegDoc::CiError("Diagonal: not all equal");*/ return false; }
+			thisSum += thisValue;
+		}
+		else
+		if (fabs(thisValue - 0.0) > CI_CLOSEDOUBLE)	{/*CCointegDoc::CiError("Diagonal: not zero");*/return false; }
+	}
+	*sum = thisSum;
+
+	return true;
+}
+#define BIG_VECTOR   10000
+#define HUGE_VECTOR  1000000
+// matrix-matrix multiply
+void MMult(const Mat_I_DP	&one,
+	const Mat_I_DP	&two,
+	Mat_O_DP		&out,
+	const bool		oneTranspose,
+	const bool		twoTranspose)
+{
+	const int		oneRows=one.nrows(), oneCols=one.ncols();
+	const int		twoRows=two.nrows(), twoCols=two.ncols();
+	const int		outRows=out.nrows(), outCols=out.ncols();
+	int		indx, i, j, k, l, m;
+	double	sum, *oneVals;
+	double *twoVals = new double[twoRows*twoCols];
+
+	//clock_t  startTicks,stopTicks;
+	//if(m_clockStarted EQ true) startTicks=clock();
+
+	if (oneTranspose EQ true)	{
+		oneVals = new double[oneRows];
+		if (oneCols NEQ outRows) CiError("MMult: one&out wrong rows");
+		if (twoTranspose EQ true) {
+			if (twoRows NEQ outCols) CiError("MMult: two&out wrong cols");
+			if (oneRows NEQ twoCols) CiError("MMult: one&two incompatible");
+			// NEW CODE - extra accuracy by mean-correcting each vector, and at the end adding back n*mean1*mean2 (McKinnon p29)
+			Vec_DP twoMeans(0.0, twoRows), oneMeans(0.0, oneCols);
+			// stack two's rows
+			for (i=0; i<twoRows; i++) {
+				for (j=0; j<twoCols; j++) twoMeans[i] += two[i][j];
+				twoMeans[i] /= twoCols;
+			}
+			for (indx=i=0; i<twoRows; i++) for (j=0; j<twoCols; j++) twoVals[indx++]= two[i][j] - twoMeans[i];
+			for (k=0; k<outRows; k++){
+				for (m=0; m<oneRows; m++) oneMeans[k] += one[m][k];
+				oneMeans[k] /= oneRows;
+				for (m=0; m<oneRows; m++) oneVals[m]=one[m][k] - oneMeans[k];
+				for (indx=l=0; l<outCols; l++){
+					sum=0.0;
+					for (m=0; m<oneRows; m++) sum += oneVals[m] * twoVals[indx++];
+					out[k][l] = sum + oneRows * oneMeans[k] * twoMeans[l];
+				}
+			}
+		}
+		else {
+			if (twoCols NEQ outCols) CiError("MMult: two&out wrong cols");
+			if (oneRows NEQ twoRows) CiError("MMult: one&two incompatible");
+			// NEW CODE - extra accuracy by mean-correcting each vector, and at the end adding back n*mean1*mean2 (McKinnon p29)
+			Vec_DP twoMeans(0.0, twoCols), oneMeans(0.0, oneCols);
+			// stack two's columns
+			for (j=0; j<twoCols; j++){
+				for (i=0; i<twoRows; i++) twoMeans[j] += two[i][j];
+				twoMeans[j] /= twoRows;
+			}
+			for (indx=j=0; j<twoCols; j++) for (i=0; i<twoRows; i++) twoVals[indx++]= two[i][j] - twoMeans[j];
+			for (k=0; k<outRows; k++){
+				for (m=0; m<oneRows; m++) oneMeans[k] += one[m][k];
+				oneMeans[k] /= oneRows;
+				for (m=0; m<oneRows; m++) oneVals[m]=one[m][k] - oneMeans[k];
+				for (indx=l=0; l<outCols; l++){
+					sum=0.0;
+					for (m=0; m<oneRows; m++) sum += oneVals[m] * twoVals[indx++];
+					out[k][l] = sum + oneRows * oneMeans[k] * twoMeans[l];
+				}
+			}
+		}
+	}
+	else
+	{
+		oneVals = new double[oneCols];
+		if (oneRows NEQ outRows) CiError("MMult: one&out wrong rows");
+		if (twoTranspose EQ true) {
+			if (twoRows NEQ outCols) CiError("MMult: two&out wrong cols");
+			if (oneCols NEQ twoCols) CiError("MMult: one&two incompatible");
+
+			// NEW CODE
+			Vec_DP twoMeans(0.0, twoRows), oneMeans(0.0, oneRows);
+			// stack two's rows
+			for (i=0; i<twoRows; i++){
+				for (j=0; j<twoCols; j++) twoMeans[i] += two[i][j];
+				twoMeans[i] /= twoCols;
+			}
+			for (indx=i=0; i<twoRows; i++) for (j=0; j<twoCols; j++) twoVals[indx++]= two[i][j] - twoMeans[i];
+			for (k=0; k<outRows; k++){
+				for (m=0; m<oneCols; m++) oneMeans[k] += one[k][m];
+				oneMeans[k] /= oneCols;
+				for (m=0; m<oneCols; m++) oneVals[m]=one[k][m] - oneMeans[k];
+				for (indx=l=0; l<outCols; l++){
+					sum=0.0;
+					for (m=0; m<oneCols; m++) sum += oneVals[m] * twoVals[indx++];
+					out[k][l] = sum + oneCols * oneMeans[k] * twoMeans[l];
+				}
+			}
+			//end NEW CODE
+		}
+		else {
+			if (twoCols NEQ outCols) CiError("MMult: two&out wrong cols");
+			if (oneCols NEQ twoRows) CiError("MMult: one&two incompatible");
+			// NEW CODE - extra accuracy by mean-correcting each vector, and at the end adding back n*mean1*mean2 (McKinnon p29)
+			Vec_DP twoMeans(0.0, twoCols), oneMeans(0.0, oneRows);
+			// stack two's columns
+			for (j=0; j<twoCols; j++){
+				for (i=0; i<twoRows; i++) twoMeans[j] += two[i][j];
+				twoMeans[j] /= twoRows;
+			}
+			for (indx=j=0; j<twoCols; j++) for (i=0; i<twoRows; i++) twoVals[indx++]= two[i][j] - twoMeans[j];
+			for (k=0; k<outRows; k++) {
+
+				for (m=0; m<oneCols; m++) oneMeans[k] += one[k][m];
+				oneMeans[k] /= oneCols;
+				for (m=0; m<oneCols; m++) oneVals[m]=one[k][m] - oneMeans[k];
+				for (indx=l=0; l<outCols; l++){
+					sum=0.0;
+					for (m=0; m<oneCols; m++) sum += oneVals[m] * twoVals[indx++];
+					out[k][l] = sum + oneCols * oneMeans[k] * twoMeans[l];
+				}
+			}
+			// END NEW CODE
+		}
+	}
+	delete[] oneVals; delete[] twoVals;
+}
+
+
+// compute matrix inverse, using svd
+// PROBLEMS: -if the matrix is near singular, chances are the model you've chosen isn't a good one
+// see commments on SolveEigensystem
+bool MatInverse(const Mat_I_DP	&mat, Mat_O_DP &inv){
+	const int	C_MSIZE(mat.nrows());
+	if (C_MSIZE NEQ mat.ncols()
+		|| C_MSIZE NEQ inv.nrows()
+		|| C_MSIZE NEQ inv.ncols()) CiError("MatInverse: wrong size");
+	int			k, l;
+	double		anyDouble, sum;
+	double		&dRef = anyDouble;
+	Mat_DP		augMat(0.0, C_MSIZE, C_MSIZE + C_MSIZE), test(0.0, C_MSIZE, C_MSIZE), test2(C_MSIZE, C_MSIZE), u(0.0, C_MSIZE, C_MSIZE), v(C_MSIZE, C_MSIZE);
+	Vec_INT		indx(C_MSIZE);
+	Vec_DP		w(0.0, C_MSIZE);
+
+	
+	//DumpMatrix(mat,"MatrixToInvert.dmp",(ofstream *)0,20);
+	MatCopy(mat, u);   // copy original matrix into u, which NR routines destroy
+#if INVERT_USING_LU_DECOMPOSITION > 0
+	NR::ludcmp(u, indx, dRef);
+	for (j=0; j<C_MSIZE; j++)
+	{
+		// form the unit vector
+		for (i=0; i<C_MSIZE; i++) w[i]=0.0;
+		w[j]=1.0;
+		NR::lubksb(u, indx, w);
+		for (i=0; i<C_MSIZE; i++)
+			test[i][j] = w[i];
+	}
+#endif
+#if INVERT_LONGHAND > 0
+	// augment matrix with Identity matrix
+	for (i=0; i<C_MSIZE; i++)
+	for (j=0; j<C_MSIZE; j++)
+	{
+		augMat[i][j] = mat[i][j]; if (i EQ j) augMat[i][C_MSIZE + j] = 1.0;
+	}
+
+	// just pivot one row/col at a time
+	for (i=0; i<C_MSIZE; i++)
+	{
+		pivot=augMat[i][i];
+		if (pivot EQ 0.0) CiError("InvertMatrix: zero pivot...");
+		//divide this row by pivot
+		for (k=0; k<C_MSIZE + C_MSIZE; k++) augMat[i][k] /= pivot;
+		// now subtract this row from the other rows
+		for (j=0; j<C_MSIZE; j++)
+		{
+			if (j NEQ i)
+			{
+				pivot = augMat[j][i];
+				for (k=0; k<C_MSIZE + C_MSIZE; k++) augMat[j][k] -= pivot * augMat[i][k];
+			}
+		}
+		// DumpMatrix(augMat,"AugMat.dmp",(ofstream *)0,8);
+	}
+	for (i=0; i<C_MSIZE; i++)
+	for (j=0; j<C_MSIZE; j++)
+		test[i][j] = augMat[i][C_MSIZE + j];
+#endif
+	//check it is inverse
+	//DumpMatrix(test,"InverseMatrix.dmp",(ofstream *)0,20);
+	MMult(test, mat, test2, false, false);
+	if (Diagonal(test2, &sum, true, 1.0) EQ false)
+	{
+		//we could...
+		return false;
+		// 
+		//...but just warn user for now: lets see what happens if we try and get close...
+		//
+		CiError("MatInverse:ill-conditioned matrix may give poor inversion, TREAT SOLUTIONS WITH CARE....");
+	}
+	// return the inverse
+	for (k=0; k<C_MSIZE; k++)
+	{
+		for (l=0; l<C_MSIZE; l++)
+			inv[k][l] = test[k][l];
+	}
+	return true;
+}
+
+
+
+
+
 /*
 * evalAlgebra
 */
@@ -3181,7 +3804,13 @@ public:
 								//if (thisMonDays>0){
 								thisAmount = (b.isCountAvg ? b.participation*min(b.cap, b.proportionHits*thisPayoff) : b.proportionHits*thisPayoff)*baseCcyReturn;
 								/*
+								*  1. run for say burn-in min(10% of iterations, 10000), storing all ULlevels at each Observation
+								*  2. Estimate conditional expectation at each observation, regressing Payoff (possibly changed by later exercise(s))  vs (1.0,WorstUL,NextWorstUL,WorstUL^2,NextWorstUL^2)
+								*     ... normalise all ULs by their initial levels ... to avoid numerical instability in matrix inversion etc
+								*  3. Re-estimate for those burn-in iterations, then continue with the remaining iterations
+								*
 								*  if (issuerCallable && getMarketData){
+								*    ... TODO:  isHit() only called on last observation date
 								*    ... working backwards thatMonIndx:
 								* 			int thatMonDays  = monDateIndx[thatMonIndx];
 								*			int thatMonPoint = thisPoint + thatMonDays;
