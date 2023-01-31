@@ -1939,7 +1939,7 @@ int _tmain(int argc, WCHAR* argv[])
 				spr.barrier.push_back(SpBarrier(barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
 					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice,
-					thisBarrierBend,bendDirection));
+					thisBarrierBend,bendDirection,spots));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 	
 				// get barrier relations from DB
@@ -2201,6 +2201,27 @@ int _tmain(int argc, WCHAR* argv[])
 			// initialise product, now we have all the state
 			spr.init(maxYears);
 			productNeedsFullPriceRecord = forceFullPriceRecord || productNeedsFullPriceRecord;
+
+			// issuerCallable ... turn off non-terminal Capital barriers
+			if (issuerCallable){
+				
+				// find max(b.endDays)
+				int maxEndDays(0);
+				for (i=0; i < numBarriers; i++){
+					const SpBarrier&    b(spr.barrier.at(i));
+					if (b.capitalOrIncome){
+						if (b.endDays > maxEndDays){ maxEndDays = b.endDays; }
+					}
+				}
+				// turn off barriers with (b.capitalOrIncome && b.endDays < maxEndDays)
+				for (i=0; i < numBarriers; i++){
+					SpBarrier&    b(spr.barrier.at(i));
+					if (b.capitalOrIncome && b.endDays < maxEndDays){
+						b.setIsNeverHit();
+					}
+				}
+			}
+
 
 			// possibly impose user-defined view of expectedReturn: only need to bump ulReturns
 

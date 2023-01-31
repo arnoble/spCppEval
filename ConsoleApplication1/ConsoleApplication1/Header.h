@@ -1808,7 +1808,6 @@ public:
 		strike         = originalStrike;
 		int lastIndx((int)ulTimeseries.price.size() - 1);  // range-checked now so can use vector[] to access elements
 		double lastPrice(ulTimeseries.price[lastIndx]);
-		std::vector<double>  ulRegressionPrices(MAX_ULS); // underlying prices if issuerCallable	
 
 		
 		// post-strike initialisation
@@ -1934,39 +1933,42 @@ public:
 
 class SpBarrier {
 private:
-	const bool          doFinalAssetReturn;
-	const double        thisBarrierBend;
-	const double        bendDirection;
+	const bool                  doFinalAssetReturn;
+	const double                thisBarrierBend;
+	const double                bendDirection;
+	const std::vector <double> &spots;
+
 public:
-	SpBarrier(const int         barrierId,
-		const bool              capitalOrIncome,
-		const std::string       nature,
-		double                  payoff,
-		const std::string       settlementDate,
-		const std::string       description,
-		const std::string       payoffType,
-		const int               payoffTypeId,
-		double                  strike,
-		double                  cap,
-		const int               underlyingFunctionId,
-		const double            param1,
-		const double            participation,
-		const std::vector<int>  ulIdNameMap,
-		const int               avgDays,
-		const int               avgType,
-		const int	            avgFreq,
-		const bool              isMemory,
-		const bool              isAbsolute,
-		const bool              isStrikeReset,
-		const bool              isStopLoss,
-		const bool              isForfeitCoupons,
-		const std::string       barrierCommands,
-		const int               daysExtant,
+	SpBarrier(const int             barrierId,
+		const bool                  capitalOrIncome,
+		const std::string           nature,
+		double                      payoff,
+		const std::string           settlementDate,
+		const std::string           description,
+		const std::string           payoffType,
+		const int                   payoffTypeId,
+		double                      strike,
+		double                      cap,
+		const int                   underlyingFunctionId,
+		const double                param1,
+		const double                participation,
+		const std::vector<int>      ulIdNameMap,
+		const int                   avgDays,
+		const int                   avgType,
+		const int	                avgFreq,
+		const bool                  isMemory,
+		const bool                  isAbsolute,
+		const bool                  isStrikeReset,
+		const bool                  isStopLoss,
+		const bool                  isForfeitCoupons,
+		const std::string            barrierCommands,
+		const int                    daysExtant,
 		const boost::gregorian::date bProductStartDate,
-		const bool              doFinalAssetReturn,
-		const double            midPrice,
-		const double            thisBarrierBend, 
-		const double            bendDirection)
+		const bool                   doFinalAssetReturn,
+		const double                 midPrice,
+		const double                 thisBarrierBend, 
+		const double                 bendDirection,
+		const std::vector<double>   &spots)
 		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
@@ -1974,7 +1976,7 @@ public:
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
 		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), 
 		barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), 
-		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2 && avgDays)
+		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2 && avgDays), spots(spots)
 	{
 		init();
 	};
@@ -2021,7 +2023,10 @@ public:
 		hit.reserve(100000);
 	};
 
+
 	// public members: DOME consider making private, in case we implement their content some other way
+	std::vector<double>             worstUlRegressionPrices;     // worst underlying prices if issuerCallable	
+	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
 	const double                    participation, param1,midPrice;
@@ -2044,6 +2049,30 @@ public:
 	int getEndDays() const { return endDays; }
 
 
+	// isNeverHit  ... issuerCallable needs to turn off non-terminal Capital barriers
+	bool isNeverHit(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+		int j;
+		int numPrices = thesePrices.size();
+		if (numPrices > 1){
+			std::vector<double> tempPrices;
+			// just store ulLevels for LS regression
+			for (j = 0; j < numPrices; j++) {
+				tempPrices.push_back(thesePrices[j]/spots[j]);
+			}
+			sort(tempPrices.begin(), tempPrices.end());
+			worstUlRegressionPrices.push_back(tempPrices[0]);
+			nextWorstUlRegressionPrices.push_back(tempPrices[1]);
+		}
+		else{
+			worstUlRegressionPrices.push_back(thesePrices[0]);
+		}
+		return(false);
+	}
+	void setIsNeverHit(){
+		worstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
+		nextWorstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
+		isHit = &SpBarrier::isNeverHit;
+	}
 
 	// VANILLA test if barrier is hit
 	// ...set useUlMap to false if you have more thesePrices than numUnderlyings...for example product #217 has barriers with brels keyed to the same underlying
