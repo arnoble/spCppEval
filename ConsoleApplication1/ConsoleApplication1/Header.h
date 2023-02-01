@@ -30,7 +30,7 @@
 #define CI_CLOSEDOUBLE					  1.0e-1	    // for tests of equality between 2 doubles
 #define EQ                                ==
 #define NEQ                               !=
-
+#define	INVERT_USING_LU_DECOMPOSITION     1
 
 // Numerical Recipes types
 typedef double DP;
@@ -639,6 +639,20 @@ void lubksb(Mat_I_DP &a, Vec_I_INT &indx, Vec_IO_DP &b){
 	}
 }
 
+// just print out matrix
+void PrintMatrix(const Mat_I_DP &in, std::string name) {
+	const int C_ROWS(in.nrows());
+	const int C_COLS(in.ncols());
+
+	std::cerr << name << "-->" << std::endl;
+	for (int i=0; i < C_ROWS; i++){
+		for (int j=0; j < C_COLS; j++){
+			std::cerr << in[i][j] << "\t";
+		}
+		std::cerr << std::endl;
+	}
+	std::cerr << "<--" << name << std::endl;
+}
 
 // element by element copy
 void MatCopy(const Mat_I_DP &in, Mat_O_DP &out) {
@@ -819,15 +833,15 @@ bool MatInverse(const Mat_I_DP	&mat, Mat_O_DP &inv){
 	//DumpMatrix(mat,"MatrixToInvert.dmp",(ofstream *)0,20);
 	MatCopy(mat, u);   // copy original matrix into u, which NR routines destroy
 #if INVERT_USING_LU_DECOMPOSITION > 0
-	NR::ludcmp(u, indx, dRef);
-	for (j=0; j<C_MSIZE; j++)
-	{
+	ludcmp(u, indx, dRef);
+	for (int j=0; j<C_MSIZE; j++){
 		// form the unit vector
-		for (i=0; i<C_MSIZE; i++) w[i]=0.0;
+		for (int i=0; i<C_MSIZE; i++) w[i]=0.0;
 		w[j]=1.0;
-		NR::lubksb(u, indx, w);
-		for (i=0; i<C_MSIZE; i++)
+		lubksb(u, indx, w);
+		for (int i=0; i < C_MSIZE; i++){
 			test[i][j] = w[i];
+		}
 	}
 #endif
 #if INVERT_LONGHAND > 0
@@ -3872,7 +3886,7 @@ public:
 												}
 												//  regress callableCashflows(possibly changed by later exercise(s)) vs (1.0, WorstUL, WorstUL ^ 2, NextWorstUL, NextWorstUL ^ 2)
 												Mat_IO_DP rhs(numBurnInIterations, numLRMrhs);
-												Mat_O_DP  XX(numLRMrhs, numLRMrhs), XXinv(numLRMrhs, numLRMrhs);
+												Mat_O_DP  XX(numLRMrhs, numLRMrhs), XXinv(numLRMrhs, numLRMrhs), XY(numLRMrhs, 1), lsB(numLRMrhs, 1);
 
 												for (int i=0; i < numBurnInIterations; i++){
 													double thisWorst      = thatB.worstUlRegressionPrices[i];
@@ -3887,8 +3901,16 @@ public:
 												}
 												// XX = rhsT ** rhs
 												MMult(rhs, rhs, XX, true, false);
+												PrintMatrix(XX, "XX");
 												MatInverse(XX, XXinv);
+												PrintMatrix(XXinv, "XXinv");
 												// XY = Xt ** lhs
+												MMult(rhs, lhs, XY, true, false);
+												PrintMatrix(XY, "XY");
+												// b = XX ** XY
+												MMult(XXinv, XY, lsB, false, false);
+												// debug
+												PrintMatrix(lsB,"lsB");
 												int jj=1;
 											}
 										}
