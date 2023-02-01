@@ -20,7 +20,7 @@
 
 #define MAX_ULS                               100
 #define MAX_SP_BUF                         500000
-#define MIN_CALLABLE_ITERATIONS            1000
+#define MIN_CALLABLE_ITERATIONS            100
 #define MAX_CALLABLE_ITERATIONS          200000
 #define CALLABLE_REGRESSION_FRACTION       0.1
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
@@ -157,13 +157,13 @@ private:
 	T **v;
 public:
 	NRMat();
-	NRMat(int n, int m);			// Zero-based array
-	NRMat(const T &a, int n, int m);	//Initialize to constant
-	NRMat(const T *a, int n, int m);	// Initialize to array
-	NRMat(const NRMat &rhs);		// Copy constructor
-	NRMat & operator=(const NRMat &rhs);	//assignment
-	NRMat & operator=(const T &a);		//assign a to every element
-	inline T* operator[](const int i);	//subscripting: pointer to row i
+	NRMat(int n, int m);			        // Zero-based array
+	NRMat(const T &a, int n, int m);	    // Initialize to constant
+	NRMat(const T *a, int n, int m);	    // Initialize to array
+	NRMat(const NRMat &rhs);		        // Copy constructor
+	NRMat & operator=(const NRMat &rhs);	// assignment
+	NRMat & operator=(const T &a);		    // assign a to every element
+	inline T* operator[](const int i);	    // subscripting: pointer to row i
 	inline const T* operator[](const int i) const;
 	inline int nrows() const;
 	inline int ncols() const;
@@ -2052,19 +2052,19 @@ public:
 	// isNeverHit  ... issuerCallable needs to turn off non-terminal Capital barriers
 	bool isNeverHit(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
 		int j;
-		int numPrices = thesePrices.size();
+		int numPrices = (int)thesePrices.size();
 		if (numPrices > 1){
 			std::vector<double> tempPrices;
 			// just store ulLevels for LS regression
 			for (j = 0; j < numPrices; j++) {
-				tempPrices.push_back(thesePrices[j]/spots[j]);
+				tempPrices.push_back(thesePrices[j]/spots[j]);    // normalize prices to avoid overflow on matrix inversion
 			}
 			sort(tempPrices.begin(), tempPrices.end());
 			worstUlRegressionPrices.push_back(tempPrices[0]);
 			nextWorstUlRegressionPrices.push_back(tempPrices[1]);
 		}
 		else{
-			worstUlRegressionPrices.push_back(thesePrices[0]);
+			worstUlRegressionPrices.push_back(thesePrices[0] / spots[0]);
 		}
 		return(false);
 	}
@@ -3034,6 +3034,7 @@ public:
 		std::vector<bool>		 barrierDisabled;
 		const int                optMaxNumToSend = 1000;
 		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
+		const int                numBurnInIterations = (int)(numMcIterations * CALLABLE_REGRESSION_FRACTION);
 		bool                     optFirstTime;
 		bool	                 optOptimiseAnnualisedReturn(!getMarketData); 
 		bool                     matured(false);
@@ -3049,6 +3050,7 @@ public:
 		std::vector< std::vector<double> > simulatedLogReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
+		std::vector<double>      callableCashflows; callableCashflows.reserve(numBurnInIterations);
 		std::vector<double>      stdevRatioPctChanges;
 		std::vector<double>      optimiseProductResult;   optimiseProductResult.reserve(numMcIterations);
 		std::vector<double>      optimiseProductPayoff;   optimiseProductPayoff.reserve(numMcIterations);
@@ -3840,31 +3842,74 @@ public:
 								// only store a hit if this barrier is in the future
 								//if (thisMonDays>0){
 								thisAmount = (b.isCountAvg ? b.participation*min(b.cap, b.proportionHits*thisPayoff) : b.proportionHits*thisPayoff)*baseCcyReturn;
-								/*
-								*  1. run for say burn-in min(10% of iterations, 10000), storing all ULlevels at each Observation
-								*  2. Estimate conditional expectation at each observation, regressing Payoff (possibly changed by later exercise(s))  vs (1.0,WorstUL,NextWorstUL,WorstUL^2,NextWorstUL^2)
-								*     ... normalise all ULs by their initial levels ... to avoid numerical instability in matrix inversion etc
+								
+								/*  issuerCallable
 								*  3. Re-estimate for those burn-in iterations, then continue with the remaining iterations
 								*
-								*  if (issuerCallable && getMarketData){
-								*    ... TODO:  isHit() only called on last observation date
-								*    ... working backwards thatMonIndx:
-								* 			int thatMonDays  = monDateIndx[thatMonIndx];
-								*			int thatMonPoint = thisPoint + thatMonDays;
-								*			const std::string   thatDateString(allDates.at(thatMonPoint));
-								*
-								*        ... thatAmount = barrier[thatBarrier].payoff
-								*        ... if( pv(thisAmount) > thatAmount ){ 
-								*            thisDateString   = thatDateString;
-								*            thisAmount       = thatAmount;
-								*	         maturityBarrier  = thatBarrier;
-								*            couponValue      = 0.0;
-								*            barrierWasHit[thatBarrier] = true;
-								*            b                = barrier[thatBarrier];
-								*            b.proportionHits = 1.0;
-								*          }
-								*  }
 								*/
+								if (issuerCallable && getMarketData &&  b.capitalOrIncome && numMcIterations>1){
+									if (thisIteration < numBurnInIterations){
+										//  store burn-in terminal cashflows, for use in LS regression
+										callableCashflows.push_back(thisAmount);
+										SpBarrier &thatB(barrier[23]);
+										int jj = 1;
+									}
+									if (thisIteration == (numBurnInIterations - 1)){
+										if (numBurnInIterations != (int)callableCashflows.size()){
+											std::cerr << " callable: incorrect size of callableCashflows" << std::endl;  exit(1);
+										}
+
+										Mat_IO_DP lhs(numBurnInIterations, 1);
+										for (int i=0; i < numBurnInIterations; i++){ lhs[i][0] = callableCashflows[i]; }
+										// Working backwards, estimate conditional expectation at each observation
+										for (int thatBarrier = thisBarrier - 1; thatBarrier >= 0; thatBarrier--){
+											SpBarrier &thatB(barrier[thatBarrier]);
+											if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
+												if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()){
+													std::cerr << " callable: incorrect size of worstUlRegressionPrices" << std::endl;  exit(1);
+												}
+												if (numUls>1 && numBurnInIterations != (int)thatB.nextWorstUlRegressionPrices.size()){
+													std::cerr << " callable: incorrect size of nextWorstUlRegressionPrices" << std::endl;  exit(1);
+												}
+												//  regress callableCashflows(possibly changed by later exercise(s)) vs (1.0, WorstUL, WorstUL ^ 2, NextWorstUL, NextWorstUL ^ 2)
+												Mat_IO_DP rhs(numBurnInIterations, numUls > 1 ? 5 : 3);
+												for (int i=0; i < numBurnInIterations; i++){
+													double thisWorst      = thatB.worstUlRegressionPrices[i];
+													rhs[i][0] = 1.0;
+													rhs[i][1] = thisWorst;
+													rhs[i][2] = thisWorst*thisWorst;
+													if (numUls>1){
+														double thisNextWorst  = thatB.nextWorstUlRegressionPrices[i];
+														rhs[i][3] = thisNextWorst;
+														rhs[i][4] = thisNextWorst*thisNextWorst;
+													}
+												}
+												int jj=1;
+											}
+										}
+									}
+									else if (thisIteration == (numBurnInIterations - 1)) {
+										std::cerr << "DOME" << std::endl;
+									}
+									/*
+									*    ... working backwards thatMonIndx:
+									* 			int thatMonDays  = monDateIndx[thatMonIndx];
+									*			int thatMonPoint = thisPoint + thatMonDays;
+									*			const std::string   thatDateString(allDates.at(thatMonPoint));
+									*
+									*        ... thatAmount = barrier[thatBarrier].payoff
+									*        ... if( pv(thisAmount) > thatAmount ){
+									*            thisDateString   = thatDateString;
+									*            thisAmount       = thatAmount;
+									*	         maturityBarrier  = thatBarrier;
+									*            couponValue      = 0.0;
+									*            barrierWasHit[thatBarrier] = true;
+									*            b                = barrier[thatBarrier];
+									*            b.proportionHits = 1.0;
+									*/
+
+								}
+								// FINALLY, store this payoff
 								b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
 									finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);																
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
