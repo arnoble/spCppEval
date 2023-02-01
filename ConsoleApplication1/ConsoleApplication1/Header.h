@@ -2041,6 +2041,7 @@ public:
 	// public members: DOME consider making private, in case we implement their content some other way
 	std::vector<double>             worstUlRegressionPrices;     // worst underlying prices if issuerCallable	
 	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
+	std::vector<double>             lsB;                         // least-squares regression coefficients B if issuerCallable	
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
 	const double                    participation, param1,midPrice;
@@ -2050,7 +2051,7 @@ public:
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
 	double                          payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
-	double                          proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate;
+	double                          proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate,discountFactor;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <finalAssetInfo>    fars; // final asset returns
 	std::vector <double>            bmrs; // benchmark returns
@@ -2916,6 +2917,7 @@ public:
 		int numBarriers = (int)barrier.size();
 		for (int j=0; j < numBarriers; j++){
 			SpBarrier& b(barrier.at(j));
+
 			if (!b.capitalOrIncome){ numIncomeBarriers += 1; }
 			// clear un-accrued hits ... where we call evaluate() several times eg PRIIPs and PRIIPsStresstest, or doing bumps
 			if (!b.hasBeenHit){
@@ -3098,6 +3100,10 @@ public:
 		if (!doAccruals){
 			initBarriers();
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
+				SpBarrier& b(barrier.at(thisBarrier));
+				double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
+				b.discountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
+
 				if (!barrier.at(thisBarrier).capitalOrIncome) { numIncomeBarriers  += 1; }
 			}
 		}
@@ -3867,17 +3873,25 @@ public:
 										//  store burn-in terminal cashflows, for use in LS regression
 										callableCashflows.push_back(thisAmount);
 									}
+									// once burned-in, estimate the LS regressions
 									if (thisIteration == (numBurnInIterations - 1)){
 										if (numBurnInIterations != (int)callableCashflows.size()){
 											std::cerr << " callable: incorrect size of callableCashflows" << std::endl;  exit(1);
 										}
-
 										Mat_IO_DP lhs(numBurnInIterations, 1);
-										for (int i=0; i < numBurnInIterations; i++){ lhs[i][0] = callableCashflows[i]; }
+										double laterDiscountFactor = b.discountFactor;
 										// Working backwards, estimate conditional expectation at each observation
 										for (int thatBarrier = thisBarrier - 1; thatBarrier >= 0; thatBarrier--){
 											SpBarrier &thatB(barrier[thatBarrier]);
 											if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
+												// discount callableCashflows back to this barrier
+												double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
+												laterDiscountFactor = thatB.discountFactor;
+												for (int i=0; i < numBurnInIterations; i++){ 
+													callableCashflows[i] *= thisDiscountFactor;
+													lhs[i][0] = callableCashflows[i];
+												}
+										
 												if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()){
 													std::cerr << " callable: incorrect size of worstUlRegressionPrices" << std::endl;  exit(1);
 												}
@@ -3885,7 +3899,7 @@ public:
 													std::cerr << " callable: incorrect size of nextWorstUlRegressionPrices" << std::endl;  exit(1);
 												}
 												//  regress callableCashflows(possibly changed by later exercise(s)) vs (1.0, WorstUL, WorstUL ^ 2, NextWorstUL, NextWorstUL ^ 2)
-												Mat_IO_DP rhs(numBurnInIterations, numLRMrhs);
+												Mat_IO_DP rhs(numBurnInIterations, numLRMrhs), conditionalExpectation(numBurnInIterations, 1);
 												Mat_O_DP  XX(numLRMrhs, numLRMrhs), XXinv(numLRMrhs, numLRMrhs), XY(numLRMrhs, 1), lsB(numLRMrhs, 1);
 
 												for (int i=0; i < numBurnInIterations; i++){
@@ -3901,22 +3915,37 @@ public:
 												}
 												// XX = rhsT ** rhs
 												MMult(rhs, rhs, XX, true, false);
-												PrintMatrix(XX, "XX");
+												// PrintMatrix(XX, "XX");
 												MatInverse(XX, XXinv);
-												PrintMatrix(XXinv, "XXinv");
+												// PrintMatrix(XXinv, "XXinv");
 												// XY = Xt ** lhs
 												MMult(rhs, lhs, XY, true, false);
-												PrintMatrix(XY, "XY");
+												// PrintMatrix(XY, "XY");
 												// b = XX ** XY
 												MMult(XXinv, XY, lsB, false, false);
-												// debug
-												PrintMatrix(lsB,"lsB");
-												int jj=1;
+												// PrintMatrix(lsB,"lsB");
+										
+												// install regression coefficients for this barrier
+												for (int i=0; i < lsB.nrows(); i++){
+													thatB.lsB.push_back(lsB[i][0]);
+												}
+												// if this barrier would have been hit, revise cashflows accordingly
+												MMult(rhs, lsB, conditionalExpectation, false, false);
+												for (int i=0; i < numBurnInIterations; i++){
+													double thisPayoff         = thatB.payoff;
+													double continuationValue  = conditionalExpectation[i][0];
+													if (continuationValue > thisPayoff){
+														// issuer would call
+														callableCashflows[i] = thisPayoff;
+													}
+												}
+												int jj = 1;
 											}
 										}
 									}
-									else if (thisIteration == (numBurnInIterations - 1)) {
-										std::cerr << "DOME" << std::endl;
+									else if (thisIteration > (numBurnInIterations - 1)) {
+
+										std::cerr << "DOME ... reset barriers, install callableIsHit, continue mcIterations " << std::endl;
 									}
 									/*
 									*    ... working backwards thatMonIndx:
