@@ -3035,6 +3035,7 @@ public:
 		const int                optMaxNumToSend = 1000;
 		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
 		const int                numBurnInIterations = (int)(numMcIterations * CALLABLE_REGRESSION_FRACTION);
+		const int                numLRMrhs = numUls > 1 ? 5 : 3;
 		bool                     optFirstTime;
 		bool	                 optOptimiseAnnualisedReturn(!getMarketData); 
 		bool                     matured(false);
@@ -3851,8 +3852,6 @@ public:
 									if (thisIteration < numBurnInIterations){
 										//  store burn-in terminal cashflows, for use in LS regression
 										callableCashflows.push_back(thisAmount);
-										SpBarrier &thatB(barrier[23]);
-										int jj = 1;
 									}
 									if (thisIteration == (numBurnInIterations - 1)){
 										if (numBurnInIterations != (int)callableCashflows.size()){
@@ -3872,7 +3871,9 @@ public:
 													std::cerr << " callable: incorrect size of nextWorstUlRegressionPrices" << std::endl;  exit(1);
 												}
 												//  regress callableCashflows(possibly changed by later exercise(s)) vs (1.0, WorstUL, WorstUL ^ 2, NextWorstUL, NextWorstUL ^ 2)
-												Mat_IO_DP rhs(numBurnInIterations, numUls > 1 ? 5 : 3);
+												Mat_IO_DP rhs(numBurnInIterations, numLRMrhs);
+												Mat_O_DP  XX(numLRMrhs, numLRMrhs), XXinv(numLRMrhs, numLRMrhs);
+
 												for (int i=0; i < numBurnInIterations; i++){
 													double thisWorst      = thatB.worstUlRegressionPrices[i];
 													rhs[i][0] = 1.0;
@@ -3884,6 +3885,10 @@ public:
 														rhs[i][4] = thisNextWorst*thisNextWorst;
 													}
 												}
+												// XX = rhsT ** rhs
+												MMult(rhs, rhs, XX, true, false);
+												MatInverse(XX, XXinv);
+												// XY = Xt ** lhs
 												int jj=1;
 											}
 										}
