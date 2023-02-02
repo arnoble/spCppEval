@@ -1948,12 +1948,14 @@ public:
 class SpBarrier {
 private:
 	const bool                  doFinalAssetReturn;
+	const int                   barrierNum;
 	const double                thisBarrierBend;
 	const double                bendDirection;
 	const std::vector <double> &spots;
 
 public:
-	SpBarrier(const int             barrierId,
+	SpBarrier(const int             barrierNum, 
+		const int                   barrierId,
 		const bool                  capitalOrIncome,
 		const std::string           nature,
 		double                      payoff,
@@ -1983,7 +1985,7 @@ public:
 		const double                 thisBarrierBend, 
 		const double                 bendDirection,
 		const std::vector<double>   &spots)
-		: barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
+		: barrierNum(barrierNum), barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
 		participation(participation), ulIdNameMap(ulIdNameMap),
@@ -2040,7 +2042,7 @@ public:
 
 	// public members: DOME consider making private, in case we implement their content some other way
 	std::vector<double>             worstUlRegressionPrices;     // worst underlying prices if issuerCallable	
-	std::vector<double>             lsB,nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
+	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
 	const double                    participation, param1,midPrice;
@@ -2050,7 +2052,7 @@ public:
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
 	double                          payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
-	double                          proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate,discountFactor;
+	double                          lsConstant, lsWorstB, lsWorstSquaredB, lsNextWorstB, lsNextWorstSquaredB, proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate, discountFactor;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <finalAssetInfo>    fars; // final asset returns
 	std::vector <double>            bmrs; // benchmark returns
@@ -2091,7 +2093,6 @@ public:
 		const int numPrices = (int)thesePrices.size();
 		
 		// form RHS vectot
-		Mat_IO_DP rhs(1, numLRMrhs), conditionalExpectation(1, 1);
 		if (numPrices > 1){
 			std::vector<double> tempPrices;
 			// just store ulLevels for LS regression
@@ -2105,20 +2106,14 @@ public:
 		else{
 			thisWorst = thesePrices[0] / spots[0];
 		}
-		rhs[0][0] = 1.0;
-		rhs[0][1] = thisWorst;
-		rhs[0][2] = thisWorst*thisWorst;
-		if (numPrices > 1){
-			rhs[0][3] = nextWorst;
-			rhs[0][4] = nextWorst*nextWorst;
-		}
 
 		// calculate expected continuation value
-		Mat_IO_DP  thisB(numLRMrhs, 1);                            // least-squares regression coefficients B if issuerCallable	
-		for (int i=0; i<numLRMrhs; i++){ thisB[i][0] = lsB[i]; }   // DOME: should be able to have a MAT_IO_DP as member ... instead of copying the vector lsB each time
-		MMult(rhs, thisB, conditionalExpectation, false, false);
+		double conditionalExpectation(lsConstant + thisWorst*lsWorstB + thisWorst*thisWorst*lsWorstSquaredB);
+		if (numPrices > 1){
+			conditionalExpectation  += nextWorst*lsNextWorstB + nextWorst*nextWorst*lsNextWorstSquaredB;
+		}
 		double thisPayoff = payoff;
-		return (conditionalExpectation[0][0] > thisPayoff);  // issuer would call
+		return (conditionalExpectation > thisPayoff);  // issuer would call
 	}
 	
 	void setIsNeverHit(){
@@ -2133,7 +2128,7 @@ public:
 	// VANILLA test if barrier is hit
 	// ...set useUlMap to false if you have more thesePrices than numUnderlyings...for example product #217 has barriers with brels keyed to the same underlying
 	//     so that a barrier can have multiple barrierRelations on the same underlying
-	bool isHitVanilla(const int thisMonPoint,const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+	bool isHitVanilla(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
 		int j, thisIndx;
 		bool isHit  = isAnd;
 		int numBrel = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
@@ -3921,7 +3916,7 @@ public:
 										Mat_IO_DP lhs(numBurnInIterations, 1);
 										double laterDiscountFactor = b.discountFactor;
 										// Working backwards, estimate conditional expectation at each observation
-										for (int thatBarrier = thisBarrier - 1; thatBarrier >= 0; thatBarrier--){
+										for (int thatBarrier = thisBarrier - 1; thatBarrier >= 0 && barrier[thatBarrier].endDays>0; thatBarrier--){
 											SpBarrier &thatB(barrier[thatBarrier]);
 											if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
 												// discount callableCashflows back to this barrier
@@ -3961,8 +3956,12 @@ public:
 												// b = XX ** XY
 												MMult(XXinv, XY, lsB, false, false);
 												// install regression coefficients for this barrier
-												for (int i=0; i < lsB.nrows(); i++){
-													thatB.lsB.push_back(lsB[i][0]);
+												thatB.lsConstant        = lsB[0][0];
+												thatB.lsWorstB          = lsB[1][0];
+												thatB.lsWorstSquaredB   = lsB[2][0]; 
+												if (numUls > 1){
+													thatB.lsNextWorstB          = lsB[3][0];
+													thatB.lsNextWorstSquaredB   = lsB[4][0];
 												}
 												// if this barrier would have been hit, revise cashflows accordingly
 												MMult(rhs, lsB, conditionalExpectation, false, false);
@@ -3974,8 +3973,8 @@ public:
 														callableCashflows[i] = thisPayoff;
 													}
 												}
-												int jj = 1;
-											}
+											}  // if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
+											int jj = 1;
 										} // for (int thatBarrier 
 										// re-initialise barriers
 										for (j=0; j < numBarriers; j++){

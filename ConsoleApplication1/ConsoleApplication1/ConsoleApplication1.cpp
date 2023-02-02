@@ -1936,7 +1936,7 @@ int _tmain(int argc, WCHAR* argv[])
 				/*
 				* barrier creation
 				*/
-				spr.barrier.push_back(SpBarrier(barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
+				spr.barrier.push_back(SpBarrier(numBarriers, barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
 					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice,
 					thisBarrierBend,bendDirection,spots));
@@ -2202,26 +2202,7 @@ int _tmain(int argc, WCHAR* argv[])
 			spr.init(maxYears);
 			productNeedsFullPriceRecord = forceFullPriceRecord || productNeedsFullPriceRecord;
 
-			// issuerCallable ... turn off non-terminal Capital barriers
-			if (issuerCallable){				
-				// find max(b.endDays)
-				int maxEndDays(0);
-				for (i=0; i < numBarriers; i++){
-					const SpBarrier&    b(spr.barrier.at(i));
-					if (b.capitalOrIncome){
-						if (b.endDays > maxEndDays){ maxEndDays = b.endDays; }
-					}
-				}
-				spr.maxEndDays = maxEndDays;
-				// turn off barriers with (b.capitalOrIncome && b.endDays < maxEndDays)
-				for (i=0; i < numBarriers; i++){
-					SpBarrier&    b(spr.barrier.at(i));
-					if (b.capitalOrIncome && b.endDays < maxEndDays){
-						b.setIsNeverHit();
-					}
-				}
-			}
-
+			
 
 			// possibly impose user-defined view of expectedReturn: only need to bump ulReturns
 
@@ -2281,6 +2262,25 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 
 
+			// issuerCallable ... turn off non-terminal Capital barriers
+			if (issuerCallable){
+				// find max(b.endDays)
+				int maxEndDays(0);
+				for (i=0; i < numBarriers; i++){
+					const SpBarrier&    b(spr.barrier.at(i));
+					if (b.capitalOrIncome){
+						if (b.endDays > maxEndDays){ maxEndDays = b.endDays; }
+					}
+				}
+				spr.maxEndDays = maxEndDays;
+				// turn off barriers with (b.capitalOrIncome && b.endDays < maxEndDays)
+				for (i=0; i < numBarriers; i++){
+					SpBarrier&    b(spr.barrier.at(i));
+					if (b.capitalOrIncome && b.endDays < maxEndDays){
+						b.setIsNeverHit();
+					}
+				}
+			}
 
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			// *** this call to evaluate() establishes baseCase "thisFairValue" for subsequent bumps
