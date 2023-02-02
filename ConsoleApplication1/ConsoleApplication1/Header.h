@@ -2113,7 +2113,11 @@ public:
 			conditionalExpectation  += nextWorst*lsNextWorstB + nextWorst*nextWorst*lsNextWorstSquaredB;
 		}
 		double thisPayoff = payoff;
-		return (conditionalExpectation > thisPayoff);  // issuer would call
+		bool   isCalled(false);
+		if (conditionalExpectation > thisPayoff){
+			isCalled = true;
+		}
+		return (isCalled);  
 	}
 	
 	void setIsNeverHit(){
@@ -3986,7 +3990,7 @@ public:
 												b.setIsCallableHit();
 											}
 										}
-										std::cerr << "DOME ... continue mcIterations " << std::endl;
+										std::cerr << "IssuerCallable: regressions finished ... continue remaining mcIterations " << std::endl;
 									} // if (thisIteration == (numBurnInIterations - 1)
 								} // if (issuerCallable && getMarketData &&  ...
 								// FINALLY, store this payoff
