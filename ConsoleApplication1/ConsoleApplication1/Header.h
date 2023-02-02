@@ -3909,7 +3909,7 @@ public:
 								*  MAYBE: Re-estimate for those burn-in iterations, then continue with the remaining iterations
 								*
 								*/
-								if (issuerCallable && getMarketData &&  b.capitalOrIncome && numMcIterations>1 && thisIteration < numBurnInIterations){
+								if (issuerCallable /* && getMarketData */ &&  b.capitalOrIncome && numMcIterations>1 && thisIteration < numBurnInIterations){
 									//  store burn-in terminal cashflows, for use in LS regression
 									callableCashflows.push_back(thisAmount);
 									// once burned-in, estimate the LS regressions
@@ -4226,7 +4226,7 @@ public:
 					// hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
 					// hasCountAvg        = hasCountAvg        || barrier.at(thisBarrier).countAveraging;
 				}
-				if (numMcIterations>1 && numAllEpisodes != thisIteration){
+				if (numMcIterations>1 && ((issuerCallable && (numAllEpisodes + numBurnInIterations != thisIteration)) || (!issuerCallable && numAllEpisodes != thisIteration))){
 					numAllEpisodes = thisIteration;
 					sprintf(lineBuffer, "%s%d%s%d%s", "insert into cpluspluslog (DateTime,ProductId,UserId,Msg) values(now(),", productId, ",", userId, ",' **** BEWARE - STRONGLY SUGGEST YOU INVESTIGATE  ****  seems like Capital events do not cover 100% of possible events')");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);					
