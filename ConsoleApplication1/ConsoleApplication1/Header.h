@@ -2040,8 +2040,7 @@ public:
 
 	// public members: DOME consider making private, in case we implement their content some other way
 	std::vector<double>             worstUlRegressionPrices;     // worst underlying prices if issuerCallable	
-	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
-	std::vector<double>             lsB;                         // least-squares regression coefficients B if issuerCallable	
+	std::vector<double>             lsB,nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
 	const double                    participation, param1,midPrice;
@@ -2059,6 +2058,7 @@ public:
 	std::vector <SpPayoff>          hit;
 	std::vector <SpPayoffAndDate>   hitWithDate;
 	std::vector <double>            couponValues;
+	const int numLRMrhs             = (int)spots.size() > 1 ? 5 : 3;
 
 	// number of days until barrier end date
 	int getEndDays() const { return endDays; }
@@ -2083,10 +2083,51 @@ public:
 		}
 		return(false);
 	}
+	
+	// isCallableHit
+	bool isCallableHit(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
+		int j;
+		double thisWorst, nextWorst;
+		const int numPrices = (int)thesePrices.size();
+		
+		// form RHS vectot
+		Mat_IO_DP rhs(1, numLRMrhs), conditionalExpectation(1, 1);
+		if (numPrices > 1){
+			std::vector<double> tempPrices;
+			// just store ulLevels for LS regression
+			for (j = 0; j < numPrices; j++) {
+				tempPrices.push_back(thesePrices[j] / spots[j]);    // normalize prices to avoid overflow on matrix inversion
+			}
+			sort(tempPrices.begin(), tempPrices.end());
+			thisWorst  = tempPrices[0];
+			nextWorst  = tempPrices[1];
+		}
+		else{
+			thisWorst = thesePrices[0] / spots[0];
+		}
+		rhs[0][0] = 1.0;
+		rhs[0][1] = thisWorst;
+		rhs[0][2] = thisWorst*thisWorst;
+		if (numPrices > 1){
+			rhs[0][3] = nextWorst;
+			rhs[0][4] = nextWorst*nextWorst;
+		}
+
+		// calculate expected continuation value
+		Mat_IO_DP  thisB(numLRMrhs, 1);                            // least-squares regression coefficients B if issuerCallable	
+		for (int i=0; i<numLRMrhs; i++){ thisB[i][0] = lsB[i]; }   // DOME: should be able to have a MAT_IO_DP as member ... instead of copying the vector lsB each time
+		MMult(rhs, thisB, conditionalExpectation, false, false);
+		double thisPayoff = payoff;
+		return (conditionalExpectation[0][0] > thisPayoff);  // issuer would call
+	}
+	
 	void setIsNeverHit(){
 		worstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
 		nextWorstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
 		isHit = &SpBarrier::isNeverHit;
+	}
+	void setIsCallableHit(){
+		isHit = &SpBarrier::isCallableHit;
 	}
 
 	// VANILLA test if barrier is hit
@@ -2806,7 +2847,7 @@ public:
 	char                           *lineBuffer;
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips, notUKSPA, stochasticDrift;
-	int                             addCompoIntoCcy,numIncomeBarriers, settleDays, maxProductDays, productDays, numUls;
+	int                             addCompoIntoCcy, numIncomeBarriers, settleDays, maxProductDays, productDays, numUls, maxEndDays;
 	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
@@ -3865,14 +3906,13 @@ public:
 								thisAmount = (b.isCountAvg ? b.participation*min(b.cap, b.proportionHits*thisPayoff) : b.proportionHits*thisPayoff)*baseCcyReturn;
 								
 								/*  issuerCallable
-								*  3. Re-estimate for those burn-in iterations, then continue with the remaining iterations
+								*
+								*  MAYBE: Re-estimate for those burn-in iterations, then continue with the remaining iterations
 								*
 								*/
-								if (issuerCallable && getMarketData &&  b.capitalOrIncome && numMcIterations>1){
-									if (thisIteration < numBurnInIterations){
-										//  store burn-in terminal cashflows, for use in LS regression
-										callableCashflows.push_back(thisAmount);
-									}
+								if (issuerCallable && getMarketData &&  b.capitalOrIncome && numMcIterations>1 && thisIteration < numBurnInIterations){
+									//  store burn-in terminal cashflows, for use in LS regression
+									callableCashflows.push_back(thisAmount);
 									// once burned-in, estimate the LS regressions
 									if (thisIteration == (numBurnInIterations - 1)){
 										if (numBurnInIterations != (int)callableCashflows.size()){
@@ -3890,8 +3930,7 @@ public:
 												for (int i=0; i < numBurnInIterations; i++){ 
 													callableCashflows[i] *= thisDiscountFactor;
 													lhs[i][0] = callableCashflows[i];
-												}
-										
+												}										
 												if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()){
 													std::cerr << " callable: incorrect size of worstUlRegressionPrices" << std::endl;  exit(1);
 												}
@@ -3917,14 +3956,10 @@ public:
 												MMult(rhs, rhs, XX, true, false);
 												// PrintMatrix(XX, "XX");
 												MatInverse(XX, XXinv);
-												// PrintMatrix(XXinv, "XXinv");
 												// XY = Xt ** lhs
 												MMult(rhs, lhs, XY, true, false);
-												// PrintMatrix(XY, "XY");
 												// b = XX ** XY
 												MMult(XXinv, XY, lsB, false, false);
-												// PrintMatrix(lsB,"lsB");
-										
 												// install regression coefficients for this barrier
 												for (int i=0; i < lsB.nrows(); i++){
 													thatB.lsB.push_back(lsB[i][0]);
@@ -3941,35 +3976,27 @@ public:
 												}
 												int jj = 1;
 											}
+										} // for (int thatBarrier 
+										// re-initialise barriers
+										for (j=0; j < numBarriers; j++){
+											SpBarrier& b(barrier.at(j));
+											// clear hits
+											if (b.startDays>0){ b.hit.clear(); }
+											// install callableIsHit
+											if (b.capitalOrIncome && b.endDays < maxEndDays){
+												b.setIsCallableHit();
+											}
 										}
-									}
-									else if (thisIteration > (numBurnInIterations - 1)) {
-
-										std::cerr << "DOME ... reset barriers, install callableIsHit, continue mcIterations " << std::endl;
-									}
-									/*
-									*    ... working backwards thatMonIndx:
-									* 			int thatMonDays  = monDateIndx[thatMonIndx];
-									*			int thatMonPoint = thisPoint + thatMonDays;
-									*			const std::string   thatDateString(allDates.at(thatMonPoint));
-									*
-									*        ... thatAmount = barrier[thatBarrier].payoff
-									*        ... if( pv(thisAmount) > thatAmount ){
-									*            thisDateString   = thatDateString;
-									*            thisAmount       = thatAmount;
-									*	         maturityBarrier  = thatBarrier;
-									*            couponValue      = 0.0;
-									*            barrierWasHit[thatBarrier] = true;
-									*            b                = barrier[thatBarrier];
-									*            b.proportionHits = 1.0;
-									*/
-
-								}
+										std::cerr << "DOME ... continue mcIterations " << std::endl;
+									} // if (thisIteration == (numBurnInIterations - 1)
+								} // if (issuerCallable && getMarketData &&  ...
 								// FINALLY, store this payoff
-								b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
-									finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);																
+								else {
+									b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
+										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
-								//}
+								}
+
 							} // END is barrier hit
 							else {  // in case you want to see why not hit
 								// b.isHit(thisMonPoint,ulPrices,thesePrices,true,startLevels);

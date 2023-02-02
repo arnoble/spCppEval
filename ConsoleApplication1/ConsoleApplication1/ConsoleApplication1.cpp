@@ -2203,8 +2203,7 @@ int _tmain(int argc, WCHAR* argv[])
 			productNeedsFullPriceRecord = forceFullPriceRecord || productNeedsFullPriceRecord;
 
 			// issuerCallable ... turn off non-terminal Capital barriers
-			if (issuerCallable){
-				
+			if (issuerCallable){				
 				// find max(b.endDays)
 				int maxEndDays(0);
 				for (i=0; i < numBarriers; i++){
@@ -2213,6 +2212,7 @@ int _tmain(int argc, WCHAR* argv[])
 						if (b.endDays > maxEndDays){ maxEndDays = b.endDays; }
 					}
 				}
+				spr.maxEndDays = maxEndDays;
 				// turn off barriers with (b.capitalOrIncome && b.endDays < maxEndDays)
 				for (i=0; i < numBarriers; i++){
 					SpBarrier&    b(spr.barrier.at(i));
