@@ -2236,7 +2236,25 @@ int _tmain(int argc, WCHAR* argv[])
 				}				
 			} // doPriips
 			
-
+			// issuerCallable ... turn off non-terminal Capital barriers
+			if (issuerCallable){
+				// find max(b.endDays)
+				int maxEndDays(0);
+				for (i=0; i < numBarriers; i++){
+					const SpBarrier&    b(spr.barrier.at(i));
+					if (b.capitalOrIncome){
+						if (b.endDays > maxEndDays){ maxEndDays = b.endDays; }
+					}
+				}
+				spr.maxEndDays = maxEndDays;
+				// turn off barriers with (b.capitalOrIncome && b.endDays < maxEndDays)
+				for (i=0; i < numBarriers; i++){
+					SpBarrier&    b(spr.barrier.at(i));
+					if (b.capitalOrIncome && b.endDays < maxEndDays){
+						b.setIsNeverHit();
+					}
+				}
+			}
 			// get accrued coupons
 			double accruedCoupon(0.0);
 			bool   productHasMatured(false);
@@ -2270,26 +2288,7 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 
 
-			// issuerCallable ... turn off non-terminal Capital barriers
-			if (issuerCallable){
-				// find max(b.endDays)
-				int maxEndDays(0);
-				for (i=0; i < numBarriers; i++){
-					const SpBarrier&    b(spr.barrier.at(i));
-					if (b.capitalOrIncome){
-						if (b.endDays > maxEndDays){ maxEndDays = b.endDays; }
-					}
-				}
-				spr.maxEndDays = maxEndDays;
-				// turn off barriers with (b.capitalOrIncome && b.endDays < maxEndDays)
-				for (i=0; i < numBarriers; i++){
-					SpBarrier&    b(spr.barrier.at(i));
-					if (b.capitalOrIncome && b.endDays < maxEndDays){
-						b.setIsNeverHit();
-					}
-				}
-			}
-
+			
 			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
 			// *** this call to evaluate() establishes baseCase "thisFairValue" for subsequent bumps
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
