@@ -2241,11 +2241,19 @@ int _tmain(int argc, WCHAR* argv[])
 			double accruedCoupon(0.0);
 			bool   productHasMatured(false);
 			EvalResult accrualEvalResult(0.0, 0.0, 0);
-			accrualEvalResult = spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-				numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, accrualMonDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
-				contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, false /* getMarketData */,useUserParams,thisMarketData,
-				cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ false,/* updateCashflows */false);
-
+			// issuerCallable: since cannot control when Issuer might call, look for stale price 
+			if (issuerCallable && stalePrice){
+				productHasMatured = true;
+				// update DB with last MID
+				sprintf(lineBuffer, "%s%lf%s%s%s%d%s%d", "update product set matured=1,MaturityPayoff=", (bidPrice + askPrice) / 2.0, ",DateMatured='", bidAskDateString.c_str(), "' where userid=", userId, " and productid=", productId);
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+			}
+			else {
+				accrualEvalResult = spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
+					numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, accrualMonDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, startTime, benchmarkId, benchmarkMoneyness,
+					contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, false /* getMarketData */, useUserParams, thisMarketData,
+					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ false,/* updateCashflows */false);
+			}
 			// ...check product not matured
 			numMonPoints = (int)monDateIndx.size();
 			if (productHasMatured || !numMonPoints || (numMonPoints == 1 && monDateIndx[0] == 0)){ continue; }
