@@ -3923,6 +3923,12 @@ public:
 										for (int thatBarrier = thisBarrier - 1; thatBarrier >= 0 && barrier[thatBarrier].endDays>0; thatBarrier--){
 											SpBarrier &thatB(barrier[thatBarrier]);
 											if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
+												if (doDebug) {
+													sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId," and barrierid=",thatBarrier);
+													mydb.prepare((SQLCHAR *)charBuffer, 1);
+													sprintf(charBuffer, "%s%d%s%d", "delete from regressioncoeff where productid=", productId, " and barrierid=", thatBarrier);
+													mydb.prepare((SQLCHAR *)charBuffer, 1);
+												}
 												// discount callableCashflows back to this barrier
 												double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
 												laterDiscountFactor = thatB.discountFactor;
@@ -3950,6 +3956,10 @@ public:
 														rhs[i][3] = thisNextWorst;
 														rhs[i][4] = thisNextWorst*thisNextWorst;
 													}
+													if (doDebug) {
+														sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,X2,Y) values (", productId, ",", thatBarrier, ",", rhs[i][1], ",", rhs[i][2], ",", lhs[i][0],");");
+														mydb.prepare((SQLCHAR *)charBuffer, 1);
+													}
 												}
 												// XX = rhsT ** rhs
 												MMult(rhs, rhs, XX, true, false);
@@ -3963,6 +3973,10 @@ public:
 												thatB.lsConstant        = lsB[0][0];
 												thatB.lsWorstB          = lsB[1][0];
 												thatB.lsWorstSquaredB   = lsB[2][0]; 
+												if (doDebug) {
+													sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressioncoeff (ProductId,BarrierId,constant,b1,b2) values (", productId, ",", thatBarrier, ",", lsB[0][0], ",", lsB[1][0], ",", lsB[2][0], ");");
+													mydb.prepare((SQLCHAR *)charBuffer, 1);
+												}
 												if (numUls > 1){
 													thatB.lsNextWorstB          = lsB[3][0];
 													thatB.lsNextWorstSquaredB   = lsB[4][0];
