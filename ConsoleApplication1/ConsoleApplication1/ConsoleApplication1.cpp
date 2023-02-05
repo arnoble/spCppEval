@@ -2259,6 +2259,7 @@ int _tmain(int argc, WCHAR* argv[])
 			double accruedCoupon(0.0);
 			bool   productHasMatured(false);
 			EvalResult accrualEvalResult(0.0, 0.0, 0);
+			
 			// issuerCallable: since cannot control when Issuer might call, look for stale price 
 			if (issuerCallable && stalePrice){
 				productHasMatured = true;
