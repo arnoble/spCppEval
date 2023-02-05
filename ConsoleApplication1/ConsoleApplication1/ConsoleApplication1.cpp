@@ -713,7 +713,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
 			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
 			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
-			double           compoIntoCcyStrikePrice, baseCcyReturn, benchmarkStrike, thisBarrierBendDays, thisBarrierBendFraction;
+			double           compoIntoCcyStrikePrice(0.0), baseCcyReturn, benchmarkStrike, thisBarrierBendDays, thisBarrierBendFraction;
 			string           thisProjectedReturn,productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
 			bool             hasCompoIntoCcy(false),useUserParams(false), productNeedsFullPriceRecord(false), capitalOrIncome, above, at;
