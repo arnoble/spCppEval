@@ -67,6 +67,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["notOnly"]                 = "<comma-sep list of underlyings names>";
 		argWords["UKSPA"]                   = "Bear|Neutral|Bull";
 		argWords["Issuer"]                  = "partName";
+		argWords["useThisVolShift"]         = "x.x (percent)";
 		argWords["fundingFractionFactor"]   = "x.x";
 		argWords["forceFundingFraction"]    = "x.x";
 		argWords["rescale"]                 = "spots|tba:fraction  eg spots:0.8 for a 20% fall in underlyings";
@@ -112,7 +113,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		int              corrUidx(0), corrOtherUidx(0), corrOtherIndex(0);
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
 		bool             slidingTheta(false),cmdLineBarrierBend(false);
@@ -138,7 +139,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
+		double           useThisVolShift,rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpAmount(0.05), deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0);
 		int              thetaBumpStart(0), thetaBumpStep(0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), corrBumpStart(0.0), corrBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(180.0);
@@ -529,10 +530,10 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "maxSecsTaken:%s",       lineBuffer)){ maxSecsTaken       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "userParameters:%s",     lineBuffer)){ userParametersId   = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "historyStep:%s",        lineBuffer)){ historyStep        = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "useThisPrice:%s",       lineBuffer)){ useThisPrice       = atof(lineBuffer); doUseThisPrice       = true; }
-			else if (sscanf(thisArg, "useThisOIS:%s",         lineBuffer)){ useThisOIS         = atof(lineBuffer); doUseThisOIS         = true; }
-			else if (sscanf(thisArg, "useThisBarrierBend:%s", lineBuffer)){ useThisBarrierBend = atof(lineBuffer); doUseThisBarrierBend = true; }
-			
+			else if (sscanf(thisArg, "useThisPrice:%s",       lineBuffer)){ useThisPrice       = atof(lineBuffer);         doUseThisPrice       = true; }
+			else if (sscanf(thisArg, "useThisOIS:%s",         lineBuffer)){ useThisOIS         = atof(lineBuffer);         doUseThisOIS         = true; }
+			else if (sscanf(thisArg, "useThisBarrierBend:%s", lineBuffer)){ useThisBarrierBend = atof(lineBuffer);         doUseThisBarrierBend = true; }
+			else if (sscanf(thisArg, "useThisVolShift:%s",    lineBuffer)){ useThisVolShift    = atof(lineBuffer) / 100.0; doUseThisVolShift    = true; }
 		}
 		if (doPriips){
 			if (strlen(startDate)){
@@ -766,7 +767,8 @@ int _tmain(int argc, WCHAR* argv[])
 				colProductCouponPaidOut, colProductCollateralised, colProductCurrencyStruck, colProductBenchmarkId, colProductHurdleReturn, colProductBenchmarkTER,
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
 				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, 
-				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductCompoIntoCcy, colProductBarrierBendDays, colProductBarrierBendFraction, colProductIssuerCallable, colProductLast
+				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductCompoIntoCcy, colProductBarrierBendDays, colProductBarrierBendFraction, 
+				colProductIssuerCallable, colProductVolShift, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -810,7 +812,8 @@ int _tmain(int argc, WCHAR* argv[])
 			double forceBarrierBendDays     = atoi(szAllPrices[colProductBarrierBendDays]);
 			double forceBarrierBendFraction = atof(szAllPrices[colProductBarrierBendFraction]);
 			bool   issuerCallable           = atoi(szAllPrices[colProductIssuerCallable]) == 1;
-				
+			double volShift                 = doUseThisVolShift ? useThisVolShift : atof(szAllPrices[colProductVolShift]);
+			
 			if (forceBarrierBendDays>0 && !cmdLineBarrierBend){  // does not overrise commandLine
 				thisBarrierBendFraction    = forceBarrierBendFraction;
 				thisBarrierBendDays        = forceBarrierBendDays;
@@ -1539,7 +1542,8 @@ int _tmain(int argc, WCHAR* argv[])
 
 				}
 				else {
-					sprintf(ulSql, "%s%s%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol from ",
+					
+					sprintf(ulSql, "%s%lf%s%s%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol+",volShift," Impvol from ",
 						localVol && !bsPricer && getMarketData && !useUserParams ? "local":"imp",
 						"vol",
 						strlen(arcVolDate) ? "archive" : "",
