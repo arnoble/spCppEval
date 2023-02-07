@@ -91,7 +91,8 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["CAGRtoCVAR95loss"]        = "<number ~ number, or just number(min)>";
 		argWords["couponReturn"]            = "<number ~ number, or just number(min) PERCENT>";
 		argWords["tailReturn"]              = "<number ~ number, or just number(min) PERCENT>";
-		
+
+
 		if (argc < 3){ 
 			std::cout << "Usage: startId stopId (or a comma-separated list) numIterations <optionalArguments:>";
 			for (std::map<string,string>::iterator iter = argWords.begin(); iter != argWords.end(); ++iter) {
