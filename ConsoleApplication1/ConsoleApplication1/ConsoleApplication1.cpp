@@ -1,6 +1,10 @@
 
 // ConsoleApplication1.cpp : Defines the entry point for the console application.
 //
+//  PlatformToolset: v141         (ASUS)   v120         (THINK_PC)
+//  BoostInclude:    boost_1_81_0 (ASUS)   boost_1_55_0 (THINK_PC)
+//  project:         c:\users\dad\source\repos\ConsoleApplication1 (ASUS) c:\users\dad\documents\Visual Studio 2013\Projects\ConsoleApplication1 (THINK_PC)
+//
 
 #include "stdafx.h"
 #include "Header.h"
@@ -117,7 +121,7 @@ int _tmain(int argc, WCHAR* argv[])
 		bool             doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
-		bool             slidingTheta(false),cmdLineBarrierBend(false);
+		bool             slidingTheta(false),cmdLineBarrierBend(false), doUseMyEqEqCorr(false),doUseMyEqFxCorr(false);
 		
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -245,6 +249,8 @@ int _tmain(int argc, WCHAR* argv[])
 			if (strstr(thisArg, "ignoreBenchmark"   )){ ignoreBenchmark    = true; }
 			if (strstr(thisArg, "stickySmile"       )){ doStickySmile      = true; }
 			if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
+			if (strstr(thisArg, "useMyEqEqCorr"     )){ doUseMyEqEqCorr    = true; }
+			if (strstr(thisArg, "useMyEqFxCorr"     )){ doUseMyEqFxCorr    = true; }
 
 
 			// parse range strings, of the form <name>:<number or number-number>
@@ -769,7 +775,7 @@ int _tmain(int argc, WCHAR* argv[])
 				colProductTimepoints, colProductPercentiles, colProductDoTimepoints, colProductDoPaths, colProductStalePrice, colProductFairValue, 
 				colProductFairValueDate, colProductFundingFraction, colProductDefaultFundingFraction, colProductUseUserParams, colProductForceStartDate, colProductBaseCcy, 
 				colProductFundingFractionFactor, colProductBenchmarkStrike, colProductBootstrapStride, colProductSettleDays, colProductBarrierBend, colProductCompoIntoCcy, colProductBarrierBendDays, colProductBarrierBendFraction, 
-				colProductIssuerCallable, colProductVolShift, colProductLast
+				colProductIssuerCallable, colProductVolShift, colProductUseMyEqEqCorr, colProductUseMyEqFxCorr, colProductLast
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
@@ -782,6 +788,7 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			if (thisNumIterations<1) { thisNumIterations = 1; }
 			int  counterpartyId     = atoi(szAllPrices[colProductCounterpartyId]);
+			int  productUserId      = atoi(szAllPrices[colProductUserId]);
 			int  userId             = getMarketData ? 3 : userParametersId > 0 ? userParametersId : atoi(szAllPrices[colProductUserId]);
 			bool depositGteed       = atoi(szAllPrices[colProductDepositGtee]) == 1;
 			bool couponPaidOut      = atoi(szAllPrices[colProductCouponPaidOut] ) == 1;
@@ -813,6 +820,8 @@ int _tmain(int argc, WCHAR* argv[])
 			double forceBarrierBendDays     = atoi(szAllPrices[colProductBarrierBendDays]);
 			double forceBarrierBendFraction = atof(szAllPrices[colProductBarrierBendFraction]);
 			bool   issuerCallable           = atoi(szAllPrices[colProductIssuerCallable]) == 1;
+			bool   useMyEqEqCorr            = doUseMyEqEqCorr ? true : (atoi(szAllPrices[colProductUseMyEqEqCorr]) == 1);
+			bool   useMyEqFxCorr            = doUseMyEqFxCorr ? true : (atoi(szAllPrices[colProductUseMyEqFxCorr]) == 1);
 			double volShift                 = doUseThisVolShift ? useThisVolShift : atof(szAllPrices[colProductVolShift]);
 			
 			if (forceBarrierBendDays>0 && !cmdLineBarrierBend){  // does not overrise commandLine
@@ -1692,7 +1701,7 @@ int _tmain(int argc, WCHAR* argv[])
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
-					sprintf(ulSql, "%s%s%d%s%s", ulSql, ")  and userid=", userId,
+					sprintf(ulSql, "%s%s%d%s%s", ulSql, ")  and userid=", useMyEqEqCorr ? productUserId : userId,
 						arcCorDateString,
 						" order by UnderlyingId,OtherId ");
 					// .. parse each record <Date,price0,...,pricen>
@@ -1728,7 +1737,7 @@ int _tmain(int argc, WCHAR* argv[])
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 				}
-				sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", userId, " order by UnderlyingId,OtherId ");
+				sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", useMyEqFxCorr ? productUserId : userId, " order by UnderlyingId,OtherId ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 3);
 				retcode   = mydb.fetch(false, ulSql);
