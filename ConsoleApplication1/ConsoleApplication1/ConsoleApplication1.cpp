@@ -39,6 +39,8 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["capitalProducts"]         = "";
 		argWords["ignoreBenchmark"]         = "";
 		argWords["debug"]                   = "";
+		argWords["useMyEqEqCorr"]           = "";
+		argWords["useMyEqFxCorr"]           = "";
 		argWords["barrierBendAmort"]        = "endFraction:numDays";
 		argWords["silent"]                  = "";
 		argWords["verbose"]                 = "";
