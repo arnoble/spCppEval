@@ -39,8 +39,9 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["capitalProducts"]         = "";
 		argWords["ignoreBenchmark"]         = "";
 		argWords["debug"]                   = "";
-		argWords["useMyEqEqCorr"]           = "";
-		argWords["useMyEqFxCorr"]           = "";
+		argWords["ajaxCalling"]             = "";
+		argWords["useMyEqEqCorr"]           = "0|1";
+		argWords["useMyEqFxCorr"]           = "0|1";
 		argWords["barrierBendAmort"]        = "endFraction:numDays";
 		argWords["silent"]                  = "";
 		argWords["verbose"]                 = "";
@@ -118,12 +119,12 @@ int _tmain(int argc, WCHAR* argv[])
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
-		int              corrUidx(0), corrOtherUidx(0), corrOtherIndex(0);
+		int              corrUidx(0), corrOtherUidx(0), corrOtherIndex(0), doUseMyEqEqCorr(-1), doUseMyEqFxCorr(-1);
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
-		bool             slidingTheta(false),cmdLineBarrierBend(false), doUseMyEqEqCorr(false),doUseMyEqFxCorr(false);
+		bool             ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
 		
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -251,8 +252,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if (strstr(thisArg, "ignoreBenchmark"   )){ ignoreBenchmark    = true; }
 			if (strstr(thisArg, "stickySmile"       )){ doStickySmile      = true; }
 			if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
-			if (strstr(thisArg, "useMyEqEqCorr"     )){ doUseMyEqEqCorr    = true; }
-			if (strstr(thisArg, "useMyEqFxCorr"     )){ doUseMyEqFxCorr    = true; }
+			if (strstr(thisArg, "ajaxCalling"       )){ ajaxCalling        = true; }			
 
 
 			// parse range strings, of the form <name>:<number or number-number>
@@ -535,7 +535,7 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "arcCurveDate:%s",       lineBuffer)){ strcpy(arcCurveDate,   lineBuffer); sprintf(arcCurveDateString,  "%s%s%s", " and LastDataDate='", arcCurveDate,   "' "); }
 			else if (sscanf(thisArg, "arcCdsDate:%s",         lineBuffer)){ strcpy(arcCdsDate,     lineBuffer); sprintf(arcCdsDateString,    "%s%s%s", " and LastDataDate='", arcCdsDate,     "' "); }
 			else if (sscanf(thisArg, "bumpUserId:%s",         lineBuffer)){ bumpUserId         = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "minnSecsTaken:%s",      lineBuffer)){ minSecsTaken       = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "minSecsTaken:%s",       lineBuffer)){ minSecsTaken       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s",       lineBuffer)){ maxSecsTaken       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "userParameters:%s",     lineBuffer)){ userParametersId   = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "historyStep:%s",        lineBuffer)){ historyStep        = atoi(lineBuffer); }
@@ -543,6 +543,9 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "useThisOIS:%s",         lineBuffer)){ useThisOIS         = atof(lineBuffer);         doUseThisOIS         = true; }
 			else if (sscanf(thisArg, "useThisBarrierBend:%s", lineBuffer)){ useThisBarrierBend = atof(lineBuffer);         doUseThisBarrierBend = true; }
 			else if (sscanf(thisArg, "useThisVolShift:%s",    lineBuffer)){ useThisVolShift    = atof(lineBuffer) / 100.0; doUseThisVolShift    = true; }
+			else if (sscanf(thisArg, "useMyEqEqCorr:%s",      lineBuffer)){ doUseMyEqEqCorr    = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "useMyEqFxCorr:%s",      lineBuffer)){ doUseMyEqFxCorr    = atoi(lineBuffer); }
+
 		}
 		if (doPriips){
 			if (strlen(startDate)){
@@ -822,8 +825,8 @@ int _tmain(int argc, WCHAR* argv[])
 			double forceBarrierBendDays     = atoi(szAllPrices[colProductBarrierBendDays]);
 			double forceBarrierBendFraction = atof(szAllPrices[colProductBarrierBendFraction]);
 			bool   issuerCallable           = atoi(szAllPrices[colProductIssuerCallable]) == 1;
-			bool   useMyEqEqCorr            = doUseMyEqEqCorr ? true : (atoi(szAllPrices[colProductUseMyEqEqCorr]) == 1);
-			bool   useMyEqFxCorr            = doUseMyEqFxCorr ? true : (atoi(szAllPrices[colProductUseMyEqFxCorr]) == 1);
+			bool   useMyEqEqCorr            = ajaxCalling &&  (doUseMyEqEqCorr == 1 || (doUseMyEqEqCorr != 0 && atoi(szAllPrices[colProductUseMyEqEqCorr]) == 1)) ;
+			bool   useMyEqFxCorr            = ajaxCalling &&  (doUseMyEqFxCorr == 1 || (doUseMyEqFxCorr != 0 && atoi(szAllPrices[colProductUseMyEqFxCorr]) == 1));
 			double volShift                 = doUseThisVolShift ? useThisVolShift : atof(szAllPrices[colProductVolShift]);
 			
 			if (forceBarrierBendDays>0 && !cmdLineBarrierBend){  // does not overrise commandLine
