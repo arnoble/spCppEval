@@ -4004,7 +4004,7 @@ public:
 												b.setIsCallableHit();
 											}
 										}
-										std::cerr << "IssuerCallable: regressions finished ... continue remaining mcIterations " << std::endl;
+										if (verbose){ std::cerr << "IssuerCallable: regressions finished ... continue remaining mcIterations " << std::endl; }
 									} // if (thisIteration == (numBurnInIterations - 1)
 								} // if (issuerCallable && getMarketData &&  ...
 								// FINALLY, store this payoff
