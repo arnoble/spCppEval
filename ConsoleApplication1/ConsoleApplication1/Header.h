@@ -1322,7 +1322,7 @@ EvalResult CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std
 			}
 			if (i == j){ 
 				if (element < 0.0){ 
-					std::cerr << "Correlation matrix infeasible " << i << "\n"; 
+					std::cerr << "IPRerror: Correlation matrix infeasible " << i << "\n"; 
 					evalResult.errorCode = 10221;
 					return(evalResult);
 				}
@@ -1330,7 +1330,7 @@ EvalResult CHOL(const std::vector<std::vector<double>>  &matrix, std::vector<std
 			}
 			else if (i < j) { 
 				if (L_Lower[i][i] == 0.0){ 
-					std::cerr << "Correlation matrix infeasible " << i << "\n"; 
+					std::cerr << "IPRerror: Correlation matrix infeasible " << i << "\n"; 
 					evalResult.errorCode = 10222;
 					return(evalResult);
 				}
