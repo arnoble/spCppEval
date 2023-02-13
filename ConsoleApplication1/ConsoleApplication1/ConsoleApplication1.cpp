@@ -57,6 +57,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["useProductFundingFractionFactor"] = "";
 		argWords["showMatured"]             = "";
 		argWords["historyStep"]             = "nnn";
+		argWords["corrUserId"]              = "nnn";
 		argWords["startDate"]               = "YYYY-mm-dd";
 		argWords["spotsDate"]               = "YYYY-mm-dd";
 		argWords["endDate"]                 = "YYYY-mm-dd";
@@ -115,7 +116,7 @@ int _tmain(int argc, WCHAR* argv[])
 		
 
 
-		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0;
+		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0,corrUserId=0;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
@@ -535,6 +536,7 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "arcCurveDate:%s",       lineBuffer)){ strcpy(arcCurveDate,   lineBuffer); sprintf(arcCurveDateString,  "%s%s%s", " and LastDataDate='", arcCurveDate,   "' "); }
 			else if (sscanf(thisArg, "arcCdsDate:%s",         lineBuffer)){ strcpy(arcCdsDate,     lineBuffer); sprintf(arcCdsDateString,    "%s%s%s", " and LastDataDate='", arcCdsDate,     "' "); }
 			else if (sscanf(thisArg, "bumpUserId:%s",         lineBuffer)){ bumpUserId         = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "corrUserId:%s",         lineBuffer)){ corrUserId         = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "minSecsTaken:%s",       lineBuffer)){ minSecsTaken       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s",       lineBuffer)){ maxSecsTaken       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "userParameters:%s",     lineBuffer)){ userParametersId   = atoi(lineBuffer); }
@@ -1742,7 +1744,7 @@ int _tmain(int argc, WCHAR* argv[])
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 				}
-				sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", useMyEqFxCorr ? productUserId : userId, " order by UnderlyingId,OtherId ");
+				sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", useMyEqFxCorr ? (corrUserId>0 ? corrUserId:productUserId) : userId, " order by UnderlyingId,OtherId ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 3);
 				retcode   = mydb.fetch(false, ulSql);
