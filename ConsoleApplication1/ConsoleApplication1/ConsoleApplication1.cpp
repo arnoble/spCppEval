@@ -1708,7 +1708,7 @@ int _tmain(int argc, WCHAR* argv[])
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
-					sprintf(ulSql, "%s%s%d%s%s", ulSql, ")  and userid=", useMyEqEqCorr ? productUserId : userId,
+					sprintf(ulSql, "%s%s%d%s%s", ulSql, ")  and userid=", useMyEqEqCorr ? (corrUserId>0 ? corrUserId : productUserId) : userId,
 						arcCorDateString,
 						" order by UnderlyingId,OtherId ");
 					// .. parse each record <Date,price0,...,pricen>
@@ -1744,7 +1744,7 @@ int _tmain(int argc, WCHAR* argv[])
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 				}
-				sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", useMyEqFxCorr ? (corrUserId>0 ? corrUserId:productUserId) : userId, " order by UnderlyingId,OtherId ");
+				sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", useMyEqFxCorr ? (corrUserId>0 ? corrUserId : productUserId) : userId, " order by UnderlyingId,OtherId ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 3);
 				retcode   = mydb.fetch(false, ulSql);
