@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <numeric>
 #include <windows.h>
-#include <sqlext.h>
+#include <sqlext.h>             // includes seem to be in C:\Program Files (x86)\Windows Kits\8.1\Include\um
 #include <stdio.h>
 #include <vector>
 #include <regex>
@@ -31,6 +31,7 @@
 #define EQ                                ==
 #define NEQ                               !=
 #define	INVERT_USING_LU_DECOMPOSITION     1
+#define MY_SQL_GENERAL_ERROR             -1            // all the SQL codes seem to be non-negative, so this is a way of signalling something general went wrong
 
 // Numerical Recipes types
 typedef double DP;
@@ -1590,7 +1591,7 @@ public:
 		SQLRETURN   ret;
 		size_t      numChars;
 		char        *cptr;
-		fprintf(stderr,	"\n%s%s%s%s\n",	"Database problem running ",fn," ",msg.c_str());
+		fprintf(stderr,	"\n%s%s%s%s\n",	"IPRerror: Database problem running ",fn," ",msg.c_str());
 
 		do	{
 			ret = SQLGetDiagRec(type, handle, ++i, &state[0], &native, &text[0], (SQLSMALLINT) sizeof(text)/2, &len);
@@ -1723,7 +1724,7 @@ public:
 		// ScopedTimer timer{ "db fetch" };
 		fsts = SQLFetch(hStmt);
 		if (checkForErrors){
-			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLFetch", msg, hStmt, SQL_HANDLE_STMT);	exit(1); }
+			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLFetch", msg, hStmt, SQL_HANDLE_STMT);	return(MY_SQL_GENERAL_ERROR); }
 		}
 		return fsts;
 	}
@@ -1731,7 +1732,7 @@ public:
 		// ScopedTimer timer{ "db execute" };
 		fsts = SQLExecute(hStmt);
 		if (checkForErrors){
-			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", msg, hStmt, SQL_HANDLE_STMT);	exit(1); }
+			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLExecute", msg, hStmt, SQL_HANDLE_STMT);	return(MY_SQL_GENERAL_ERROR); }
 		}
 		return fsts;
 	}

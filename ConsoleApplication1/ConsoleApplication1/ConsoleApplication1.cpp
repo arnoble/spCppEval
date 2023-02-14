@@ -198,7 +198,7 @@ int _tmain(int argc, WCHAR* argv[])
 		vector<string>   payoffType;  payoffType.push_back("");
 		sprintf(lineBuffer, "%s", "select name from payofftype order by PayoffTypeId");
 		mydb.prepare((SQLCHAR *)lineBuffer, 1);
-		retcode = mydb.fetch(false, lineBuffer);
+		retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 			payoffType.push_back(szAllPrices[0]);
 			retcode = mydb.fetch(false, "");
@@ -219,7 +219,7 @@ int _tmain(int argc, WCHAR* argv[])
 			strcpy(charBuffer,thisArg);
 			char *token = std::strtok(charBuffer, ":");
 			if (argWords.find(token) == argWords.end()){
-				cerr << "Unknown argument: " << thisArg << endl;
+				std::cerr << "IPRerror:Unknown argument: " << thisArg << endl;
 				exit(101);
 			}
 		}
@@ -376,7 +376,7 @@ int _tmain(int argc, WCHAR* argv[])
 					// are corrNames eq/eq
 					sprintf(lineBuffer, "%s%s%s%s%s", "select c.UnderlyingId,c.OtherId from correlation c join underlying u1 using (UnderlyingId)  join underlying u2 on (c.OtherId=u2.UnderlyingId) where UserId=3 and u1.Name='", corrNames[0].c_str(), "' and u2.Name= '", corrNames[1].c_str(), "' and OtherIdIsCcy=0");
 					if (mydb.prepare((SQLCHAR *)lineBuffer, 2)){ continue; }
-					retcode = mydb.fetch(false, lineBuffer);
+					retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 					if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 						corrIds.push_back(atoi(szAllPrices[0]));
 						corrIds.push_back(atoi(szAllPrices[1]));
@@ -387,7 +387,7 @@ int _tmain(int argc, WCHAR* argv[])
 					else {
 						sprintf(lineBuffer, "%s%s%s%s%s", "select c.UnderlyingId,c.OtherId from correlation c join underlying u1 using (UnderlyingId)  join currencies u2 on (c.OtherId=u2.CcyId) where UserId=3 and u1.Name='", corrNames[0].c_str(), "' and u2.Name= '", corrNames[1].c_str(), "' and OtherIdIsCcy=1");
 						if (mydb.prepare((SQLCHAR *)lineBuffer, 2)){ continue; }
-						retcode = mydb.fetch(false, lineBuffer);
+						retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 						if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 							corrIds.push_back(atoi(szAllPrices[0]));
 							corrIds.push_back(atoi(szAllPrices[1]));
@@ -619,7 +619,7 @@ int _tmain(int argc, WCHAR* argv[])
 		}
 
 		sprintf(lineBuffer, "%s%s", lineBuffer, " order by productid");
-		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true,lineBuffer);
+		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			int x(atoi(szAllPrices[0])); allProductIds.push_back(x);
 			retcode = mydb.fetch(false,"");
@@ -632,7 +632,7 @@ int _tmain(int argc, WCHAR* argv[])
 		*/
 		double bmSwapRate(0.0);
 		sprintf(lineBuffer, "%s", "SELECT avg(Rate)/100.0 sixYSwaps from curve where ccy='GBP' and Tenor in (5,7)");
-		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true, lineBuffer);
+		mydb.prepare((SQLCHAR *)lineBuffer, 1); 	retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 		if(retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			bmSwapRate = atof(szAllPrices[0]);			
 		}
@@ -640,7 +640,7 @@ int _tmain(int argc, WCHAR* argv[])
 
 		double bmEarithReturn(0.0), bmVol(0.18);
 		sprintf(lineBuffer, "%s%.4lf%s","SELECT EarithReturn ArithmeticReturn_pa, esVol*sqrt(duration) Volatility from cashflows where ProductId=71 and ProjectedReturn='",projectedReturn,"'");
-		mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
+		mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 		if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			bmEarithReturn = atof(szAllPrices[0]);
 			bmVol          = atof(szAllPrices[1]);
@@ -654,7 +654,7 @@ int _tmain(int argc, WCHAR* argv[])
 			sprintf(lineBuffer, "%s%d%s", "select UnderlyingId from (select distinct underlyingid from barrierrelation join productbarrier using (productbarrierid) where productid in (",
 				allProductIds[0], "))x");			
 			mydb.prepare((SQLCHAR *)lineBuffer, 1); 	
-			retcode = mydb.fetch(true, lineBuffer);
+			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				optimiseProductIds.push_back(atoi(szAllPrices[0]));
 				retcode = mydb.fetch(false, "");
@@ -668,7 +668,7 @@ int _tmain(int argc, WCHAR* argv[])
 			sprintf(lineBuffer, "%s%s%s", "select max(greatest(settlementDate,EndDate)) from barrierrelation join productbarrier using (productbarrierid) where productid in (",
 				charBuffer, ") and SettlementDate < date_add(now(),INTERVAL 12 YEAR)");  // limit to 12y to avoid blowing memory, and some 'Markets' products are deliberately set to start way-in-the-future
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
-			retcode = mydb.fetch(true, lineBuffer);
+			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 			lastOptimiseDate = szAllPrices[0]; 
 			boost::gregorian::date bLastOptimiseDate(boost::gregorian::from_simple_string(lastOptimiseDate));
 
@@ -676,7 +676,7 @@ int _tmain(int argc, WCHAR* argv[])
 			sprintf(lineBuffer, "%s%s%s", "select group_concat(underlyingid) from (select distinct underlyingid from barrierrelation join productbarrier using (productbarrierid) where productid in (",
 				charBuffer, "))x");
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
-			retcode = mydb.fetch(true, lineBuffer);
+			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 			string concatUlIds = szAllPrices[0];
 			string thisLastDate; 
 			if (strlen(endDate)){
@@ -685,7 +685,7 @@ int _tmain(int argc, WCHAR* argv[])
 			else{
 				sprintf(lineBuffer, "%s%s%s", "select max(Date) from prices where underlyingid in (", concatUlIds.c_str(), ")");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				retcode = mydb.fetch(true, lineBuffer);
+				retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 				thisLastDate = szAllPrices[0];
 			}
 			
@@ -786,7 +786,7 @@ int _tmain(int argc, WCHAR* argv[])
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "product where ProductId='", productId, "'");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductLast);
-			retcode = mydb.fetch(true,lineBuffer);
+			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			int  productMaxIterations  = atoi(szAllPrices[colProductMaxIterations]);
 			bool forceIterations = requesterForceIterations;
 			if (productMaxIterations < thisNumIterations){ 
@@ -930,7 +930,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if (thisNumIterations <= 1){
 				sprintf(lineBuffer, "%s%d%s", "select count(*) from productbarrier join payofftype pt using (payofftypeid) where productid='", productId, "' and pt.name like 'levels%'");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				retcode = mydb.fetch(true, lineBuffer);
+				retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 				if (retcode == SQL_SUCCESS && atof(szAllPrices[0]) > 0){ doPriceShift = false; }
 			}
 			
@@ -938,7 +938,7 @@ int _tmain(int argc, WCHAR* argv[])
 			// ...mult-issuer product's have comma-separated issuers...ASSUMED equal weight
 			sprintf(lineBuffer, "%s%d%s", "select EntityName from institution where institutionid='", counterpartyId, "' ");
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
-			retcode = mydb.fetch(true,lineBuffer);
+			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			string counterpartyName = szAllPrices[0];
 			vector<string> counterpartyNames;
 			splitCommaSepName(counterpartyNames, counterpartyName);
@@ -976,7 +976,7 @@ int _tmain(int argc, WCHAR* argv[])
 					"  and ccy=''  and spread is not null)x group by Maturity order by Maturity");
 			}
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
-			retcode = mydb.fetch(false,lineBuffer);
+			retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			vector<double> cdsTenor, cdsSpread;
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				double thisSpread,thisTenor;
@@ -1000,7 +1000,7 @@ int _tmain(int argc, WCHAR* argv[])
 				arcCurveDateString,
 				" order by Tenor");
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
-			retcode = mydb.fetch(false,lineBuffer);
+			retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			// cerr << "baseCurve:" << lineBuffer << endl;
 			vector<SomeCurve> baseCurve;
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
@@ -1031,7 +1031,7 @@ int _tmain(int argc, WCHAR* argv[])
 				strcat(lineBuffer, charBuffer);
 			}
 			mydb.prepare((SQLCHAR *)lineBuffer, 7);
-			retcode = mydb.fetch(true,lineBuffer);
+			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 				string thisCcy            = szAllPrices[1];
 				double thisERP            = atof(szAllPrices[2]);
@@ -1092,7 +1092,7 @@ int _tmain(int argc, WCHAR* argv[])
 					if (productCcy != ulCcys[i]){
 						sprintf(lineBuffer, "%s%s%s%s%s", "select UnderlyingId from underlying where name=concat('", ulCcys[i].c_str(), "','", productCcy.c_str(), "')");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
-						retcode = mydb.fetch(false,lineBuffer);
+						retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 						if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 							int thisId = atoi(szAllPrices[0]);
 							if (currencyStruck             ){ crossRateUids[i]       = thisId; }
@@ -1102,7 +1102,7 @@ int _tmain(int argc, WCHAR* argv[])
 								// get prices for ul and ccy
 								sprintf(lineBuffer, "%s%d%s%d%s", "select Date,p0.price ul,p1.price ccy from prices p0 join prices p1 using (Date) where p0.underlyingid=", ulIds[i], " and p1.underlyingid=", thisId, priipsStartDatePhrase);
 								mydb.prepare((SQLCHAR *)lineBuffer, 3);
-								retcode   = mydb.fetch(false, lineBuffer);
+								retcode   = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 								firstTime = true;
 								vector<vector<double>> theseReturns(2);
 								while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
@@ -1144,7 +1144,7 @@ int _tmain(int argc, WCHAR* argv[])
 				// get uid
 				sprintf(lineBuffer, "%s%s%s", "select UnderlyingId from underlying u where u.name='", anyString.c_str(), "'");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				retcode = mydb.fetch(false, "");
+				retcode = mydb.fetch(false, ""); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					compoIntoCcyUid   = atoi(szAllPrices[0]);
 				}
@@ -1223,7 +1223,7 @@ int _tmain(int argc, WCHAR* argv[])
 				doShiftPrices.push_back(false);
 			}
 			// .. parse each record <Date,price0,...,pricen>
-			retcode = mydb.fetch(true,ulSql);
+			retcode = mydb.fetch(true, ulSql); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << ulSql << endl; continue; }
 			int numGaps = 0;
 			boost::gregorian::date bEndDate; if (strlen(endDate)) { bEndDate =  (boost::gregorian::from_simple_string(endDate)); }
 			boost::gregorian::date_duration bOneDay(1);
@@ -1339,7 +1339,7 @@ int _tmain(int argc, WCHAR* argv[])
 				// get ASK from productprices if exists
 				sprintf(lineBuffer, "%s%d%s%s%s", "select Ask from productprices where ProductId=", productId," and date<='",endDate,"' order by Date desc limit 1");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				retcode = mydb.fetch(false, lineBuffer);
+				retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 				if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 					midPrice  = atof(szAllPrices[0]) / issuePrice;
 					sprintf(lineBuffer, "%s%s%s%d", "update product set BidAskDate='",endDate,"' where ProductId=", productId);
@@ -1352,7 +1352,7 @@ int _tmain(int argc, WCHAR* argv[])
 				int numPrices = (int)ulOriginalPrices[0].price.size();
 				sprintf(lineBuffer, "%s%s%s%s", holdUlSql, " and Date ='", spotsDate, "'");
 				mydb.prepare((SQLCHAR *)lineBuffer, numUl + 1 + addCompoIntoCcy);
-				retcode = mydb.fetch(true, lineBuffer);
+				retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					for (i = 0; i < numUl + addCompoIntoCcy; i++) {
 						double thisPrice;
@@ -1373,7 +1373,7 @@ int _tmain(int argc, WCHAR* argv[])
 					sprintf(lineBuffer, "%s%s%s%s%s%s%s", "select p0.Price,p1.Price/p0.Price from prices p0 join prices p1 using (underlyingid) join underlying u using (underlyingid) where u.name='",
 						anyString.c_str(), "' and p0.date='", productStartDateString.c_str(), "' and p1.date='", lastDataDateString.c_str(), "'");
 					mydb.prepare((SQLCHAR *)lineBuffer, 2);
-					retcode = mydb.fetch(false, "");
+					retcode = mydb.fetch(false, ""); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 					if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 						compoIntoCcyStrikePrice = atof(szAllPrices[0]);
 						baseCcyReturn           = atof(szAllPrices[1]);
@@ -1444,7 +1444,7 @@ int _tmain(int argc, WCHAR* argv[])
 					" order by UnderlyingId,Tenor ");
 				// .. parse each record <Date,price0,...,pricen>
 				mydb.prepare((SQLCHAR *)ulSql, 5);
-				retcode = mydb.fetch(false, ulSql);
+				retcode = mydb.fetch(false, ulSql); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << ulSql << endl; continue; }
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 					int    thisUidx      = ulIdNameMap.at(atoi(szAllPrices[0]));
 					double thisTenor     = atof(szAllPrices[1]);
@@ -1576,7 +1576,7 @@ int _tmain(int argc, WCHAR* argv[])
 					thisUidx    = 0;          // underlying index
 					thisTenor   = -1.0;
 					mydb.prepare((SQLCHAR *)ulSql, 4);
-					retcode = mydb.fetch(true, ulSql);
+					retcode = mydb.fetch(true, ulSql); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << ulSql << endl; continue; }
 
 					while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
 						int    nextUidx   = ulIdNameMap.at(atoi(szAllPrices[0]));
@@ -1896,7 +1896,7 @@ int _tmain(int argc, WCHAR* argv[])
 			};
 			sprintf(lineBuffer, "%s%s%s%d%s", "select * from ", useProto, "productbarrier where ProductId='", productId, "' order by SettlementDate,ProductBarrierId");
 			mydb.prepare((SQLCHAR *)lineBuffer, colProductBarrierLast);
-			retcode = mydb.fetch(true,lineBuffer);
+			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			map<char, int>::iterator curr, end;
 			// ...parse each productbarrier row
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
