@@ -1021,7 +1021,7 @@ int _tmain(int argc, WCHAR* argv[])
 			vector<string> ulCcys;
 			vector<bool> ulFixedDivs;
 			vector<string> ulNames;
-			map<string, int> ccyToUidMap;
+			map<int, string> ccyToUidMap;
 			vector<double> ulERPs, ulTZhrs;
 			vector<int> ulIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
 			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs,FixedDivs from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
@@ -1049,7 +1049,7 @@ int _tmain(int argc, WCHAR* argv[])
 					cerr << "cannot optimise with this underlyingId:" << uid << endl;
 					exit(107);
 				}
-				ccyToUidMap[thisCcy] = uid;
+				ccyToUidMap[uid] = thisCcy;
 				if (find(ulIds.begin(), ulIds.end(), uid) == ulIds.end()) {      // build list of uids
 					ulIds.push_back(uid);
 					ulERPs.push_back(thisERP);
@@ -1560,7 +1560,7 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 				else {
 					
-					sprintf(ulSql, "%s%lf%s%s%s%s%s%d", "select UnderlyingId,Tenor,Strike,ImpVol+",volShift," Impvol from ",
+					sprintf(ulSql, "%s%lf%s%s%s%s%s%d", "select UnderlyingId,Tenor,Strike,greatest(0.0,ImpVol+",volShift,") Impvol from ",
 						localVol && !bsPricer && getMarketData && !useUserParams ? "local":"imp",
 						"vol",
 						strlen(arcVolDate) ? "archive" : "",
@@ -1645,10 +1645,13 @@ int _tmain(int argc, WCHAR* argv[])
 					string thisCcy   = szAllPrices[0];
 					double thisTenor = atof(szAllPrices[1]);
 					double thisRate  = atof(szAllPrices[2]);
-					int    thisUidx  = ulIdNameMap[ccyToUidMap[thisCcy]];
-					if (doUseThisOIS){ thisRate = useThisOIS; }
-					oisRatesRate[thisUidx].push_back(thisRate / 100.0);
-					oisRatesTenor[thisUidx].push_back(thisTenor);
+					if (doUseThisOIS) { thisRate = useThisOIS; }
+					for (thisUidx = 0; thisUidx < numUl; thisUidx++) {
+						if (ccyToUidMap[ulIds[thisUidx]] == thisCcy) {
+							oisRatesRate[thisUidx].push_back(thisRate / 100.0);
+							oisRatesTenor[thisUidx].push_back(thisTenor);
+						}
+					}
 					retcode = mydb.fetch(false, "");
 				}
 				// add dummy records for underlyings for which there are no rates
