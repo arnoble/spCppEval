@@ -2070,19 +2070,20 @@ public:
 	// isNeverHit  ... issuerCallable needs to turn off non-terminal Capital barriers
 	bool isNeverHit(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels) {
 		int j;
-		int numPrices = (int)thesePrices.size();
-		if (numPrices > 1){
-			std::vector<double> tempPrices;
-			// just store ulLevels for LS regression
-			for (j = 0; j < numPrices; j++) {
-				tempPrices.push_back(thesePrices[j]/spots[j]);    // normalize prices to avoid overflow on matrix inversion
-			}
+		int numBrel = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		if (numBrel == 0) return false;
+		std::vector<double> tempPrices; 
+		for (j = 0; j < numBrel; j++) {
+			const SpBarrierRelation &thisBrel(brel[j]);
+			tempPrices.push_back(thesePrices[j] / thisBrel.refLevel);    // normalize prices to avoid overflow on matrix inversion
+		}
+		if (numBrel > 1){			
 			sort(tempPrices.begin(), tempPrices.end());
 			worstUlRegressionPrices.push_back(tempPrices[0]);
 			nextWorstUlRegressionPrices.push_back(tempPrices[1]);
 		}
 		else{
-			worstUlRegressionPrices.push_back(thesePrices[0] / spots[0]);
+			worstUlRegressionPrices.push_back(tempPrices[0]);
 		}
 		return(false);
 	}
@@ -2092,20 +2093,21 @@ public:
 		int j;
 		double thisWorst, nextWorst;
 		const int numPrices = (int)thesePrices.size();
-		
-		// form RHS vectot
+		const int numBrel   = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		std::vector<double> tempPrices;
+
+		// form RHS vector
+		for (j = 0; j < numBrel; j++) {
+			const SpBarrierRelation &thisBrel(brel[j]);
+			tempPrices.push_back(thesePrices[j] / thisBrel.refLevel);    // normalize prices to avoid overflow on matrix inversion
+		}
 		if (numPrices > 1){
-			std::vector<double> tempPrices;
-			// just store ulLevels for LS regression
-			for (j = 0; j < numPrices; j++) {
-				tempPrices.push_back(thesePrices[j] / spots[j]);    // normalize prices to avoid overflow on matrix inversion
-			}
 			sort(tempPrices.begin(), tempPrices.end());
 			thisWorst  = tempPrices[0];
 			nextWorst  = tempPrices[1];
 		}
 		else{
-			thisWorst = thesePrices[0] / spots[0];
+			thisWorst = tempPrices[0];
 		}
 
 		// calculate expected continuation value
