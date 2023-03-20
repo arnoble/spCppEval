@@ -30,8 +30,10 @@
 #define CI_CLOSEDOUBLE					  1.0e-1	    // for tests of equality between 2 doubles
 #define EQ                                ==
 #define NEQ                               !=
+#define USE_GMM_CLUSTERS                  1
 #define	INVERT_USING_LU_DECOMPOSITION     1
 #define MY_SQL_GENERAL_ERROR             -1            // all the SQL codes seem to be non-negative, so this is a way of signalling something general went wrong
+constexpr double PI                       = 3.141592653589793238;
 
 // Numerical Recipes types
 typedef double DP;
@@ -896,8 +898,54 @@ bool MatInverse(const Mat_I_DP	&mat, Mat_O_DP &inv){
 	return true;
 }
 
+/*
+* my2dDet   - determinant of a 2d matrix  a  b
+*                                         c  d     =  a.d - b.c
+*/
+double my2dDet(const double a, const double b, const double c, const double d) { return(a*d - b*c); }
 
+/*
+*  mvpdf - compute z probabilities for x,y points under multiple normal densities with parameters (mu, covariance=covX,covXY,covY) 
+*/
+EvalResult mvpdf(Mat_IO_DP     &z,
+	const std::vector<double>  &x, 
+	const std::vector<double>  &y, 
+	const Mat_IO_DP            &mu,
+	const std::vector<double>  &covX, 
+	const std::vector<double>  &covY, 
+	const std::vector<double>  &covXY) {
 
+	EvalResult  evalResult(0.0, 0.0, 0);
+	const int   numClusters(covX.size());
+
+	for (int i=0; i < numClusters;i++) {
+		//
+		// inverse of cov[i]   a  b            =  1/(a.d - b.c)   *   d   -b
+		//                     c  d                                  -c    a
+		//
+		double det = my2dDet(covX[i], covXY[i], covXY[i], covY[i]);
+		double oneOverRootDet = 1.0 / pow(det * 2.0 * PI, 0.5);
+		double recipDet,inverseA, inverseB, inverseD;
+		recipDet = 1.0 / det;
+		inverseA =  recipDet * covY [i];
+		inverseB = -recipDet * covXY[i];
+		inverseD =  recipDet * covX [i];
+		if (det == 0) {
+			std::cerr << "IPRerror: Determinant is equal to 0 for cluster: " << i << "\n";
+			evalResult.errorCode = 11111;
+			return(evalResult);
+		}
+		// for each x,y point compute normal probability under this normal distribution
+		for (int j=0; j < x.size(); j++) {
+			double thisX = x[j] - mu[i][0];
+			double thisY = y[j] - mu[i][1];
+			// (x,y) * [inverseA  inverseB] * [x]
+			//         [inverseB  inverseD]   [y]
+			z[j][i] =  exp(-0.5 * (thisX*(thisX*inverseA + thisY*inverseB)  + thisY*(thisX*inverseB + thisY * inverseD)) * oneOverRootDet);
+		}
+	}
+	return(evalResult);
+}
 
 
 /*
@@ -1066,7 +1114,7 @@ double irr(const std::vector<double> &c, const std::vector<double> &t) {
 
 
 // correlation
-double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues) {
+double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues, const bool corrOrCov) {
 	int N = (int)aValues.size();
 	double fMean  = std::accumulate(aValues.begin(), aValues.end(), 0.0) / N;
 	double fMean1 = std::accumulate(bValues.begin(), bValues.end(), 0.0) / N;
@@ -1078,7 +1126,10 @@ double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues) {
 		bVariance  += diff1*diff1;
 		coVariance += diff*diff1;
 	}
-	return(coVariance / (sqrt(aVariance)*sqrt(bVariance)));
+	if (corrOrCov) {
+		coVariance /= (sqrt(aVariance)*sqrt(bVariance));
+	}
+	return(coVariance);
 }
 
 
@@ -3994,6 +4045,182 @@ public:
 														callableCashflows[i] = thisPayoff;
 													}
 												}
+
+												//
+												//  Gaussian Mixture Model
+												//
+												if (USE_GMM_CLUSTERS) {
+													int       numClusters(7); // seems a reasonable max#
+													bool      done(false);
+													const int maxIterations(20);
+													std::vector<double>  &x(thatB.worstUlRegressionPrices);
+													std::vector<double>  &y(callableCashflows);
+													double BIC(0.0);
+													while (!done && numClusters > 0) {
+														//
+														// init cluster data uniformly
+														//
+														Mat_IO_DP initialk(numBurnInIterations, 1);
+														for (int i=0,thisCluster=0; i < numBurnInIterations;i++) {
+															initialk[i][0] = thisCluster++;
+															if (thisCluster == numClusters) { thisCluster = 0; }
+														}
+														//
+														// init mu uniformly
+														//
+														const double minX = *std::min_element(std::begin(x), std::end(x));
+														const double minY = *std::min_element(std::begin(y), std::end(y));
+														const double maxX = *std::max_element(std::begin(x), std::end(x));
+														const double maxY = *std::max_element(std::begin(y), std::end(y));
+														const double xBucketSize = (maxX - minX) / numClusters;
+														const double yBucketSize = (maxY - minY) / numClusters;
+														std::vector<double> clusterBreaks;
+														double thisClusterBreak(0.5);
+														for (int i=0; i < numClusters;i++) {
+															clusterBreaks.push_back(thisClusterBreak);
+															thisClusterBreak += 1.0;
+														}
+														Mat_IO_DP mu(numClusters, 2);
+														for (int i=0; i < numClusters; i++) {
+															mu[i][0] = minX + xBucketSize * clusterBreaks[i];
+															mu[i][1] = minY + yBucketSize * clusterBreaks[i];
+														}
+														//
+														// init cov - spread data-covariance across all clusters
+														//
+														const double dataCovX  = MyCorrelation(x, x, false) / numClusters;
+														const double dataCovY  = MyCorrelation(y, y, false) / numClusters;
+														const double dataCovXY = MyCorrelation(x, y, false) / numClusters;
+														std::vector<double> covX, covY, covXY;
+														for (int i=0; i < numClusters; i++) {
+															covX.push_back( dataCovX );
+															covY.push_back( dataCovY );
+															covXY.push_back(dataCovXY);
+														}
+														//
+														// init cluster mix uniformly
+														//
+														std::vector<double> a;
+														double ranSum(0.0);
+														for (int i=0; i < numClusters; i++) {
+															double thisRan = ArtsRan();
+															a.push_back(thisRan);
+															ranSum += thisRan;
+														}
+														for (int i=0; i < numClusters; i++) {
+															a[i] /= ranSum;
+														}
+														// EM loop 
+														Mat_IO_DP z(numBurnInIterations,numClusters);  // PDFs
+														Mat_IO_DP r(numBurnInIterations, numClusters); // responsibilities
+														double  previousBIC(0.0);
+														for (int thisIter=0; !done && thisIter < maxIterations; thisIter++) {
+															// Calculate into z the PDF for each x,y point under each cluster mean and covariances
+															evalResult = mvpdf(z, x, y, mu, covX, covY, covXY);
+															if (evalResult.errorCode != 0) {
+																	return(evalResult);
+															}															
+															// Expectation Step for each cluster - responsibility of each cluster for each x,y datapoint
+															for (int j=0; j < numBurnInIterations; j++) {
+																double totalR = 0.0;
+																for (int i=0; i < numClusters; i++) {
+																	double thisResponsibility = a[i] * z[j][i];
+																	totalR     += thisResponsibility;
+																	r[j][i]     = thisResponsibility;
+																}
+																for (int i=0; i < numClusters; i++) {
+																	r[j][i]     /= totalR;
+																}
+															}
+															// classify each x,y to highest r
+															Vec_IO_DP eK(numBurnInIterations);
+															Vec_IO_DP mc(numClusters);
+															for (int j=0; j < numBurnInIterations; j++) {
+																int    thisIndex = 0;
+																double highestR  = 0.0;
+																for (int i=0; i < numClusters; i++) {
+																	double thisR = r[j][i];
+																	mc[i] += thisR;
+																	if (thisR > highestR) { highestR = thisR;  thisIndex = i; }
+																}
+																eK[j] = thisIndex;
+															}
+															// Maximisation step - update mix and normal means/covars using sum(r) for each cluster
+															for (int i=0; i < numClusters; i++) {
+																double muX  = 0.0;
+																double muY  = 0.0;
+																a[i] = mc[i] / numBurnInIterations;
+																for (int j=0; j < numBurnInIterations; j++) {
+																	muX += x[j] * r[j][i];
+																	muY += y[j] * r[j][i];
+																}
+																mu[i][0] = muX / mc[i];
+																mu[i][1] = muY / mc[i];
+															}
+															// update covariance matrices, also weighted by responsibilities
+															for (int i=0; i < numClusters; i++) {
+																double thisCovX  = 0.0;
+																double thisCovY  = 0.0;
+																double thisCovXY = 0.0;
+																for (int j=0; j < numBurnInIterations; j++) {
+																	double thisDx = x[j] - mu[i][0];
+																	double thisDy = y[j] - mu[i][1];
+																	thisCovX  += thisDx * thisDx * r[j][i];
+																	thisCovY  += thisDy * thisDy * r[j][i];
+																	thisCovXY += thisDx * thisDy * r[j][i];
+																}
+																covX [i] = thisCovX  / mc[i];
+																covY [i] = thisCovY  / mc[i];
+																covXY[i] = thisCovXY / mc[i];
+															}
+															// check for clusters with small determinants - usually constant y payoffs
+															for (int i=0; i < numClusters; i++) {
+																double thisDet = my2dDet(covX[i], covXY[i], covXY[i], covY[i]);
+																if (thisDet < 1.0e-08) {
+																	int	thisCount = 0;
+																		while (my2dDet(covX[i], covXY[i], covXY[i], covY[i]) < 1.0e-08) {
+																			covY[i]   *= 10.0;
+																			thisCount += 1;
+																			if (thisCount > 1000) {
+																				std::cerr  <<"IssuerCallable: cannot make determinant large enough for cluster:" << i << std::endl;
+																				evalResult.errorCode = 11123;
+																				return(evalResult);
+																			}	
+																		}
+																}
+															}
+															// check for small clusters - reduce the #clusters and loop again
+															for (int i=0; i < numClusters; i++) {
+																if (mc[i] < 2.0 || mc[i] < numBurnInIterations*0.005) {
+																	numClusters  -= 1;
+																	continue;
+																}
+															}
+															// compute logLikelihood - sum the PDF's weighted by mix
+															double llik = 0.0;
+															for (int j=0; j < numBurnInIterations; j++) {
+																double thisPointLik = 0.0;
+																for (int i=0; i < numClusters; i++) {
+																	thisPointLik += z[j][i] * a[i];
+																}				
+																llik += log(thisPointLik);
+															}
+															// compute BIC
+															const int numVariables(2);
+															previousBIC = BIC; 
+															BIC = 2 * llik - numClusters * (1 + 2 * numVariables + (numVariables*numVariables - numVariables) / 2) * log(numBurnInIterations);
+													
+															// exit loop if BIC improvement small
+															if (thisIter > 1 && (abs(BIC / previousBIC - 1) < 0.01)) {
+																std::cout << "Iter:" << thisIter << " small BIC improvement" << std::endl;
+																done = true;
+															}
+
+														}
+
+													}
+												}
+
 											}  // if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
 											int jj = 1;
 										} // for (int thatBarrier 

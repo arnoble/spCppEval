@@ -1125,7 +1125,7 @@ int _tmain(int argc, WCHAR* argv[])
 								}
 								// compute correlation (currently daily returns, but might be better with stride=2 say, and dailyVol
 								if ((int)theseReturns[0].size()>25){
-									quantoCorrelations[i] = MyCorrelation(theseReturns[0], theseReturns[1]);
+									quantoCorrelations[i] = MyCorrelation(theseReturns[0], theseReturns[1],true);
 									double mean, stdev, stdErr;
 									MeanAndStdev(theseReturns[1], mean, stdev, stdErr);
 									quantoCrossRateVols[i] = stdev;
@@ -1694,7 +1694,7 @@ int _tmain(int argc, WCHAR* argv[])
 								double thisReturn = tempPrices1[i - 1] > 0.0 ? tempPrices1[i] / tempPrices1[i - 1] : 1.0;
 								tempReturns1.push_back(thisReturn);
 							}
-							double thisCorr = MyCorrelation(tempReturns, tempReturns1);
+							double thisCorr = MyCorrelation(tempReturns, tempReturns1,true);
 							corrsOtherId[thisUidx].push_back(otherUidx);
 							corrsCorrelation[thisUidx].push_back(thisCorr);
 						}
