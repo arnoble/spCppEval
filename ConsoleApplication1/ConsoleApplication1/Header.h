@@ -31,6 +31,7 @@
 #define EQ                                ==
 #define NEQ                               !=
 #define USE_GMM_CLUSTERS                  1
+#define GMM_INIT_MIX_RANDOMLY             0
 #define	INVERT_USING_LU_DECOMPOSITION     1
 #define MY_SQL_GENERAL_ERROR             -1            // all the SQL codes seem to be non-negative, so this is a way of signalling something general went wrong
 constexpr double PI                       = 3.141592653589793238;
@@ -3979,88 +3980,22 @@ public:
 										for (int thatBarrier = thisBarrier - 1; thatBarrier >= 0 && barrier[thatBarrier].endDays>0; thatBarrier--){
 											SpBarrier &thatB(barrier[thatBarrier]);
 											if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
-												if (doDebug) {
-													sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId," and barrierid=",thatBarrier);
-													mydb.prepare((SQLCHAR *)charBuffer, 1);
-													sprintf(charBuffer, "%s%d%s%d", "delete from regressioncoeff where productid=", productId, " and barrierid=", thatBarrier);
-													mydb.prepare((SQLCHAR *)charBuffer, 1);
-												}
-												// discount callableCashflows back to this barrier
-												double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
-												laterDiscountFactor = thatB.discountFactor;
-												for (int i=0; i < numBurnInIterations; i++){ 
-													callableCashflows[i] *= thisDiscountFactor;
-													lhs[i][0] = callableCashflows[i];
-												}										
-												if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()){
-													std::cerr << " callable: incorrect size of worstUlRegressionPrices" << std::endl;  exit(1);
-												}
-												if (numUls>1 && numBurnInIterations != (int)thatB.nextWorstUlRegressionPrices.size()){
-													std::cerr << " callable: incorrect size of nextWorstUlRegressionPrices" << std::endl;  exit(1);
-												}
-												//  regress callableCashflows(possibly changed by later exercise(s)) vs (1.0, WorstUL, WorstUL ^ 2, NextWorstUL, NextWorstUL ^ 2)
-												Mat_IO_DP rhs(numBurnInIterations, numLRMrhs), conditionalExpectation(numBurnInIterations, 1);
-												Mat_O_DP  XX(numLRMrhs, numLRMrhs), XXinv(numLRMrhs, numLRMrhs), XY(numLRMrhs, 1), lsB(numLRMrhs, 1);
-
-												for (int i=0; i < numBurnInIterations; i++){
-													double thisWorst      = thatB.worstUlRegressionPrices[i];
-													rhs[i][0] = 1.0;
-													rhs[i][1] = thisWorst;
-													rhs[i][2] = thisWorst*thisWorst;
-													if (numUls>1){
-														double thisNextWorst  = thatB.nextWorstUlRegressionPrices[i];
-														rhs[i][3] = thisNextWorst;
-														rhs[i][4] = thisNextWorst*thisNextWorst;
-													}
-													if (doDebug) {
-														sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,X2,Y) values (", productId, ",", thatBarrier, ",", rhs[i][1], ",", rhs[i][2], ",", lhs[i][0],");");
-														mydb.prepare((SQLCHAR *)charBuffer, 1);
-													}
-												}
-												// XX = rhsT ** rhs
-												MMult(rhs, rhs, XX, true, false);
-												// PrintMatrix(XX, "XX");
-												MatInverse(XX, XXinv);
-												// XY = Xt ** lhs
-												MMult(rhs, lhs, XY, true, false);
-												// b = XX ** XY
-												MMult(XXinv, XY, lsB, false, false);
-												// install regression coefficients for this barrier
-												thatB.lsConstant        = lsB[0][0];
-												thatB.lsWorstB          = lsB[1][0];
-												thatB.lsWorstSquaredB   = lsB[2][0]; 
-												if (doDebug) {
-													sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressioncoeff (ProductId,BarrierId,constant,b1,b2) values (", productId, ",", thatBarrier, ",", lsB[0][0], ",", lsB[1][0], ",", lsB[2][0], ");");
-													mydb.prepare((SQLCHAR *)charBuffer, 1);
-												}
-												if (numUls > 1){
-													thatB.lsNextWorstB          = lsB[3][0];
-													thatB.lsNextWorstSquaredB   = lsB[4][0];
-												}
-												// if this barrier would have been hit, revise cashflows accordingly
-												MMult(rhs, lsB, conditionalExpectation, false, false);
-												for (int i=0; i < numBurnInIterations; i++){
-													double thisPayoff         = thatB.payoff;
-													double continuationValue  = conditionalExpectation[i][0];
-													if (continuationValue > thisPayoff){
-														// issuer would call
-														callableCashflows[i] = thisPayoff;
-													}
-												}
+												Mat_IO_DP conditionalExpectation(numBurnInIterations, 1);
 
 												//
 												//  Gaussian Mixture Model
 												//
 												if (USE_GMM_CLUSTERS) {
-													int       numClusters(7); // seems a reasonable max# to start with  NOTE: this may decrease as we try and simplify the model
-													bool      done(false);
-													const int maxIterations(20);
+													int       numClusters(7);    // R-based tests show this seems a reasonable max# to start with  
+																			     //   NOTE: this may decrease as we try and simplify the model
+													bool      done(false);       // EM algorithm is iterative 
+													const int maxIterations(20); // R-based tests show this should be enough
 													std::vector<double>  &x(thatB.worstUlRegressionPrices);
 													std::vector<double>  &y(callableCashflows);
 													double BIC(0.0);
 													while (!done && numClusters > 0) {
 														//
-														// init cluster data uniformly
+														// init cluster assignment uniformly
 														//
 														Mat_IO_DP initialk(numBurnInIterations, 1);
 														for (int i=0,thisCluster=0; i < numBurnInIterations;i++) {
@@ -4100,18 +4035,30 @@ public:
 															covXY.push_back(dataCovXY);
 														}
 														//
-														// init cluster mix uniformly
+														// init cluster mix 
 														//
 														std::vector<double> a;
-														double ranSum(0.0);
-														for (int i=0; i < numClusters; i++) {
-															double thisRan = ArtsRan();
-															a.push_back(thisRan);
-															ranSum += thisRan;
+														if (GMM_INIT_MIX_RANDOMLY) {
+															// random mix
+															double ranSum(0.0);
+															for (int i=0; i < numClusters; i++) {
+																double thisRan = ArtsRan();
+																a.push_back(thisRan);
+																ranSum += thisRan;
+															}
+															for (int i=0; i < numClusters; i++) {
+																a[i] /= ranSum;
+															}
 														}
-														for (int i=0; i < numClusters; i++) {
-															a[i] /= ranSum;
+														else {
+															// uniform mix
+															const double initMix(1.0/numClusters);
+															for (int i=0; i < numClusters; i++) {
+																a[i] = initMix;
+															}
 														}
+
+														
 														// EM loop 
 														Mat_IO_DP z(numBurnInIterations,numClusters);  // PDFs
 														Mat_IO_DP r(numBurnInIterations, numClusters); // responsibilities
@@ -4220,6 +4167,80 @@ public:
 
 														}
 
+													}
+												}
+												else {   // global basis function regression
+													if (doDebug) {
+														sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId, " and barrierid=", thatBarrier);
+														mydb.prepare((SQLCHAR *)charBuffer, 1);
+														sprintf(charBuffer, "%s%d%s%d", "delete from regressioncoeff where productid=", productId, " and barrierid=", thatBarrier);
+														mydb.prepare((SQLCHAR *)charBuffer, 1);
+													}
+													// discount callableCashflows back to this barrier
+													double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
+													laterDiscountFactor = thatB.discountFactor;
+													for (int i=0; i < numBurnInIterations; i++) {
+														callableCashflows[i] *= thisDiscountFactor;
+														lhs[i][0] = callableCashflows[i];
+													}
+													if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()) {
+														std::cerr << " callable: incorrect size of worstUlRegressionPrices" << std::endl;  exit(1);
+													}
+													if (numUls > 1 && numBurnInIterations != (int)thatB.nextWorstUlRegressionPrices.size()) {
+														std::cerr << " callable: incorrect size of nextWorstUlRegressionPrices" << std::endl;  exit(1);
+													}
+													//  regress callableCashflows(possibly changed by later exercise(s)) vs (1.0, WorstUL, WorstUL ^ 2, NextWorstUL, NextWorstUL ^ 2)
+													Mat_IO_DP rhs(numBurnInIterations, numLRMrhs);
+													Mat_O_DP  XX(numLRMrhs, numLRMrhs), XXinv(numLRMrhs, numLRMrhs), XY(numLRMrhs, 1), lsB(numLRMrhs, 1);
+
+													for (int i=0; i < numBurnInIterations; i++) {
+														double thisWorst      = thatB.worstUlRegressionPrices[i];
+														rhs[i][0] = 1.0;
+														rhs[i][1] = thisWorst;
+														rhs[i][2] = thisWorst * thisWorst;
+														if (numUls > 1) {
+															double thisNextWorst  = thatB.nextWorstUlRegressionPrices[i];
+															rhs[i][3] = thisNextWorst;
+															rhs[i][4] = thisNextWorst * thisNextWorst;
+														}
+														if (doDebug) {
+															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,X2,Y) values (", productId, ",", thatBarrier, ",", rhs[i][1], ",", rhs[i][2], ",", lhs[i][0], ");");
+															mydb.prepare((SQLCHAR *)charBuffer, 1);
+														}
+													}
+													// XX = rhsT ** rhs
+													MMult(rhs, rhs, XX, true, false);
+													// PrintMatrix(XX, "XX");
+													MatInverse(XX, XXinv);
+													// XY = Xt ** lhs
+													MMult(rhs, lhs, XY, true, false);
+													// b = XX ** XY
+													MMult(XXinv, XY, lsB, false, false);
+													// install regression coefficients for this barrier
+													thatB.lsConstant        = lsB[0][0];
+													thatB.lsWorstB          = lsB[1][0];
+													thatB.lsWorstSquaredB   = lsB[2][0];
+													if (doDebug) {
+														sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressioncoeff (ProductId,BarrierId,constant,b1,b2) values (", productId, ",", thatBarrier, ",", lsB[0][0], ",", lsB[1][0], ",", lsB[2][0], ");");
+														mydb.prepare((SQLCHAR *)charBuffer, 1);
+													}
+													if (numUls > 1) {
+														thatB.lsNextWorstB          = lsB[3][0];
+														thatB.lsNextWorstSquaredB   = lsB[4][0];
+													}
+													// form conditional expectation
+													MMult(rhs, lsB, conditionalExpectation, false, false);
+
+												} // END global basis function regression
+												//
+												// using the conditionalExpectations, if this barrier would have exercised early, revise cashflows accordingly
+												//
+												for (int i=0; i < numBurnInIterations; i++) {
+													double thisPayoff         = thatB.payoff;
+													double continuationValue  = conditionalExpectation[i][0];
+													if (continuationValue > thisPayoff) {
+														// issuer would call, opting for the cheaper (expected) payoff
+														callableCashflows[i] = thisPayoff;
 													}
 												}
 
