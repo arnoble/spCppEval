@@ -913,10 +913,12 @@ EvalResult mvpdf(Mat_IO_DP     &z,
 	const Mat_IO_DP            &mu,
 	const std::vector<double>  &covX, 
 	const std::vector<double>  &covY, 
-	const std::vector<double>  &covXY) {
+	const std::vector<double>  &covXY,
+	const int thisNumClusters            // only use this number of elements/columns in above matrices/vectors
+	) {
 
 	EvalResult  evalResult(0.0, 0.0, 0);
-	const int   numClusters(covX.size());
+	const int   numClusters(thisNumClusters);
 
 	for (int i=0; i < numClusters;i++) {
 		//
@@ -4050,7 +4052,7 @@ public:
 												//  Gaussian Mixture Model
 												//
 												if (USE_GMM_CLUSTERS) {
-													int       numClusters(7); // seems a reasonable max#
+													int       numClusters(7); // seems a reasonable max# to start with  NOTE: this may decrease as we try and simplify the model
 													bool      done(false);
 													const int maxIterations(20);
 													std::vector<double>  &x(thatB.worstUlRegressionPrices);
@@ -4116,7 +4118,7 @@ public:
 														double  previousBIC(0.0);
 														for (int thisIter=0; !done && thisIter < maxIterations; thisIter++) {
 															// Calculate into z the PDF for each x,y point under each cluster mean and covariances
-															evalResult = mvpdf(z, x, y, mu, covX, covY, covXY);
+															evalResult = mvpdf(z, x, y, mu, covX, covY, covXY,numClusters);
 															if (evalResult.errorCode != 0) {
 																	return(evalResult);
 															}															
