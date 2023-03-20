@@ -912,10 +912,10 @@ EvalResult mvpdf(Mat_IO_DP     &z,
 	const std::vector<double>  &x, 
 	const std::vector<double>  &y, 
 	const Mat_IO_DP            &mu,
-	const std::vector<double>  &covX, 
-	const std::vector<double>  &covY, 
-	const std::vector<double>  &covXY,
-	const int thisNumClusters            // only use this number of elements/columns in above matrices/vectors
+	const Vec_IO_DP            &covX, 
+	const Vec_IO_DP            &covY,
+	const Vec_IO_DP            &covXY,
+	const int                  thisNumClusters            // only use this number of elements/columns in above matrices/vectors
 	) {
 
 	EvalResult  evalResult(0.0, 0.0, 0);
@@ -3967,32 +3967,47 @@ public:
 								*
 								*/
 								if (issuerCallable /* && getMarketData */ &&  b.capitalOrIncome && numMcIterations>1 && thisIteration < numBurnInIterations){
-									//  store burn-in terminal cashflows, for use in LS regression
+									//  store burn-in terminal cashflows, for use in GMM/LS regression
 									callableCashflows.push_back(thisAmount);
-									// once burned-in, estimate the LS regressions
+									// once burned-in, estimate the GMM/LS regressions
 									if (thisIteration == (numBurnInIterations - 1)){
 										if (numBurnInIterations != (int)callableCashflows.size()){
 											std::cerr << " callable: incorrect size of callableCashflows" << std::endl;  exit(1);
 										}
-										Mat_IO_DP lhs(numBurnInIterations, 1);
 										double laterDiscountFactor = b.discountFactor;
-										// Working backwards, estimate conditional expectation at each observation
+										// Working backwards, estimate conditional expectation at each obsDate
 										for (int thatBarrier = thisBarrier - 1; thatBarrier >= 0 && barrier[thatBarrier].endDays>0; thatBarrier--){
 											SpBarrier &thatB(barrier[thatBarrier]);
 											if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
 												Mat_IO_DP conditionalExpectation(numBurnInIterations, 1);
 
+												// discount callableCashflows back to this obsDate
+												double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
+												laterDiscountFactor = thatB.discountFactor;
+												for (int i=0; i < numBurnInIterations; i++) {
+													callableCashflows[i] *= thisDiscountFactor;
+												}
+
 												//
-												//  Gaussian Mixture Model
+												//  Gaussian Mixture Model  condExp(y|x)  =  sumOverClusters( clusterMix * (muY  + covXY/covXX * (x - muX) )
 												//
 												if (USE_GMM_CLUSTERS) {
-													int       numClusters(7);    // R-based tests show this seems a reasonable max# to start with  
+													int         numClusters(7);    // R-based tests show this seems a reasonable max# to start with  
 																			     //   NOTE: this may decrease as we try and simplify the model
-													bool      done(false);       // EM algorithm is iterative 
-													const int maxIterations(20); // R-based tests show this should be enough
+													bool        done(false);       // EM algorithm is iterative 
+													const int   gmmIterations(20); // R-based tests show this should be enough
 													std::vector<double>  &x(thatB.worstUlRegressionPrices);
 													std::vector<double>  &y(callableCashflows);
-													double BIC(0.0);
+													double       BIC(0.0);
+													Vec_IO_DP    a(numClusters), covX(numClusters), covY(numClusters), covXY(numClusters);
+													Mat_IO_DP    mu(numClusters, 2);
+													const double minX = *std::min_element(std::begin(x), std::end(x));
+													const double minY = *std::min_element(std::begin(y), std::end(y));
+													const double maxX = *std::max_element(std::begin(x), std::end(x));
+													const double maxY = *std::max_element(std::begin(y), std::end(y));
+													const double dataCovX  = MyCorrelation(x, x, false) ;
+													const double dataCovY  = MyCorrelation(y, y, false) ;
+													const double dataCovXY = MyCorrelation(x, y, false) ;
 													while (!done && numClusters > 0) {
 														//
 														// init cluster assignment uniformly
@@ -4005,10 +4020,6 @@ public:
 														//
 														// init mu uniformly
 														//
-														const double minX = *std::min_element(std::begin(x), std::end(x));
-														const double minY = *std::min_element(std::begin(y), std::end(y));
-														const double maxX = *std::max_element(std::begin(x), std::end(x));
-														const double maxY = *std::max_element(std::begin(y), std::end(y));
 														const double xBucketSize = (maxX - minX) / numClusters;
 														const double yBucketSize = (maxY - minY) / numClusters;
 														std::vector<double> clusterBreaks;
@@ -4017,7 +4028,6 @@ public:
 															clusterBreaks.push_back(thisClusterBreak);
 															thisClusterBreak += 1.0;
 														}
-														Mat_IO_DP mu(numClusters, 2);
 														for (int i=0; i < numClusters; i++) {
 															mu[i][0] = minX + xBucketSize * clusterBreaks[i];
 															mu[i][1] = minY + yBucketSize * clusterBreaks[i];
@@ -4025,25 +4035,23 @@ public:
 														//
 														// init cov - spread data-covariance across all clusters
 														//
-														const double dataCovX  = MyCorrelation(x, x, false) / numClusters;
-														const double dataCovY  = MyCorrelation(y, y, false) / numClusters;
-														const double dataCovXY = MyCorrelation(x, y, false) / numClusters;
-														std::vector<double> covX, covY, covXY;
+														const double thisCovX  =  dataCovX  / numClusters;
+														const double thisCovY  =  dataCovY  / numClusters;
+														const double thisCovXY =  dataCovXY / numClusters;
 														for (int i=0; i < numClusters; i++) {
-															covX.push_back( dataCovX );
-															covY.push_back( dataCovY );
-															covXY.push_back(dataCovXY);
+															covX [i] = thisCovX  ;
+															covY [i] = thisCovY  ;
+															covXY[i] = thisCovXY ;
 														}
 														//
 														// init cluster mix 
 														//
-														std::vector<double> a;
 														if (GMM_INIT_MIX_RANDOMLY) {
 															// random mix
 															double ranSum(0.0);
 															for (int i=0; i < numClusters; i++) {
 																double thisRan = ArtsRan();
-																a.push_back(thisRan);
+																a[i]    = thisRan;
 																ranSum += thisRan;
 															}
 															for (int i=0; i < numClusters; i++) {
@@ -4063,42 +4071,52 @@ public:
 														Mat_IO_DP z(numBurnInIterations,numClusters);  // PDFs
 														Mat_IO_DP r(numBurnInIterations, numClusters); // responsibilities
 														double  previousBIC(0.0);
-														for (int thisIter=0; !done && thisIter < maxIterations; thisIter++) {
+														bool    emDone(false);
+														for (int thisIter=0; !emDone && !done && thisIter < gmmIterations; thisIter++) {
 															// Calculate into z the PDF for each x,y point under each cluster mean and covariances
-															evalResult = mvpdf(z, x, y, mu, covX, covY, covXY,numClusters);
+															evalResult = mvpdf(z, x, y, mu, covX, covY, covXY, numClusters);
 															if (evalResult.errorCode != 0) {
 																	return(evalResult);
 															}															
-															// Expectation Step for each cluster - responsibility of each cluster for each x,y datapoint
+															// Expectation Step for each cluster - relative responsibility of each cluster for each x,y datapoint															
 															for (int j=0; j < numBurnInIterations; j++) {
 																double totalR = 0.0;
 																for (int i=0; i < numClusters; i++) {
-																	double thisResponsibility = a[i] * z[j][i];
+																	double thisResponsibility = a[i] * z[j][i]; // probability of this x,y under this cluster i, times cluster's mix a[i] 
 																	totalR     += thisResponsibility;
 																	r[j][i]     = thisResponsibility;
 																}
+																// rescale responsabilities to sum to 1.0 for each x,y datapoint
 																for (int i=0; i < numClusters; i++) {
 																	r[j][i]     /= totalR;
 																}
 															}
-															// classify each x,y to highest r
-															Vec_IO_DP eK(numBurnInIterations);
-															Vec_IO_DP mc(numClusters);
+															// classify each x,y to cluster with highest r = responsabiity
+															Vec_IO_DP eK(numBurnInIterations);  // debug only - maybe nice to see which cluster associates most closely with each point
+															Vec_IO_DP mc(numClusters,0.0);      // sum of responsabilities for each cluster - will update mix below
+															//
+															std::cerr << "************* CHECK mc init was zero **********" << std::endl;
+															//
+															for (int i=0; i < numClusters; i++) {
+																mc[i] = 0.0;
+															}
 															for (int j=0; j < numBurnInIterations; j++) {
 																int    thisIndex = 0;
 																double highestR  = 0.0;
 																for (int i=0; i < numClusters; i++) {
 																	double thisR = r[j][i];
-																	mc[i] += thisR;
+																	mc[i] += thisR; // the only essential line in this for loop
 																	if (thisR > highestR) { highestR = thisR;  thisIndex = i; }
 																}
 																eK[j] = thisIndex;
 															}
-															// Maximisation step - update mix and normal means/covars using sum(r) for each cluster
+															// Maximisation likelihood step 
+															//  - the MLEs for each cluster's parameters are just the sample means/covars weighted by the cluster responsabilities
+															//  - update a = mix and normal means/covars using mc[i] = sum(r[j][i]) for each cluster i
 															for (int i=0; i < numClusters; i++) {
 																double muX  = 0.0;
 																double muY  = 0.0;
-																a[i] = mc[i] / numBurnInIterations;
+																a[i] = mc[i] / numBurnInIterations;  // update mix to each cluster's relative aggregate responsibility
 																for (int j=0; j < numBurnInIterations; j++) {
 																	muX += x[j] * r[j][i];
 																	muY += y[j] * r[j][i];
@@ -4106,43 +4124,34 @@ public:
 																mu[i][0] = muX / mc[i];
 																mu[i][1] = muY / mc[i];
 															}
-															// update covariance matrices, also weighted by responsibilities
+															// similarly update covariance matrices, also weighted by responsibilities
 															for (int i=0; i < numClusters; i++) {
 																double thisCovX  = 0.0;
 																double thisCovY  = 0.0;
 																double thisCovXY = 0.0;
 																for (int j=0; j < numBurnInIterations; j++) {
-																	double thisDx = x[j] - mu[i][0];
-																	double thisDy = y[j] - mu[i][1];
-																	thisCovX  += thisDx * thisDx * r[j][i];
-																	thisCovY  += thisDy * thisDy * r[j][i];
-																	thisCovXY += thisDx * thisDy * r[j][i];
+																	double thisDx             = x[j] - mu[i][0];
+																	double thisDy             = y[j] - mu[i][1];
+																	double thisResponsibility = r[j][i];
+																	thisCovX  += thisDx * thisDx * thisResponsibility;
+																	thisCovY  += thisDy * thisDy * thisResponsibility;
+																	thisCovXY += thisDx * thisDy * thisResponsibility;
 																}
 																covX [i] = thisCovX  / mc[i];
 																covY [i] = thisCovY  / mc[i];
 																covXY[i] = thisCovXY / mc[i];
 															}
-															// check for clusters with small determinants - usually constant y payoffs
+															// fixup clusters with small determinants - usually constant y payoffs
 															for (int i=0; i < numClusters; i++) {
-																double thisDet = my2dDet(covX[i], covXY[i], covXY[i], covY[i]);
-																if (thisDet < 1.0e-08) {
-																	int	thisCount = 0;
-																		while (my2dDet(covX[i], covXY[i], covXY[i], covY[i]) < 1.0e-08) {
-																			covY[i]   *= 10.0;
-																			thisCount += 1;
-																			if (thisCount > 1000) {
-																				std::cerr  <<"IssuerCallable: cannot make determinant large enough for cluster:" << i << std::endl;
-																				evalResult.errorCode = 11123;
-																				return(evalResult);
-																			}	
-																		}
-																}
-															}
-															// check for small clusters - reduce the #clusters and loop again
-															for (int i=0; i < numClusters; i++) {
-																if (mc[i] < 2.0 || mc[i] < numBurnInIterations*0.005) {
-																	numClusters  -= 1;
-																	continue;
+																int	thisCount = 0;
+																while (my2dDet(covX[i], covXY[i], covXY[i], covY[i]) < 1.0e-08) {
+																	covY[i]   *= 10.0;
+																	thisCount += 1;
+																	if (thisCount > 1000) {
+																		std::cerr << "IssuerCallable: cannot make determinant large enough for cluster:" << i << std::endl;
+																		evalResult.errorCode = 11123;
+																		return(evalResult);
+																	}
 																}
 															}
 															// compute logLikelihood - sum the PDF's weighted by mix
@@ -4165,8 +4174,23 @@ public:
 																done = true;
 															}
 
+															// check for small clusters - reduce the #clusters and loop again
+															for (int i=0; i < numClusters; i++) {
+																if (mc[i] < 2.0 || mc[i] < numBurnInIterations*0.005) {
+																	numClusters  -= 1;
+																	emDone        = true;
+																	continue;
+																}
+															}
+														} // for EM loop
+													}  // while !done
+													// now we have a GMM, form conditional expectation   condExp(y|x)  =  sumOverClusters( clusterMix * (muY  + covXY/covXX * (x - muX) )
+													for (int j=0; j < numBurnInIterations; j++) {
+														double thisExpectation(0.0);
+														for (int i=0; i < numClusters; i++) {
+															thisExpectation += a[i] * (mu[i][1] + covXY[i]/covX[i] * (x[j] - mu[i][0]) );
 														}
-
+														conditionalExpectation[j][0] = thisExpectation;
 													}
 												}
 												else {   // global basis function regression
@@ -4175,13 +4199,6 @@ public:
 														mydb.prepare((SQLCHAR *)charBuffer, 1);
 														sprintf(charBuffer, "%s%d%s%d", "delete from regressioncoeff where productid=", productId, " and barrierid=", thatBarrier);
 														mydb.prepare((SQLCHAR *)charBuffer, 1);
-													}
-													// discount callableCashflows back to this barrier
-													double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
-													laterDiscountFactor = thatB.discountFactor;
-													for (int i=0; i < numBurnInIterations; i++) {
-														callableCashflows[i] *= thisDiscountFactor;
-														lhs[i][0] = callableCashflows[i];
 													}
 													if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()) {
 														std::cerr << " callable: incorrect size of worstUlRegressionPrices" << std::endl;  exit(1);
@@ -4192,6 +4209,10 @@ public:
 													//  regress callableCashflows(possibly changed by later exercise(s)) vs (1.0, WorstUL, WorstUL ^ 2, NextWorstUL, NextWorstUL ^ 2)
 													Mat_IO_DP rhs(numBurnInIterations, numLRMrhs);
 													Mat_O_DP  XX(numLRMrhs, numLRMrhs), XXinv(numLRMrhs, numLRMrhs), XY(numLRMrhs, 1), lsB(numLRMrhs, 1);
+													Mat_IO_DP lhs(numBurnInIterations, 1);
+													for (int i=0; i < numBurnInIterations; i++) {
+														lhs[i][0] = callableCashflows[i];
+													}
 
 													for (int i=0; i < numBurnInIterations; i++) {
 														double thisWorst      = thatB.worstUlRegressionPrices[i];
@@ -4232,6 +4253,7 @@ public:
 													MMult(rhs, lsB, conditionalExpectation, false, false);
 
 												} // END global basis function regression
+
 												//
 												// using the conditionalExpectations, if this barrier would have exercised early, revise cashflows accordingly
 												//
