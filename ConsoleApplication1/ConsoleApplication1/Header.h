@@ -4107,10 +4107,25 @@ public:
 														bool    emDone(false);                          // EM is done once minimal BIC improvement, or if we need to reduce #clusters
 														for (int thisIter=0; !emDone && !done && thisIter < gmmIterations; thisIter++) {
 															// Calculate into z the PDF for each x,y point under each cluster mean and covariances
+															Mat_IO_DP  oldZ(z);
 															evalResult = mvpdf(z, x, y, mu, covX, covY, covXY, numClusters);
 															if (evalResult.errorCode != 0) {
 																	return(evalResult);
-															}															
+															}
+															if (thisIter > 0) {
+																// one stopping rule is to stop if all z elements are within some epsilon of oldZ
+																double maxDz(0.0);
+																for (int j=0; j < numBurnInIterations; j++) {
+																	for (int i=0; i < numClusters; i++) {
+																		double thisDz = abs(z[j][i] - oldZ[j][i]);
+																		if (thisDz > maxDz) { maxDz = thisDz; }
+																	}
+																}
+																if (maxDz < 0.01) {
+																	done = true;
+																	continue;
+																}																
+															}
 															// Expectation Step - relative likelihood of each cluster to have been "responsible" for each x,y datapoint															
 															for (int j=0; j < numBurnInIterations; j++) {
 																double sumModelResponsabilities = 0.0;
@@ -4157,6 +4172,7 @@ public:
 																mu[i][1] = muY / mc[i];
 															}
 															// similarly update covariance matrices, also weighted by responsibilities
+															double totalCovarX(0.0);  // just debug info
 															for (int i=0; i < numClusters; i++) {
 																double thisCovX  = 0.0;
 																double thisCovY  = 0.0;
@@ -4172,6 +4188,7 @@ public:
 																covX [i] = thisCovX  / mc[i];
 																covY [i] = thisCovY  / mc[i];
 																covXY[i] = thisCovXY / mc[i];
+																totalCovarX += covX[i];
 															}
 															// fixup clusters with small determinants - usually constant y payoffs
 															for (int i=0; i < numClusters; i++) {
@@ -4202,14 +4219,14 @@ public:
 															BIC = 2 * llik - numClusters * (1 + 2 * numVariables + (numVariables*numVariables - numVariables) / 2) * log(numBurnInIterations);
 													
 															// exit loop if BIC improvement small
-															if (thisIter > 1 && (abs(BIC / previousBIC - 1) < 0.01)) {
+															if (thisIter > 10 && (abs(BIC / previousBIC - 1) < 0.01)) {
 																std::cout << "Iter:" << thisIter << " small BIC improvement" << std::endl;
 																done = true;															
 															}
 
 															// check for small clusters - reduce the #clusters and loop again
 															for (int i=0; i < numClusters; i++) {
-																if (mc[i] < 2.0 || mc[i] < numBurnInIterations*0.005) {
+																if (mc[i] < 2.0) {
 																	numClusters  -= 1;
 																	emDone        = true;
 																	continue;
