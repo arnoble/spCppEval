@@ -1132,7 +1132,7 @@ double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues, c
 	if (corrOrCov) {
 		coVariance /= (sqrt(aVariance)*sqrt(bVariance));
 	}
-	return(coVariance);
+	return(coVariance/N);
 }
 
 
