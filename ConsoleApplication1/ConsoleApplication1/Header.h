@@ -926,9 +926,9 @@ EvalResult mvpdf(Mat_IO_DP     &z,
 		// inverse of cov[i]   a  b            =  1/(a.d - b.c)   *   d   -b
 		//                     c  d                                  -c    a
 		//
-		double det = my2dDet(covX[i], covXY[i], covXY[i], covY[i]);
-		double oneOverRootDet = 1.0 / pow(det * 2.0 * PI, 0.5);
-		double recipDet,inverseA, inverseB, inverseD;
+		double det  = my2dDet(           covX[i],           covXY[i],            covXY[i],            covY[i]);
+		double oneOver2piRootDet = 1.0 / (2.0 * PI * pow(det, 0.5));
+		double recipDet, inverseA, inverseB, inverseD;
 		recipDet = 1.0 / det;
 		inverseA =  recipDet * covY [i];
 		inverseB = -recipDet * covXY[i];
@@ -944,7 +944,7 @@ EvalResult mvpdf(Mat_IO_DP     &z,
 			double thisY = y[j] - mu[i][1];
 			// (x,y) * [inverseA  inverseB] * [x]
 			//         [inverseB  inverseD]   [y]
-			z[j][i] =  exp(-0.5 * (thisX*(thisX*inverseA + thisY*inverseB)  + thisY*(thisX*inverseB + thisY * inverseD)) * oneOverRootDet);
+			z[j][i] =  exp(-0.5 * (thisX*(thisX*inverseA + thisY * inverseB) + thisY * (thisX*inverseB + thisY * inverseD))) * oneOver2piRootDet;
 		}
 	}
 	return(evalResult);
