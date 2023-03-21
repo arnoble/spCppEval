@@ -4252,6 +4252,7 @@ public:
 													}
 													// install mix coefficients for this barrier
 													for (int i=0; i < numClusters; i++) {
+														thatB.a.push_back(     a[i]      );
 														thatB.muX.push_back(   mu[i][0]  );
 														thatB.muY.push_back(   mu[i][1]  );
 														thatB.covX.push_back(  covX[i]   );
