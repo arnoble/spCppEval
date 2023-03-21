@@ -1119,6 +1119,7 @@ double irr(const std::vector<double> &c, const std::vector<double> &t) {
 // correlation
 double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues, const bool corrOrCov) {
 	int N = (int)aValues.size();
+	if (N == 0) { return(0.0); }
 	double fMean  = std::accumulate(aValues.begin(), aValues.end(), 0.0) / N;
 	double fMean1 = std::accumulate(bValues.begin(), bValues.end(), 0.0) / N;
 	double aVariance = 0.0, bVariance = 0.0, coVariance = 0.0;
@@ -1132,7 +1133,7 @@ double MyCorrelation(std::vector<double> aValues, std::vector<double> bValues, c
 	if (corrOrCov) {
 		coVariance /= (sqrt(aVariance)*sqrt(bVariance));
 	}
-	return(coVariance/N);
+	return(coVariance/(N-1));
 }
 
 
