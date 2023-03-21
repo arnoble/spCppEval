@@ -4041,7 +4041,8 @@ public:
 															mydb.prepare((SQLCHAR *)charBuffer, 1);
 														}
 													}
-													while (!done && numClusters > 0) {
+													// iterate until done, or there is only 1 cluster
+													while (!done && numClusters > 1) {
 														//
 														// init cluster assignment uniformly
 														//
@@ -4105,7 +4106,8 @@ public:
 														Mat_IO_DP r(numBurnInIterations, numClusters);  // responsibilities of clusters for x,y datapoints
 														double  previousBIC(0.0);                       // wany to track BIC improvements in EM loop
 														bool    emDone(false);                          // EM is done once minimal BIC improvement, or if we need to reduce #clusters
-														for (int thisIter=0; !emDone && !done && thisIter < gmmIterations; thisIter++) {
+														int     thisIter;
+														for(thisIter=0; !emDone && thisIter < gmmIterations; thisIter++) {
 															// Calculate into z the PDF for each x,y point under each cluster mean and covariances
 															Mat_IO_DP  oldZ(z);
 															evalResult = mvpdf(z, x, y, mu, covX, covY, covXY, numClusters);
@@ -4122,7 +4124,8 @@ public:
 																	}
 																}
 																if (maxDz < 0.01) {
-																	done = true;
+																	emDone = true;
+																	done   = true;
 																	continue;
 																}																
 															}
@@ -4221,7 +4224,8 @@ public:
 															// exit loop if BIC improvement small
 															if (thisIter > 10 && (abs(BIC / previousBIC - 1) < 0.01)) {
 																std::cout << "Iter:" << thisIter << " small BIC improvement" << std::endl;
-																done = true;															
+																emDone = true;
+																done   = true;
 															}
 
 															// check for small clusters - reduce the #clusters and loop again
@@ -4233,6 +4237,9 @@ public:
 																}
 															}
 														} // for EM loop
+														if (thisIter == gmmIterations) {
+															done = true;
+														}
 													}  // while !done
 													// now we have a GMM, form conditional expectation   condExp(y|x)  =  sumOverClusters( clusterMix * (muY  + covXY/covXX * (x - muX) )
 													// ... lower down we will use these to test whether issuer would have called
