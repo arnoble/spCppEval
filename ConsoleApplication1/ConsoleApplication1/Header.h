@@ -4025,6 +4025,7 @@ public:
 													std::vector<double>  &y(callableCashflows);
 													double       BIC(0.0);
 													Vec_IO_DP    a(numClusters), covX(numClusters), covY(numClusters), covXY(numClusters);
+													Vec_IO_DP    eK(numBurnInIterations);  // debug only - nice to see which cluster associates most closely with each point
 													Mat_IO_DP    mu(numClusters, 2);
 													const double minX = *std::min_element(std::begin(x), std::end(x));
 													const double minY = *std::min_element(std::begin(y), std::end(y));
@@ -4036,10 +4037,6 @@ public:
 													if (doDebug) {
 														sprintf(charBuffer, "%s%d%s%d", "delete from gmmcoeff where productid=", productId, " and barrierid=", thatBarrier);
 														mydb.prepare((SQLCHAR *)charBuffer, 1);
-														for (int i=0; i < numBurnInIterations; i++) {
-															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,Y) values (", productId, ",", thatBarrier, ",", x[i], ",", y[i], ");");
-															mydb.prepare((SQLCHAR *)charBuffer, 1);
-														}
 													}
 													// iterate until done, or there is only 1 cluster
 													while (!done && numClusters > 1) {
@@ -4146,7 +4143,6 @@ public:
 															// recalc cluster mix mc[] to their current expected probability of having generated all x,y datapoints
 															//   = the relative proportion of each cluster's total responsabilities
 															Vec_IO_DP mc(numClusters);          // sum of responsabilities for each cluster - will update mix below
-															Vec_IO_DP eK(numBurnInIterations);  // debug only - maybe nice to see which cluster associates most closely with each point
 															for (int i=0; i < numClusters; i++) {
 																mc[i] = 0.0;
 															}
@@ -4155,7 +4151,7 @@ public:
 																double highestR  = 0.0;
 																for (int i=0; i < numClusters; i++) {
 																	double thisR = r[j][i];
-																	mc[i] += thisR; // the only essential line in this for loop
+																	mc[i] += thisR;
 																	if (thisR > highestR) { highestR = thisR;  thisCluster = i; }
 																}
 																eK[j] = thisCluster;
@@ -4261,6 +4257,15 @@ public:
 													thatB.gmmNumClusters  =  numClusters;
 													// debug info
 													if (doDebug) {
+														for (int i=0; i < numBurnInIterations; i++) {
+															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,Y,ClusterId) values (", 
+																productId,   ",", 
+																thatBarrier, ",", 
+																x[i],        ",", 
+																y[i],        ",",
+																eK[i],       ");");
+															mydb.prepare((SQLCHAR *)charBuffer, 1);
+														}
 														for (int i=0; i < numClusters; i++) {
 															sprintf(charBuffer, "%s %d%s %d%s %d%s %lf%s %lf%s %lf%s %lf%s %lf%s %lf%s ", 
 																"insert into gmmcoeff (ProductId,BarrierId,ClusterId,mix,muX,muY,covX,covY,covXY) values (", 
