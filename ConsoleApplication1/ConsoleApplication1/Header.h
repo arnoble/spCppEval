@@ -3994,13 +3994,18 @@ public:
 										for (int thatBarrier = thisBarrier - 1; thatBarrier >= 0 && barrier[thatBarrier].endDays>0; thatBarrier--){
 											SpBarrier &thatB(barrier[thatBarrier]);
 											if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
-												Mat_IO_DP conditionalExpectation(numBurnInIterations, 1);
+												Mat_IO_DP            conditionalExpectation(numBurnInIterations, 1);
+												Mat_IO_DP            rhs(numBurnInIterations, numLRMrhs); // for basis function regression 
+												Mat_IO_DP            lhs(numBurnInIterations, 1);         // for basis function regression 
+												std::vector<double>  &x(thatB.worstUlRegressionPrices);   // for GMM regression
+												std::vector<double>  &y(callableCashflows);               // for GMM regression 
+												Vec_IO_DP            eK(numBurnInIterations);             // for GMM debug only - nice to see which cluster associates most closely with each point
 
 												// discount callableCashflows back to this obsDate
 												double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
 												laterDiscountFactor = thatB.discountFactor;
 												for (int i=0; i < numBurnInIterations; i++) {
-													callableCashflows[i] *= thisDiscountFactor;
+													// callableCashflows[i] *= thisDiscountFactor;
 												}
 												// check data
 												if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()) {
@@ -4021,11 +4026,8 @@ public:
 																			       //   NOTE: this may decrease as we try and simplify the model
 													bool        done(false);       // done once EM shows minimal BIC improvement
 													const int   gmmIterations(20); // R-based tests show this should be enough
-													std::vector<double>  &x(thatB.worstUlRegressionPrices);
-													std::vector<double>  &y(callableCashflows);
 													double       BIC(0.0);
 													Vec_IO_DP    a(numClusters), covX(numClusters), covY(numClusters), covXY(numClusters);
-													Vec_IO_DP    eK(numBurnInIterations);  // debug only - nice to see which cluster associates most closely with each point
 													Mat_IO_DP    mu(numClusters, 2);
 													const double minX = *std::min_element(std::begin(x), std::end(x));
 													const double minY = *std::min_element(std::begin(y), std::end(y));
@@ -4257,15 +4259,6 @@ public:
 													thatB.gmmNumClusters  =  numClusters;
 													// debug info
 													if (doDebug) {
-														for (int i=0; i < numBurnInIterations; i++) {
-															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,Y,ClusterId) values (", 
-																productId,   ",", 
-																thatBarrier, ",", 
-																x[i],        ",", 
-																y[i],        ",",
-																eK[i],       ");");
-															mydb.prepare((SQLCHAR *)charBuffer, 1);
-														}
 														for (int i=0; i < numClusters; i++) {
 															sprintf(charBuffer, "%s %d%s %d%s %d%s %lf%s %lf%s %lf%s %lf%s %lf%s %lf%s ", 
 																"insert into gmmcoeff (ProductId,BarrierId,ClusterId,mix,muX,muY,covX,covY,covXY) values (", 
@@ -4289,9 +4282,7 @@ public:
 													}
 													
 													//  regress callableCashflows(possibly changed by later exercise(s)) vs (1.0, WorstUL, WorstUL ^ 2, NextWorstUL, NextWorstUL ^ 2)
-													Mat_IO_DP rhs(numBurnInIterations, numLRMrhs);
 													Mat_O_DP  XX(numLRMrhs, numLRMrhs), XXinv(numLRMrhs, numLRMrhs), XY(numLRMrhs, 1), lsB(numLRMrhs, 1);
-													Mat_IO_DP lhs(numBurnInIterations, 1);
 													for (int i=0; i < numBurnInIterations; i++) {
 														lhs[i][0] = callableCashflows[i];
 													}
@@ -4305,10 +4296,6 @@ public:
 															double thisNextWorst  = thatB.nextWorstUlRegressionPrices[i];
 															rhs[i][3] = thisNextWorst;
 															rhs[i][4] = thisNextWorst * thisNextWorst;
-														}
-														if (doDebug) {
-															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,X2,Y) values (", productId, ",", thatBarrier, ",", rhs[i][1], ",", rhs[i][2], ",", lhs[i][0], ");");
-															mydb.prepare((SQLCHAR *)charBuffer, 1);
 														}
 													}
 													// XX = rhsT ** rhs
@@ -4342,9 +4329,30 @@ public:
 												for (int i=0; i < numBurnInIterations; i++) {
 													double thisPayoff         = thatB.payoff;
 													double continuationValue  = conditionalExpectation[i][0];
+													double oldCashflow        = callableCashflows[i];
 													if (continuationValue > thisPayoff) {
 														// issuer would call, opting for the cheaper (expected) payoff
 														callableCashflows[i] = thisPayoff;
+													}
+													if (doDebug) {
+														if (USE_GMM_CLUSTERS) {
+															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s%lf%s%lf%s%lf%s%lf%s",
+																"insert into regressiondata (ProductId,BarrierId,X1,Y,ClusterId,OldCashflow,Payoff,ContinuationValue,NewCashflow) values (",
+																productId, ",",
+																thatBarrier, ",",
+																x[i], ",",
+																y[i], ",",
+																eK[i], ",",
+																oldCashflow, ",",
+																thisPayoff, ",",
+																continuationValue, ",",
+																callableCashflows[i], ");");
+															mydb.prepare((SQLCHAR *)charBuffer, 1);
+														}
+														else {
+															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,X2,Y) values (", productId, ",", thatBarrier, ",", rhs[i][1], ",", rhs[i][2], ",", lhs[i][0], ");");
+															mydb.prepare((SQLCHAR *)charBuffer, 1);
+														}
 													}
 												}
 
