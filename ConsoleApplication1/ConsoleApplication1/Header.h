@@ -927,7 +927,7 @@ EvalResult mvpdf(Mat_IO_DP     &z,
 		//                     c  d                                  -c    a
 		//
 		double det  = my2dDet(           covX[i],           covXY[i],            covXY[i],            covY[i]);
-		double oneOver2piRootDet = 1.0 / (2.0 * PI * pow(det, 0.5));
+		double oneOver2piRootDet = 1.0 / (pow(det * 2.0 * PI, 0.5));
 		double recipDet, inverseA, inverseB, inverseD;
 		recipDet = 1.0 / det;
 		inverseA =  recipDet * covY [i];
@@ -2053,6 +2053,26 @@ public:
 		init();
 	};
 
+
+	double gmmConditionalExpectation(const double x) {
+		// priors - the relative probs of obtaining this x under each cluster marginal
+		Vec_IO_DP wts(gmmNumClusters);
+		double    sumWts(0.0);
+		for (int i=0; i < gmmNumClusters; i++) {
+			double thisX = x - muX[i];
+			double thisProb;
+			thisProb =  exp(-0.5 * (thisX*thisX)/covX[i]) / pow(2.0*PI*covX[i], 0.5);
+			wts[i]   = thisProb;
+			sumWts  += thisProb;
+		}
+		// conditional is weighted expectation of each cluster's expected y|x
+		double thisExpectation(0.0);
+		for (int i=0; i < gmmNumClusters; i++) {
+			thisExpectation += wts[i] * (muY[i] + covXY[i] / covX[i] * (x - muX[i])) / sumWts;
+		}
+		return(thisExpectation);
+	}
+	
 	// bump this barrier by someDays
 	void bumpSomeDays(const int someDays){
 		endDays          +=  someDays;
@@ -2172,9 +2192,7 @@ public:
 		}
 
 		if (USE_GMM_CLUSTERS) {
-			for (int i=0; i < gmmNumClusters; i++) {
-				conditionalExpectation  += a[i] * (muY[i] + covXY[i] / covX[i] * (thisWorst - muX[i]));
-			}
+			conditionalExpectation  = gmmConditionalExpectation(thisWorst);
 		}
 		else {
 			// calculate expected continuation value
@@ -4005,7 +4023,7 @@ public:
 												double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
 												laterDiscountFactor = thatB.discountFactor;
 												for (int i=0; i < numBurnInIterations; i++) {
-													// callableCashflows[i] *= thisDiscountFactor;
+													callableCashflows[i] *= thisDiscountFactor;
 												}
 												// check data
 												if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()) {
@@ -4239,15 +4257,6 @@ public:
 															done = true;
 														}
 													}  // while !done
-													// now we have a GMM, form conditional expectation   condExp(y|x)  =  sumOverClusters( clusterMix * (muY  + covXY/covXX * (x - muX) )
-													// ... lower down we will use these to test whether issuer would have called
-													for (int j=0; j < numBurnInIterations; j++) {
-														double thisExpectation(0.0);
-														for (int i=0; i < numClusters; i++) {
-															thisExpectation += a[i] * (mu[i][1] + covXY[i]/covX[i] * (x[j] - mu[i][0]) );
-														}
-														conditionalExpectation[j][0] = thisExpectation;
-													}
 													// install mix coefficients for this barrier
 													for (int i=0; i < numClusters; i++) {
 														thatB.a.push_back(     a[i]      );
@@ -4257,6 +4266,11 @@ public:
 														thatB.covXY.push_back( covXY[i]  );
 													}
 													thatB.gmmNumClusters  =  numClusters;
+													// now we have a GMM, form conditional expectation   condExp(y|x)  =  sumOverClusters( clusterMix * (muY  + covXY/covXX * (x - muX) )
+													// ... lower down we will use these to test whether issuer would have called
+													for (int j=0; j < numBurnInIterations; j++) {
+														conditionalExpectation[j][0] = thatB.gmmConditionalExpectation(x[j]);
+													}
 													// debug info
 													if (doDebug) {
 														for (int i=0; i < numClusters; i++) {
@@ -4829,8 +4843,8 @@ public:
 						double returnToAnnualise = ((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice;
 						double annReturn         = returnToAnnualise > 0.0 && numInstances && b.yearsToBarrier > 0 && midPrice > 0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
 						// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
-						if (!silent) {
-							std::cout << "EventProbabilityAndPayoff: " << b.description << ": Prob:" << prob << ": ConditionalPayoff:" << mean << ": ExpPayoff:" << mean*prob << ": DiscFact:" << thisDiscountFactor << ": PV(%):" << mean*prob*thisDiscountFactor << ": DiscRate:" << thisDiscountRate << ": fwdRate:" << b.forwardRate << ": ffract:" << fundingFraction << ": y:" << b.yearsToBarrier << std::endl;
+						if (!silent && thisYears >= 0.0 && prob > 0.0) {
+							std::cout << std::setprecision(6) << "EventProbabilityAndPayoff: " << b.description << ": ConditionalPayoff:" << mean << ": ExpPayoff:" << mean*prob << ": DiscFact:" << thisDiscountFactor << ": PV(%):" << mean*prob*thisDiscountFactor << ": DiscRate:" << thisDiscountRate << ": fwdRate:" << b.forwardRate << ": ffract:" << fundingFraction << ": y:" << b.yearsToBarrier << ": Prob:" << 100.0*prob << std::endl;
 						}
 						// ** SQL 
 						// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
