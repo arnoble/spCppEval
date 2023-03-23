@@ -4057,6 +4057,16 @@ public:
 													if (doDebug) {
 														sprintf(charBuffer, "%s%d%s%d", "delete from gmmcoeff where productid=", productId, " and barrierid=", thatBarrier);
 														mydb.prepare((SQLCHAR *)charBuffer, 1);
+														// GMM.R needs x,y datapoints
+														for (int j=0; j < numBurnInIterations; j++) {
+															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s",
+																"insert into regressiondata (ProductId,BarrierId,X1,Y) values (",
+																productId,   ",",
+																thatBarrier, ",",
+																x[j],        ",",
+																y[j],       ");");
+																mydb.prepare((SQLCHAR *)charBuffer, 1);
+														}
 													}
 													// iterate until done, or there is only 1 cluster
 													while (!done && numClusters > 1) {
@@ -4287,6 +4297,7 @@ public:
 																covXY[i],    ");");
 															mydb.prepare((SQLCHAR *)charBuffer, 1);
 														}
+														int jj = 1;
 													}
 												}
 												else {   // global basis function regression
@@ -4297,19 +4308,19 @@ public:
 													
 													//  regress callableCashflows(possibly changed by later exercise(s)) vs (1.0, WorstUL, WorstUL ^ 2, NextWorstUL, NextWorstUL ^ 2)
 													Mat_O_DP  XX(numLRMrhs, numLRMrhs), XXinv(numLRMrhs, numLRMrhs), XY(numLRMrhs, 1), lsB(numLRMrhs, 1);
-													for (int i=0; i < numBurnInIterations; i++) {
-														lhs[i][0] = callableCashflows[i];
+													for (int j=0; j < numBurnInIterations; j++) {
+														lhs[j][0] = callableCashflows[j];
 													}
 
-													for (int i=0; i < numBurnInIterations; i++) {
-														double thisWorst      = thatB.worstUlRegressionPrices[i];
-														rhs[i][0] = 1.0;
-														rhs[i][1] = thisWorst;
-														rhs[i][2] = thisWorst * thisWorst;
+													for (int j=0; j < numBurnInIterations; j++) {
+														double thisWorst      = thatB.worstUlRegressionPrices[j];
+														rhs[j][0] = 1.0;
+														rhs[j][1] = thisWorst;
+														rhs[j][2] = thisWorst * thisWorst;
 														if (numUls > 1) {
-															double thisNextWorst  = thatB.nextWorstUlRegressionPrices[i];
-															rhs[i][3] = thisNextWorst;
-															rhs[i][4] = thisNextWorst * thisNextWorst;
+															double thisNextWorst  = thatB.nextWorstUlRegressionPrices[j];
+															rhs[j][3] = thisNextWorst;
+															rhs[j][4] = thisNextWorst * thisNextWorst;
 														}
 													}
 													// XX = rhsT ** rhs
@@ -4340,13 +4351,18 @@ public:
 												//
 												// using the conditionalExpectations, if this barrier would have exercised early, revise cashflows accordingly
 												//
-												for (int i=0; i < numBurnInIterations; i++) {
+												// delete regression data again, as GMM R code needed regressiondata x,y
+												if (doDebug && USE_GMM_CLUSTERS) {
+													sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId, " and barrierid=", thatBarrier);
+													mydb.prepare((SQLCHAR *)charBuffer, 1);
+												}
+												for (int j=0; j < numBurnInIterations; j++) {
 													double thisPayoff         = thatB.payoff;
-													double continuationValue  = conditionalExpectation[i][0];
-													double oldCashflow        = callableCashflows[i];
+													double continuationValue  = conditionalExpectation[j][0];
+													double oldCashflow        = callableCashflows[j];
 													if (continuationValue > thisPayoff) {
 														// issuer would call, opting for the cheaper (expected) payoff
-														callableCashflows[i] = thisPayoff;
+														callableCashflows[j] = thisPayoff;
 													}
 													if (doDebug) {
 														if (USE_GMM_CLUSTERS) {
@@ -4354,17 +4370,18 @@ public:
 																"insert into regressiondata (ProductId,BarrierId,X1,Y,ClusterId,OldCashflow,Payoff,ContinuationValue,NewCashflow) values (",
 																productId, ",",
 																thatBarrier, ",",
-																x[i], ",",
-																y[i], ",",
-																eK[i], ",",
+																x[j], ",",
+																y[j], ",",
+																eK[j], ",",
 																oldCashflow, ",",
 																thisPayoff, ",",
 																continuationValue, ",",
-																callableCashflows[i], ");");
+																callableCashflows[j], ");");
 															mydb.prepare((SQLCHAR *)charBuffer, 1);
 														}
 														else {
-															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,X2,Y) values (", productId, ",", thatBarrier, ",", rhs[i][1], ",", rhs[i][2], ",", lhs[i][0], ");");
+															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressiondata (ProductId,BarrierId,X1,X2,Y) values (", 
+																productId, ",", thatBarrier, ",", rhs[j][1], ",", rhs[j][2], ",", lhs[j][0], ");");
 															mydb.prepare((SQLCHAR *)charBuffer, 1);
 														}
 													}
