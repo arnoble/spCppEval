@@ -2061,7 +2061,7 @@ public:
 		for (int i=0; i < gmmNumClusters; i++) {
 			double thisX = x - muX[i];
 			double thisProb;
-			thisProb =  exp(-0.5 * (thisX*thisX)/covX[i]) / pow(2.0*PI*covX[i], 0.5);
+			thisProb =  a[i] * exp(-0.5 * (thisX*thisX)/covX[i]) / pow(2.0*PI*covX[i], 0.5);
 			wts[i]   = thisProb;
 			sumWts  += thisProb;
 		}
