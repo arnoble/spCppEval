@@ -4054,6 +4054,7 @@ public:
 													const double dataCovX  = MyCorrelation(x, x, false) ;
 													const double dataCovY  = MyCorrelation(y, y, false) ;
 													const double dataCovXY = MyCorrelation(x, y, false) ;
+													const int    minClusterSize = (int)max(3.0, numBurnInIterations*0.005);
 													if (doDebug) {
 														sprintf(charBuffer, "%s%d%s%d", "delete from gmmcoeff where productid=", productId, " and barrierid=", thatBarrier);
 														mydb.prepare((SQLCHAR *)charBuffer, 1);
@@ -4248,7 +4249,7 @@ public:
 															BIC = 2 * llik - numClusters * (1 + 2 * numVariables + (numVariables*numVariables - numVariables) / 2) * log(numBurnInIterations);
 													
 															// exit loop if BIC improvement small
-															if (thisIter > 10 && (abs(BIC / previousBIC - 1) < 0.01)) {
+															if (thisIter > 10 && (BIC / previousBIC < 1.01)) {
 																std::cout << "Iter:" << thisIter << " small BIC improvement" << std::endl;
 																emDone = true;
 																done   = true;
@@ -4256,12 +4257,13 @@ public:
 
 															// check for small clusters - reduce the #clusters and loop again
 															for (int i=0; i < numClusters; i++) {
-																if (mc[i] < 2.0) {
+																if (mc[i] < minClusterSize) {
 																	numClusters  -= 1;
 																	emDone        = true;
 																	continue;
 																}
 															}
+															int jj = 1;
 														} // for EM loop
 														if (thisIter == gmmIterations) {
 															done = true;
@@ -4371,7 +4373,7 @@ public:
 																productId, ",",
 																thatBarrier, ",",
 																x[j], ",",
-																y[j], ",",
+																oldCashflow, ",",
 																eK[j], ",",
 																oldCashflow, ",",
 																thisPayoff, ",",
