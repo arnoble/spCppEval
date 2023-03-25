@@ -3559,7 +3559,7 @@ public:
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
 									currentLevels[i]       = currentLevels[i] * thisReturn - thisFixedDiv;
 									if (currentLevels[i] < 0.0){ currentLevels[i]  = 0.0; }  // some fixed divs could do this eg UKXFD
-									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.08 * dt) : 1.0) - thisFixedDiv;
+									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0) - thisFixedDiv;
 									if (currentQuantoLevels[i] < 0.0){ currentQuantoLevels[i]  = 0.0; }  // some fixed divs could do this eg UKXFD
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 
