@@ -4889,7 +4889,21 @@ public:
 						double annReturn         = returnToAnnualise > 0.0 && numInstances && b.yearsToBarrier > 0 && midPrice > 0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
 						// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
 						if (!silent && thisYears >= 0.0 && prob > 0.0) {
-							std::cout << std::setprecision(6) << "EventProbabilityAndPayoff: " << b.description << ": ConditionalPayoff:" << mean << ": ExpPayoff:" << mean*prob << ": DiscFact:" << thisDiscountFactor << ": PV(%):" << mean*prob*thisDiscountFactor << ": DiscRate:" << thisDiscountRate << ": fwdRate:" << b.forwardRate << ": ffract:" << fundingFraction << ": y:" << b.yearsToBarrier << ": Prob:" << 100.0*prob << std::endl;
+							sprintf(lineBuffer, "%s%s%s %.5lf%s %.5lf%s %.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf", 
+								"EventProbabilityAndPayoff: ",
+								b.description.c_str(),
+								": ConditionalPayoff:",
+								mean,                         ": ExpPayoff:",
+								mean*prob,                    ": DiscFact:" ,
+								thisDiscountFactor,           ": PV(%):",
+								mean*prob*thisDiscountFactor, ": DiscRate:" ,
+								thisDiscountRate,             ": fwdRate:",
+								b.forwardRate,                ": ffract:",
+								fundingFraction,              ": y:",
+								b.yearsToBarrier,             ": Prob:",
+								100.0*prob 
+								);
+							std::cout << lineBuffer  << std::endl;
 						}
 						// ** SQL 
 						// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
