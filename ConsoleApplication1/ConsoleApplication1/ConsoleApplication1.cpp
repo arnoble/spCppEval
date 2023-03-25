@@ -1385,8 +1385,11 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			
 			// save spots
-			vector<double> spots;
-			for (i=0; i < numUl; i++){ spots.push_back(ulPrices[i].price[totalNumDays-1]); }
+			vector<double> spots,strikeDateLevels;
+			for (i=0; i < numUl; i++){ 
+				spots.push_back(ulPrices[i].price[totalNumDays-1]); 
+				strikeDateLevels.push_back(ulPrices[i].price[totalNumDays - 1 - daysExtant]);
+			}
 
 			double forwardStartT(0.0);
 			if (daysExtant < 0){
@@ -1888,7 +1891,7 @@ int _tmain(int argc, WCHAR* argv[])
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice, 
-				hasCompoIntoCcy,issuerCallable,spots);
+				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels);
 			numBarriers = 0;
 
 			// get barriers from DB
@@ -1963,7 +1966,7 @@ int _tmain(int argc, WCHAR* argv[])
 				spr.barrier.push_back(SpBarrier(numBarriers, barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
 					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice,
-					thisBarrierBend,bendDirection,spots));
+					thisBarrierBend,bendDirection,spots,doDebug,productId,mydb));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 	
 				// get barrier relations from DB

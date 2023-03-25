@@ -2004,10 +2004,13 @@ public:
 class SpBarrier {
 private:
 	const bool                  doFinalAssetReturn;
+	const bool                  doDebug;
+	const int                   productId;
 	const int                   barrierNum;
 	const double                thisBarrierBend;
 	const double                bendDirection;
 	const std::vector <double> &spots;
+	MyDB                       &mydb;
 
 public:
 	SpBarrier(const int             barrierNum, 
@@ -2040,7 +2043,11 @@ public:
 		const double                 midPrice,
 		const double                 thisBarrierBend, 
 		const double                 bendDirection,
-		const std::vector<double>   &spots)
+		const std::vector<double>   &spots,
+		const bool                  doDebug,
+		const int                   productId,
+		MyDB                        &mydb
+		)
 		: barrierNum(barrierNum), barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
 		payoffTypeId(payoffTypeId), strike(strike),cap(cap), underlyingFunctionId(underlyingFunctionId),param1(param1),
@@ -2048,7 +2055,8 @@ public:
 		isAnd(nature == "and"), avgDays(avgDays), avgFreq(avgFreq), avgType(avgType),
 		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), 
 		barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), 
-		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2 && avgDays), spots(spots)
+		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2 && avgDays), spots(spots), doDebug(doDebug),
+		productId(productId),mydb(mydb)
 	{
 		init();
 	};
@@ -2123,6 +2131,7 @@ public:
 	std::vector<double>             covXY;    // GMM  covXY  for each cluster
 	std::vector<double>             covX;     // GMM  covX   for each cluster
 	int                             gmmNumClusters;
+	char                            charBuffer[1000];
 	std::vector<double>             worstUlRegressionPrices;     // worst underlying prices if issuerCallable	
 	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
@@ -2207,7 +2216,17 @@ public:
 		if (conditionalExpectation > thisPayoff){
 			isCalled = true;
 		}
-		return (isCalled);  
+		if (doDebug) {
+			sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%d%s",
+				"insert into conditionalexpectation (ProductId,BarrierId,X1,Y,Called) values (",
+				productId, ",",
+				barrierNum, ",",
+				thisWorst, ",",
+				conditionalExpectation, ",",
+				isCalled ? 1:0, ");");
+			mydb.prepare((SQLCHAR *)charBuffer, 1);
+		}
+		return (isCalled);
 	}
 	
 	void setIsNeverHit(){
@@ -2841,12 +2860,13 @@ double PayoffStdev(const std::vector<SpBarrier> &barrier, const double mean){
 // structured product
 class SProduct {
 private:
-	int                             productId;
-	int                             userId;
+	const int                       productId;
+	const int                       userId;
 	const std::string               productCcy,thisCommandLine;
 	const std::vector <bool>        &allNonTradingDays;
 	const std::vector <bool>        &ulFixedDivs;
 	const std::vector <double>      &spots;
+	const std::vector <double>      &strikeDateLevels;
 	const std::vector <int>         &ulIds;
 	const std::vector<std::string>  &ulNames;
 	const std::vector <std::string> &allDates;
@@ -2917,7 +2937,8 @@ public:
 		const double                    compoIntoCcyStrikePrice, 
 		const bool                      hasCompoIntoCcy,
 		const bool                      issuerCallable,
-		const std:: vector<double>      &spots
+		const std::vector<double>       &spots,
+		const std::vector<double>       &strikeDateLevels
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -2929,7 +2950,8 @@ public:
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
-		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), spots(spots){};
+		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
+		spots(spots), strikeDateLevels(strikeDateLevels){};
 
 	// public members: DOME consider making private
 	MyDB                           &mydb;
@@ -4035,6 +4057,8 @@ public:
 												if (doDebug) {
 													sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId, " and barrierid=", thatBarrier);
 													mydb.prepare((SQLCHAR *)charBuffer, 1);
+													sprintf(charBuffer, "%s%d%s%d", "delete from conditionalexpectation where productid=", productId, " and barrierid=", thatBarrier);
+													mydb.prepare((SQLCHAR *)charBuffer, 1);
 												}
 												//
 												//  Gaussian Mixture Model  condExp(y|x)  =  sumOverClusters( clusterMix * (muY  + covXY/covXX * (x - muX) )
@@ -4054,7 +4078,7 @@ public:
 													const double dataCovX  = MyCorrelation(x, x, false) ;
 													const double dataCovY  = MyCorrelation(y, y, false) ;
 													const double dataCovXY = MyCorrelation(x, y, false) ;
-													const int    minClusterSize = (int)max(3.0, numBurnInIterations*0.005);
+													const int    minClusterSize = (int)max(3.0, numBurnInIterations*0.001);
 													if (doDebug) {
 														sprintf(charBuffer, "%s%d%s%d", "delete from gmmcoeff where productid=", productId, " and barrierid=", thatBarrier);
 														mydb.prepare((SQLCHAR *)charBuffer, 1);
@@ -4619,7 +4643,7 @@ public:
 				if (!silent) {
 					for (i = 0; i < numUl; i++) {
 						MeanAndStdev(simulatedReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
-						std::cout << "Simulated annualised drift rate (inc. quanto) to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << " spot:" << spotLevels[i] << std::endl;
+						std::cout << "Simulated annualised drift rate (inc. quanto) to:" << ulPrices[i].date[startPoint + productDays] << " :" << exp(365.0*log(thisMean) / productDays) << " for:" << ulNames[i] << " spot:" << spotLevels[i] << " strikeDateLevel:" << strikeDateLevels[i] << " moneyness:" << spotLevels[i]/strikeDateLevels[i] << std::endl;
 						MeanAndStdev(simulatedLogReturnsToMaxYears[i], thisMean, thisStd, thisStderr);
 						std::cout << "Simulated vol to:" << ulPrices[i].date[startPoint + productDays] << " :" << thisStd / sqrt(productDays / 365) << " for:" << ulNames[i] << std::endl;
 						MeanAndStdev(simulatedLevelsToMaxYears[i], thisMean, thisStd, thisStderr);
