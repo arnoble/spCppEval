@@ -944,7 +944,8 @@ EvalResult mvpdf(Mat_IO_DP     &z,
 			double thisY = y[j] - mu[i][1];
 			// (x,y) * [inverseA  inverseB] * [x]
 			//         [inverseB  inverseD]   [y]
-			z[j][i] =  exp(-0.5 * (thisX*(thisX*inverseA + thisY * inverseB) + thisY * (thisX*inverseB + thisY * inverseD))) * oneOver2piRootDet;
+			double thisProb =  exp(-0.5 * (thisX*(thisX*inverseA + thisY * inverseB) + thisY * (thisX*inverseB + thisY * inverseD))) * oneOver2piRootDet;
+			z[j][i] = thisProb;
 		}
 	}
 	return(evalResult);
@@ -4016,6 +4017,7 @@ public:
 								//if (thisMonDays>0){
 								thisAmount = (b.isCountAvg ? b.participation*min(b.cap, b.proportionHits*thisPayoff) : b.proportionHits*thisPayoff)*baseCcyReturn;
 								
+
 								/*  issuerCallable
 								*
 								*  MAYBE: Re-estimate for those burn-in iterations, then continue with the remaining iterations
@@ -4023,7 +4025,7 @@ public:
 								*/
 								if (issuerCallable /* && getMarketData */ &&  b.capitalOrIncome && numMcIterations>1 && thisIteration < numBurnInIterations){
 									//  store burn-in terminal cashflows, for use in GMM/LS regression
-									callableCashflows.push_back(thisAmount);
+									callableCashflows.push_back(thisAmount * (thisAmount > 1.0 ? 1.0 : 1.0));
 									// once burned-in, estimate the GMM/LS regressions
 									if (thisIteration == (numBurnInIterations - 1)){
 										if (numBurnInIterations != (int)callableCashflows.size()){
@@ -4248,7 +4250,7 @@ public:
 															for (int i=0; i < numClusters; i++) {
 																int	thisCount = 0;
 																while (my2dDet(covX[i], covXY[i], covXY[i], covY[i]) < 1.0e-08) {
-																	covY[i]   *= 10.0;    // increase y variability a bit - won't impact the conditional regression which does not need covY
+																	covY[i]   = covY[i] == 0.0 ? covX[i]*0.0001 : covY[i] * 10.0;    // increase y variability a bit - won't impact the conditional regression which does not need covY
 																	thisCount += 1;
 																	if (thisCount > 1000) {       
 																		// something wrong if we get here
