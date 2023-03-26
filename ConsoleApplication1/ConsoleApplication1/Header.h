@@ -4891,8 +4891,8 @@ public:
 						if (!silent && thisYears >= 0.0 && prob > 0.0) {
 							sprintf(lineBuffer, "%s%-20s%s %.5lf%s %.5lf%s %.5lf%s%.5lf%s%.5lf%s%.5lf%s%.2lf%s%.2lf%s%5.2lf", 
 								"EventProbabilityAndPayoff: ",
-								b.description.c_str(),
-								": ConditionalPayoff:",
+								b.description.c_str(),        ": Prob:",
+								100.0*prob,                   ": ConditionalPayoff:",
 								mean,                         ": ExpPayoff:",
 								mean*prob,                    ": DiscFact:" ,
 								thisDiscountFactor,           ": PV(%):",
@@ -4900,8 +4900,7 @@ public:
 								thisDiscountRate,             ": fwdRate:",
 								b.forwardRate,                ": ffract:",
 								fundingFraction,              ": y:",
-								b.yearsToBarrier,             ": Prob:",
-								100.0*prob 
+								b.yearsToBarrier
 								);
 							std::cout << lineBuffer  << std::endl;
 						}
