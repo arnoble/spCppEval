@@ -4276,7 +4276,7 @@ public:
 													
 															// exit loop if BIC improvement small
 															if (thisIter > 10 && (BIC / previousBIC < 1.01)) {
-																std::cout << "Iter:" << thisIter << " small BIC improvement" << std::endl;
+																// std::cerr << "Iter:" << thisIter << " small BIC improvement" << std::endl;
 																emDone = true;
 																done   = true;
 															}
@@ -5147,7 +5147,7 @@ public:
 
 
 					// eShortfall, esVol
-					if (doDebug){ std::cerr << "Starting analyseResults SavingToDatabase for case \n" << analyseCase << std::endl; }
+					// if (doDebug){ std::cerr << "Starting analyseResults SavingToDatabase for case \n" << analyseCase << std::endl; }
 
 					const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
 					int numShortfall((int)floor(confLevel    * (double)numAnnRets));

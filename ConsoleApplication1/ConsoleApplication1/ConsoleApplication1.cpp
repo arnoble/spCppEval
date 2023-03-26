@@ -61,6 +61,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["startDate"]               = "YYYY-mm-dd";
 		argWords["spotsDate"]               = "YYYY-mm-dd";
 		argWords["endDate"]                 = "YYYY-mm-dd";
+		argWords["fvEndDate"]               = "YYYY-mm-dd";
 		argWords["arcVolDate"]              = "YYYY-mm-dd";
 		argWords["arcCorDate"]              = "YYYY-mm-dd";
 		argWords["arcDivDate"]              = "YYYY-mm-dd";
@@ -125,7 +126,7 @@ int _tmain(int argc, WCHAR* argv[])
 		bool             doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
-		bool             ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
+		bool             doFvEndDate(false),updateCashflows(true),ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
 		
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -524,17 +525,21 @@ int _tmain(int argc, WCHAR* argv[])
 				doUKSPA       = ukspaCase != "";
 				getMarketData = true;
 			}
+			if (sscanf(thisArg, "fvEndDate:%s", lineBuffer)) {
+				updateCashflows  = false;
+				doFvEndDate      = true;
+			}
 			if (sscanf(thisArg, "Issuer:%s", lineBuffer))                 { issuerPartName          = lineBuffer; }
 			if (sscanf(thisArg, "fundingFractionFactor:%s",   lineBuffer)){ fundingFractionFactor	= atof(lineBuffer);	}
 			if (sscanf(thisArg, "forceFundingFraction:%s",    lineBuffer)){ forceFundingFraction	= lineBuffer; }		
 			else if (sscanf(thisArg, "spotsDate:%s",          lineBuffer)){ strcpy(spotsDate, lineBuffer); }
-			else if (sscanf(thisArg, "endDate:%s",            lineBuffer)){ strcpy(endDate,   lineBuffer); }
-			else if (sscanf(thisArg, "arcVolDate:%s",         lineBuffer)){	strcpy(arcVolDate,     lineBuffer); sprintf(arcVolDateString,    "%s%s%s", " and LastDataDate='", arcVolDate,     "' "); }
-			else if (sscanf(thisArg, "arcCorDate:%s",         lineBuffer)){ strcpy(arcCorDate,     lineBuffer); sprintf(arcCorDateString,    "%s%s%s", " and LastDataDate='", arcCorDate,     "' "); }
-			else if (sscanf(thisArg, "arcDivDate:%s",         lineBuffer)){ strcpy(arcDivDate,     lineBuffer); sprintf(arcDivDateString,    "%s%s%s", " and LastDataDate='", arcDivDate,     "' "); }
-			else if (sscanf(thisArg, "arcOnCurveDate:%s",     lineBuffer)){ strcpy(arcOnCurveDate, lineBuffer); sprintf(arcOnCurveDateString,"%s%s%s", " and LastDataDate='", arcOnCurveDate, "' "); }
-			else if (sscanf(thisArg, "arcCurveDate:%s",       lineBuffer)){ strcpy(arcCurveDate,   lineBuffer); sprintf(arcCurveDateString,  "%s%s%s", " and LastDataDate='", arcCurveDate,   "' "); }
-			else if (sscanf(thisArg, "arcCdsDate:%s",         lineBuffer)){ strcpy(arcCdsDate,     lineBuffer); sprintf(arcCdsDateString,    "%s%s%s", " and LastDataDate='", arcCdsDate,     "' "); }
+			else if (doFvEndDate || sscanf(thisArg, "endDate:%s",       lineBuffer)){ strcpy(endDate,        lineBuffer); }
+			else if (doFvEndDate || sscanf(thisArg, "arcVolDate:%s",    lineBuffer)){ strcpy(arcVolDate,     lineBuffer); sprintf(arcVolDateString,    "%s%s%s", " and LastDataDate='", arcVolDate,     "' "); }
+			else if (doFvEndDate || sscanf(thisArg, "arcCorDate:%s",    lineBuffer)){ strcpy(arcCorDate,     lineBuffer); sprintf(arcCorDateString,    "%s%s%s", " and LastDataDate='", arcCorDate,     "' "); }
+			else if (doFvEndDate || sscanf(thisArg, "arcDivDate:%s",    lineBuffer)){ strcpy(arcDivDate,     lineBuffer); sprintf(arcDivDateString,    "%s%s%s", " and LastDataDate='", arcDivDate,     "' "); }
+			else if (doFvEndDate || sscanf(thisArg, "arcOnCurveDate:%s",lineBuffer)){ strcpy(arcOnCurveDate, lineBuffer); sprintf(arcOnCurveDateString,"%s%s%s", " and LastDataDate='", arcOnCurveDate, "' "); }
+			else if (doFvEndDate || sscanf(thisArg, "arcCurveDate:%s",  lineBuffer)){ strcpy(arcCurveDate,   lineBuffer); sprintf(arcCurveDateString,  "%s%s%s", " and LastDataDate='", arcCurveDate,   "' "); }
+			else if (doFvEndDate || sscanf(thisArg, "arcCdsDate:%s",    lineBuffer)){ strcpy(arcCdsDate,     lineBuffer); sprintf(arcCdsDateString,    "%s%s%s", " and LastDataDate='", arcCdsDate,     "' "); }
 			else if (sscanf(thisArg, "bumpUserId:%s",         lineBuffer)){ bumpUserId         = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "corrUserId:%s",         lineBuffer)){ corrUserId         = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "minSecsTaken:%s",       lineBuffer)){ minSecsTaken       = atoi(lineBuffer); }
@@ -2331,7 +2336,7 @@ int _tmain(int argc, WCHAR* argv[])
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false /* doPriipsStress */, 
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
 					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
-					/* updateCashflows */!doBumps && !solveFor && !doRescale && !useMyEqEqCorr && !useMyEqFxCorr);
+					/* updateCashflows */!doBumps && !solveFor && !doRescale && !useMyEqEqCorr && !useMyEqFxCorr && !updateCashflows);
 				if (evalResult.errorCode != 0){
 					continue;
 				}
