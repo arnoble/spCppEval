@@ -4892,7 +4892,7 @@ public:
 							sprintf(lineBuffer, "%s%-20s%s %.5lf%s %.5lf%s %.5lf%s%.5lf%s%.5lf%s%.5lf%s%.2lf%s%.2lf%s%5.2lf", 
 								"EventProbabilityAndPayoff: ",
 								b.description.c_str(),        ": Prob:",
-								100.0*prob,                   ": ConditionalPayoff:",
+								prob,                         ": ConditionalPayoff:",
 								mean,                         ": ExpPayoff:",
 								mean*prob,                    ": DiscFact:" ,
 								thisDiscountFactor,           ": PV(%):",
