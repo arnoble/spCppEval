@@ -4889,7 +4889,7 @@ public:
 						double annReturn         = returnToAnnualise > 0.0 && numInstances && b.yearsToBarrier > 0 && midPrice > 0 ? (exp(log(returnToAnnualise) / b.yearsToBarrier) - 1.0) : 0.0;
 						// if you get 1.#INF or inf, look for overflow or division by zero. If you get 1.#IND or nan, look for illegal operations
 						if (!silent && thisYears >= 0.0 && prob > 0.0) {
-							sprintf(lineBuffer, "%s%-20s%s %.5lf%s %.5lf%s %.5lf%s%.5lf%s%.5lf%s%.5lf%s%.2lf%s%.2lf%s%5.2lf", 
+							sprintf(lineBuffer, "%s%-20s%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.5lf%s%.2lf%s%.2lf%s%.2lf", 
 								"EventProbabilityAndPayoff: ",
 								b.description.c_str(),        ": Prob:",
 								prob,                         ": ConditionalPayoff:",

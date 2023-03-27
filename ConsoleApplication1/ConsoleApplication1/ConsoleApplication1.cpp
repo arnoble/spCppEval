@@ -1393,7 +1393,7 @@ int _tmain(int argc, WCHAR* argv[])
 			vector<double> spots,strikeDateLevels;
 			for (i=0; i < numUl; i++){ 
 				spots.push_back(ulPrices[i].price[totalNumDays-1]); 
-				strikeDateLevels.push_back(ulPrices[i].price[totalNumDays - 1 - daysExtant]);
+				strikeDateLevels.push_back(ulPrices[i].price[totalNumDays - 1 - (daysExtant>0 ? daysExtant : 0)]);
 			}
 
 			double forwardStartT(0.0);
