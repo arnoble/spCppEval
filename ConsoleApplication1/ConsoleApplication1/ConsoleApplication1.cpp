@@ -2336,7 +2336,7 @@ int _tmain(int argc, WCHAR* argv[])
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false /* doPriipsStress */, 
 					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
 					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
-					/* updateCashflows */!doBumps && !solveFor && !doRescale && !useMyEqEqCorr && !useMyEqFxCorr && !updateCashflows);
+					/* updateCashflows */!doBumps && !solveFor && !doRescale && !useMyEqEqCorr && !useMyEqFxCorr && updateCashflows);
 				if (evalResult.errorCode != 0){
 					continue;
 				}
