@@ -22,7 +22,7 @@
 #define MAX_SP_BUF                         500000
 #define MIN_CALLABLE_ITERATIONS            100
 #define MAX_CALLABLE_ITERATIONS          200000
-#define CALLABLE_REGRESSION_FRACTION       0.1
+#define CALLABLE_REGRESSION_FRACTION       0.2
 #define MIN_FUNDING_FRACTION_FACTOR       -10.0
 #define YEARS_TO_INT_MULTIPLIER           1000000.0
 #define ARTS_MAX_RAND                     4294967296.0   // 2^32

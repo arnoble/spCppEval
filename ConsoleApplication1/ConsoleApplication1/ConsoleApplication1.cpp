@@ -1888,9 +1888,9 @@ int _tmain(int argc, WCHAR* argv[])
 			if (AMC != 0.0){
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
-			if (issuerCallable && thisNumIterations > 1 && (thisNumIterations < MIN_CALLABLE_ITERATIONS || thisNumIterations > MAX_CALLABLE_ITERATIONS)){
+			if (issuerCallable && getMarketData && thisNumIterations > 1 && (thisNumIterations < MIN_CALLABLE_ITERATIONS || thisNumIterations > MAX_CALLABLE_ITERATIONS)){
 				cerr << endl << "******NOTE******* issuerCallable product needs iterations in the range" << MIN_CALLABLE_ITERATIONS << ":" << MAX_CALLABLE_ITERATIONS << endl;
-				continue;
+				thisNumIterations = MAX_CALLABLE_ITERATIONS;
 			}
 			SProduct spr(extendingPrices,thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
