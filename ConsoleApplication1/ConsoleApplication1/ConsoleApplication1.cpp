@@ -832,6 +832,7 @@ int _tmain(int argc, WCHAR* argv[])
 			double forceBarrierBendDays     = atoi(szAllPrices[colProductBarrierBendDays]);
 			double forceBarrierBendFraction = atof(szAllPrices[colProductBarrierBendFraction]);
 			bool   issuerCallable           = atoi(szAllPrices[colProductIssuerCallable]) == 1;
+			if (issuerCallable && getMarketData && thisNumIterations > 1 && thisNumIterations < 100000) { thisNumIterations = 100000; } // callables need 10k burnin
 			bool   useMyEqEqCorr            = ajaxCalling &&  (doUseMyEqEqCorr == 1 || (doUseMyEqEqCorr != 0 && atoi(szAllPrices[colProductUseMyEqEqCorr]) == 1)) ;
 			bool   useMyEqFxCorr            = ajaxCalling &&  (doUseMyEqFxCorr == 1 || (doUseMyEqFxCorr != 0 && atoi(szAllPrices[colProductUseMyEqFxCorr]) == 1));
 			double volShift                 = doUseThisVolShift ? useThisVolShift : atof(szAllPrices[colProductVolShift]);
