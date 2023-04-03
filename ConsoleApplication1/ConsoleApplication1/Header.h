@@ -4112,16 +4112,15 @@ public:
 														//
 														// init mu uniformly
 														//
-														const double xBucketSize = (maxX - minX) / (numClusters+1);
-														const double yBucketSize = (maxY - minY) / (numClusters+1);
+														const double xBucketSize = (maxX - minX) / (numClusters-1);
+														const double yBucketSize = (maxY - minY) / (numClusters-1);
 														std::vector<double> clusterBreaks;
-														double thisClusterBreak(0.5);
-														clusterBreaks.push_back(0.0); // reserve one for the minimum point ... KIP/minimum payoff attractor
-														for (int i=0; i < numClusters-1;i++) {
+														double thisClusterBreak(0.0); // reserve one for the minimum point ... KIP/minimum payoff attractor
+														for (int i=0; i < numClusters;i++) {
 															clusterBreaks.push_back(thisClusterBreak);
 															thisClusterBreak += 1.0;
 														}
-														for (int i=0; i < numClusters-1; i++) {
+														for (int i=0; i < numClusters; i++) {
 															mu[i][0] = minX + xBucketSize * clusterBreaks[i];
 															mu[i][1] = minY + yBucketSize * clusterBreaks[i];
 														}
