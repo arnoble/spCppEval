@@ -4099,8 +4099,8 @@ public:
 																mydb.prepare((SQLCHAR *)charBuffer, 1);
 														}
 													}
-													// iterate until done, or there is only 1 cluster
-													while (!done && numClusters > 1) {
+													// iterate until done, or there is only 2 clusters
+													while (!done && numClusters > 2) {
 														//
 														// init cluster assignment uniformly
 														//
@@ -4112,15 +4112,16 @@ public:
 														//
 														// init mu uniformly
 														//
-														const double xBucketSize = (maxX - minX) / numClusters;
-														const double yBucketSize = (maxY - minY) / numClusters;
+														const double xBucketSize = (maxX - minX) / (numClusters+1);
+														const double yBucketSize = (maxY - minY) / (numClusters+1);
 														std::vector<double> clusterBreaks;
 														double thisClusterBreak(0.5);
-														for (int i=0; i < numClusters;i++) {
+														clusterBreaks.push_back(0.0); // reserve one for the minimum point ... KIP/minimum payoff attractor
+														for (int i=0; i < numClusters-1;i++) {
 															clusterBreaks.push_back(thisClusterBreak);
 															thisClusterBreak += 1.0;
 														}
-														for (int i=0; i < numClusters; i++) {
+														for (int i=0; i < numClusters-1; i++) {
 															mu[i][0] = minX + xBucketSize * clusterBreaks[i];
 															mu[i][1] = minY + yBucketSize * clusterBreaks[i];
 														}
