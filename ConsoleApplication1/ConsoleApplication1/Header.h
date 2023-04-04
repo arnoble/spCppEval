@@ -2218,7 +2218,7 @@ public:
 		if (conditionalExpectation > thisPayoff){
 			isCalled = true;
 		}
-		if (doDebug  && debugLevel == 2) {
+		if (doDebug  && debugLevel >= 2) {
 			sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%d%s",
 				"insert into conditionalexpectation (ProductId,BarrierId,X1,Y,Called) values (",
 				productId, ",",
@@ -4058,7 +4058,7 @@ public:
 												if (numUls > 1 && numBurnInIterations != (int)thatB.nextWorstUlRegressionPrices.size()) {
 													std::cerr << " callable: incorrect size of nextWorstUlRegressionPrices" << std::endl;  exit(1);
 												}
-												if (doDebug  && debugLevel == 2) {
+												if (doDebug  && debugLevel >= 2) {
 													sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId, " and barrierid=", thatBarrier);
 													mydb.prepare((SQLCHAR *)charBuffer, 1);
 													sprintf(charBuffer, "%s%d%s%d", "delete from conditionalexpectation where productid=", productId, " and barrierid=", thatBarrier);
@@ -4083,11 +4083,11 @@ public:
 													const double dataCovY  = MyCorrelation(y, y, false) ;
 													const double dataCovXY = MyCorrelation(x, y, false) ;
 													const int    minClusterSize = (int)max(3.0, numBurnInIterations*0.001);
-													if (doDebug && debugLevel == 1) {
+													if (doDebug && debugLevel >= 1) {
 														sprintf(charBuffer, "%s%d%s%d", "delete from gmmcoeff where productid=", productId, " and barrierid=", thatBarrier);
 														mydb.prepare((SQLCHAR *)charBuffer, 1);
 													}
-													if (doDebug && debugLevel == 2) {
+													if (doDebug && debugLevel >= 2) {
 														// GMM.R needs x,y datapoints
 														for (int j=0; j < numBurnInIterations; j++) {
 															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s",
@@ -4314,7 +4314,7 @@ public:
 														conditionalExpectation[j][0] = thatB.gmmConditionalExpectation(x[j]);
 													}
 													// debug info
-													if (doDebug  && debugLevel == 1) {
+													if (doDebug  && debugLevel >= 1) {
 														for (int i=0; i < numClusters; i++) {
 															sprintf(charBuffer, "%s %d%s %d%s %d%s %lf%s %lf%s %lf%s %lf%s %lf%s %lf%s ", 
 																"insert into gmmcoeff (ProductId,BarrierId,ClusterId,mix,muX,muY,covX,covY,covXY) values (", 
@@ -4333,7 +4333,7 @@ public:
 													}
 												}
 												else {   // global basis function regression
-													if (doDebug  && debugLevel == 1) {
+													if (doDebug  && debugLevel >= 1) {
 														sprintf(charBuffer, "%s%d%s%d", "delete from regressioncoeff where productid=", productId, " and barrierid=", thatBarrier);
 														mydb.prepare((SQLCHAR *)charBuffer, 1);
 													}
@@ -4367,7 +4367,7 @@ public:
 													thatB.lsConstant        = lsB[0][0];
 													thatB.lsWorstB          = lsB[1][0];
 													thatB.lsWorstSquaredB   = lsB[2][0];
-													if (doDebug  && debugLevel == 1) {
+													if (doDebug  && debugLevel >= 1) {
 														sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s", "insert into regressioncoeff (ProductId,BarrierId,constant,b1,b2) values (", productId, ",", thatBarrier, ",", lsB[0][0], ",", lsB[1][0], ",", lsB[2][0], ");");
 														mydb.prepare((SQLCHAR *)charBuffer, 1);
 													}
@@ -4384,7 +4384,7 @@ public:
 												// using the conditionalExpectations, if this barrier would have exercised early, revise cashflows accordingly
 												//
 												// delete regression data again, as GMM R code needed regressiondata x,y
-												if (doDebug  && debugLevel == 2 && USE_GMM_CLUSTERS) {
+												if (doDebug  && debugLevel >= 2 && USE_GMM_CLUSTERS) {
 													sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId, " and barrierid=", thatBarrier);
 													mydb.prepare((SQLCHAR *)charBuffer, 1);
 												}
@@ -4396,7 +4396,7 @@ public:
 														// issuer would call, opting for the cheaper (expected) payoff
 														callableCashflows[j] = thisPayoff;
 													}
-													if (doDebug  && debugLevel == 2) {
+													if (doDebug  && debugLevel >= 2) {
 														if (USE_GMM_CLUSTERS) {
 															sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s%lf%s%lf%s%lf%s%lf%s",
 																"insert into regressiondata (ProductId,BarrierId,X1,Y,ClusterId,OldCashflow,Payoff,ContinuationValue,NewCashflow) values (",
@@ -4709,7 +4709,7 @@ public:
 				double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
 				// analyse each results case
 				for (int analyseCase = 0; analyseCase < (doPriips || getMarketData || useUserParams ? 1 : 2); analyseCase++) {
-					if (doDebug  && debugLevel == 2){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
+					if (doDebug  && debugLevel >= 2){ std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }
 					bool     applyCredit = analyseCase == 1;
 					std::map<int, double> cashflowMap;
 					double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));					
@@ -4736,7 +4736,7 @@ public:
 					double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumCouponRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
 					int    numCapitalInstances(0), numStrPosInstances(0), numPosInstances(0), numNegInstances(0), numParInstances(0);
 					for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
-						if (doDebug  && debugLevel == 2){ std::cerr << "Starting analyseResults  for barrier \n" << thisBarrier << std::endl; }
+						if (doDebug  && debugLevel >= 2){ std::cerr << "Starting analyseResults  for barrier \n" << thisBarrier << std::endl; }
 						const SpBarrier&    b(barrier.at(thisBarrier));
 						int                 numHits         = (int)b.hit.size();
 						double              thisBarrierSumPayoffs(0.0), thisAmount;
@@ -4919,7 +4919,7 @@ public:
 								sprintf(lineBuffer, "%s%s%.5lf%s%.5lf%s%.5lf", lineBuffer, "',NonCreditPayoff='", b.yearsToBarrier, "',Reason1Prob='", thisDiscountRate, "',Reason2Prob='", thisDiscountFactor);
 							}
 							sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
-							if (doDebug  && debugLevel == 2){
+							if (doDebug  && debugLevel >= 2){
 								FILE * pFile;
 								pFile = fopen("debug.txt", "a");
 								fprintf(pFile, "%s\n", lineBuffer);
@@ -4961,7 +4961,7 @@ public:
 					// ...second assumes annualised returns have equal duration
 					bool doWinLoseAnnualised = true; // as you want
 					if (analyseCase == 0 && !usingProto && !getMarketData  && !doPriips) {
-						if (doDebug  && debugLevel == 2){ std::cerr << "Starting analyseResults WinLose for case \n" << analyseCase << std::endl; }
+						if (doDebug  && debugLevel >= 2){ std::cerr << "Starting analyseResults WinLose for case \n" << analyseCase << std::endl; }
 						sprintf(lineBuffer, "%s%d%s", "delete from winlose where productid='", productId, "';");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 						double winLoseMinRet       =  doWinLoseAnnualised ? -0.20 : 0.9;
@@ -5112,7 +5112,7 @@ public:
 
 					// pctiles and other calcs
 					if (numMcIterations > 1 && analyseCase == 0 && !usingProto && !getMarketData) {
-						if (doDebug  && debugLevel == 2){ std::cerr << "Starting analyseResults PcTile for case \n" << analyseCase << std::endl; }
+						if (doDebug  && debugLevel >= 2){ std::cerr << "Starting analyseResults PcTile for case \n" << analyseCase << std::endl; }
 
 						// pctiles
 						double bucketSize = productShape == "Supertracker" ? 0.05 : 0.01;
@@ -5150,7 +5150,7 @@ public:
 
 
 					// eShortfall, esVol
-					// if (doDebug  && debugLevel == 2){ std::cerr << "Starting analyseResults SavingToDatabase for case \n" << analyseCase << std::endl; }
+					// if (doDebug  && debugLevel >= 2){ std::cerr << "Starting analyseResults SavingToDatabase for case \n" << analyseCase << std::endl; }
 
 					const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
 					int numShortfall((int)floor(confLevel    * (double)numAnnRets));
