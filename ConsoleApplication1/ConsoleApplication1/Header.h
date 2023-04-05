@@ -400,9 +400,11 @@ bool MEqualTest(const Mat_I_DP &one, const Mat_I_DP &two){
 
 
 
-int    iMax(const int a, const int b){ return a > b ? a : b; }
+int    iMax(const    int a, const    int b){ return a > b ? a : b; }
+int    iMin(const    int a, const    int b){ return a < b ? a : b; }
 double fMax(const double a, const double b){ return a > b ? a : b; }
-int    iMin(const int a, const int b){ return a < b ? a : b; }
+double fMin(const double a, const double b){ return a < b ? a : b; }
+
 /*
 * recalcLocalVol() from impvol
 *   - follows Gatheral
@@ -2874,7 +2876,7 @@ private:
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate,&bLastDataDate;
 	const int                       bootstrapStride, daysExtant, productIndx;
-	const double                    compoIntoCcyStrikePrice, benchmarkStrike, fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
+	const double                    gmmMinClusterFraction,compoIntoCcyStrikePrice, benchmarkStrike, fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
 	const bool                      hasCompoIntoCcy, localVol, doBumps, silent, verbose, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
@@ -2940,7 +2942,8 @@ public:
 		const bool                      hasCompoIntoCcy,
 		const bool                      issuerCallable,
 		const std::vector<double>       &spots,
-		const std::vector<double>       &strikeDateLevels
+		const std::vector<double>       &strikeDateLevels,
+		const double                    gmmMinClusterFraction
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -2953,7 +2956,7 @@ public:
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
-		spots(spots), strikeDateLevels(strikeDateLevels){};
+		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction){};
 
 	// public members: DOME consider making private
 	MyDB                           &mydb;
@@ -4082,7 +4085,7 @@ public:
 													const double dataCovX  = MyCorrelation(x, x, false) ;
 													const double dataCovY  = MyCorrelation(y, y, false) ;
 													const double dataCovXY = MyCorrelation(x, y, false) ;
-													const int    minClusterSize = (int)max(3.0, numBurnInIterations*0.001);
+													const int    minClusterSize = (int)max(3.0, numBurnInIterations*gmmMinClusterFraction);
 													if (doDebug && debugLevel >= 1) {
 														sprintf(charBuffer, "%s%d%s%d", "delete from gmmcoeff where productid=", productId, " and barrierid=", thatBarrier);
 														mydb.prepare((SQLCHAR *)charBuffer, 1);

@@ -39,6 +39,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["capitalProducts"]         = "";
 		argWords["ignoreBenchmark"]         = "";
 		argWords["debug"]                   = "number";
+		argWords["gmmMinClusterFraction"]   = "0.0 < 0.5";
 		argWords["ajaxCalling"]             = "";
 		argWords["useMyEqEqCorr"]           = "0|1";
 		argWords["useMyEqFxCorr"]           = "0|1";
@@ -150,7 +151,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           useThisVolShift,rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
+		double           gmmMinClusterFraction(0.001),useThisVolShift,rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
 		double           deltaBumpAmount(0.05), deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0);
 		int              thetaBumpStart(0), thetaBumpStep(0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), corrBumpStart(0.0), corrBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(180.0);
@@ -542,18 +543,19 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (doFvEndDate || sscanf(thisArg, "arcOnCurveDate:%s",endDate)){ strcpy(arcOnCurveDate, endDate); sprintf(arcOnCurveDateString,"%s%s%s", " and LastDataDate='", arcOnCurveDate, "' "); }
 			else if (doFvEndDate || sscanf(thisArg, "arcCurveDate:%s",  endDate)){ strcpy(arcCurveDate,   endDate); sprintf(arcCurveDateString,  "%s%s%s", " and LastDataDate='", arcCurveDate,   "' "); }
 			else if (doFvEndDate || sscanf(thisArg, "arcCdsDate:%s",    endDate)){ strcpy(arcCdsDate,     endDate); sprintf(arcCdsDateString,    "%s%s%s", " and LastDataDate='", arcCdsDate,     "' "); }
-			else if (sscanf(thisArg, "bumpUserId:%s",         lineBuffer)){ bumpUserId         = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "corrUserId:%s",         lineBuffer)){ corrUserId         = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "minSecsTaken:%s",       lineBuffer)){ minSecsTaken       = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "maxSecsTaken:%s",       lineBuffer)){ maxSecsTaken       = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "userParameters:%s",     lineBuffer)){ userParametersId   = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "historyStep:%s",        lineBuffer)){ historyStep        = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "useThisPrice:%s",       lineBuffer)){ useThisPrice       = atof(lineBuffer);         doUseThisPrice       = true; }
-			else if (sscanf(thisArg, "useThisOIS:%s",         lineBuffer)){ useThisOIS         = atof(lineBuffer);         doUseThisOIS         = true; }
-			else if (sscanf(thisArg, "useThisBarrierBend:%s", lineBuffer)){ useThisBarrierBend = atof(lineBuffer);         doUseThisBarrierBend = true; }
-			else if (sscanf(thisArg, "useThisVolShift:%s",    lineBuffer)){ useThisVolShift    = atof(lineBuffer) / 100.0; doUseThisVolShift    = true; }
-			else if (sscanf(thisArg, "useMyEqEqCorr:%s",      lineBuffer)){ doUseMyEqEqCorr    = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "useMyEqFxCorr:%s",      lineBuffer)){ doUseMyEqFxCorr    = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "bumpUserId:%s",            lineBuffer)){ bumpUserId            = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "corrUserId:%s",            lineBuffer)){ corrUserId            = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "minSecsTaken:%s",          lineBuffer)){ minSecsTaken          = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "maxSecsTaken:%s",          lineBuffer)){ maxSecsTaken          = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "userParameters:%s",        lineBuffer)){ userParametersId      = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "historyStep:%s",           lineBuffer)){ historyStep           = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "useThisPrice:%s",          lineBuffer)){ useThisPrice          = atof(lineBuffer);         doUseThisPrice       = true; }
+			else if (sscanf(thisArg, "useThisOIS:%s",            lineBuffer)){ useThisOIS            = atof(lineBuffer);         doUseThisOIS         = true; }
+			else if (sscanf(thisArg, "useThisBarrierBend:%s",    lineBuffer)){ useThisBarrierBend    = atof(lineBuffer);         doUseThisBarrierBend = true; }
+			else if (sscanf(thisArg, "useThisVolShift:%s",       lineBuffer)){ useThisVolShift       = atof(lineBuffer) / 100.0; doUseThisVolShift    = true; }
+			else if (sscanf(thisArg, "useMyEqEqCorr:%s",         lineBuffer)){ doUseMyEqEqCorr       = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "useMyEqFxCorr:%s",         lineBuffer)){ doUseMyEqFxCorr       = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "gmmMinClusterFraction:%s", lineBuffer)){ gmmMinClusterFraction = atof(lineBuffer); gmmMinClusterFraction = fMax(0.0, fMin(gmmMinClusterFraction, 0.5)); }			
 
 		}
 		if (doPriips){
@@ -1899,7 +1901,7 @@ int _tmain(int argc, WCHAR* argv[])
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice, 
-				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels);
+				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction);
 			numBarriers = 0;
 
 			// get barriers from DB
