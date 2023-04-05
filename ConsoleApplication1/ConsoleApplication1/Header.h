@@ -2049,6 +2049,7 @@ public:
 		const std::vector<double>   &spots,
 		const bool                  doDebug,
 		const int                   debugLevel,
+		const double                annualFundingUnwindCost,
 		const int                   productId,
 		MyDB                        &mydb
 		)
@@ -2060,7 +2061,7 @@ public:
 		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), 
 		barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), 
 		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2 && avgDays), spots(spots), doDebug(doDebug),
-		debugLevel(debugLevel),productId(productId),mydb(mydb)
+		debugLevel(debugLevel), annualFundingUnwindCost(annualFundingUnwindCost),productId(productId),mydb(mydb)
 	{
 		init();
 	};
@@ -2095,19 +2096,19 @@ public:
 	void init(){
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
-		endDays                = (bEndDate - bProductStartDate).days() - daysExtant;
-		startDays              = endDays;
-		yearsToBarrier         = endDays / 365.25;
-		totalBarrierYears      = (endDays + daysExtant)/ 365.25;
-		sumPayoffs             = 0.0;
-		variableCoupon         = 0.0;
-		isExtremum             = false;
-		isContinuous           = false;
-		isContinuousGroup      = false;
-		hasBeenHit             = false;
-		proportionHits         = 1.0;
-		sumProportion          = 0.0;
-		isLargestN             = underlyingFunctionId == uFnLargestN && payoffTypeId == fixedPayoff;
+		endDays                  = (bEndDate - bProductStartDate).days() - daysExtant;
+		startDays                = endDays;
+		yearsToBarrier           = endDays / 365.25;
+		totalBarrierYears        = (endDays + daysExtant)/ 365.25;
+		sumPayoffs               = 0.0;
+		variableCoupon           = 0.0;
+		isExtremum               = false;
+		isContinuous             = false;
+		isContinuousGroup        = false;
+		hasBeenHit               = false;
+		proportionHits           = 1.0;
+		sumProportion            = 0.0;
+		isLargestN               = underlyingFunctionId == uFnLargestN && payoffTypeId == fixedPayoff;
 		if (isLargestN){
 			isHit = &SpBarrier::isHitLargestN;
 		}
@@ -2146,7 +2147,7 @@ public:
 	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
-	double                          payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
+	double                          maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          lsConstant, lsWorstB, lsWorstSquaredB, lsNextWorstB, lsNextWorstSquaredB, proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate, discountFactor;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <finalAssetInfo>    fars; // final asset returns
@@ -2217,7 +2218,8 @@ public:
 		// check for early exercise
 		double thisPayoff = payoff;
 		bool   isCalled(false);
-		if (conditionalExpectation > thisPayoff){
+		double thisFundingUnwindCost = annualFundingUnwindCost * (maxYears - (daysExtant + endDays) / 365.25);
+		if (conditionalExpectation > (thisPayoff + thisFundingUnwindCost)){
 			isCalled = true;
 		}
 		if (doDebug  && debugLevel >= 2) {
@@ -3066,6 +3068,11 @@ public:
 
 		// sundry
 		addCompoIntoCcy  =  hasCompoIntoCcy ? 1 : 0;
+		int numBarriers = (int)barrier.size();
+		for (int j=0; j < numBarriers; j++) {
+			SpBarrier& b(barrier.at(j));
+			b.maxYears = maxYears;
+		}
 	}
 
 	// re-initialise barriers
@@ -4030,7 +4037,7 @@ public:
 								*/
 								if (issuerCallable /* && getMarketData */ &&  b.capitalOrIncome && numMcIterations>1 && thisIteration < numBurnInIterations){
 									//  store burn-in terminal cashflows, for use in GMM/LS regression
-									callableCashflows.push_back(thisAmount * (thisAmount > 1.0 ? 1.0 : 1.0));
+									callableCashflows.push_back(thisAmount);
 									// once burned-in, estimate the GMM/LS regressions
 									if (thisIteration == (numBurnInIterations - 1)){
 										if (numBurnInIterations != (int)callableCashflows.size()){
@@ -4052,7 +4059,7 @@ public:
 												double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
 												laterDiscountFactor = thatB.discountFactor;
 												for (int i=0; i < numBurnInIterations; i++) {
-													callableCashflows[i] *= thisDiscountFactor;
+													callableCashflows[i]  *= thisDiscountFactor;
 												}
 												// check data
 												if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()) {
@@ -4391,11 +4398,12 @@ public:
 													sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId, " and barrierid=", thatBarrier);
 													mydb.prepare((SQLCHAR *)charBuffer, 1);
 												}
+												double thisFundingUnwindCost = thatB.annualFundingUnwindCost * (maxProductDays - daysExtant - thatB.endDays) / 365.25;
 												for (int j=0; j < numBurnInIterations; j++) {
-													double thisPayoff         = thatB.payoff;
-													double continuationValue  = conditionalExpectation[j][0];
-													double oldCashflow        = callableCashflows[j];
-													if (continuationValue > thisPayoff) {
+													double thisPayoff            = thatB.payoff;
+													double continuationValue     = conditionalExpectation[j][0];
+													double oldCashflow           = callableCashflows[j];
+													if (continuationValue > (thisPayoff + thisFundingUnwindCost)) {
 														// issuer would call, opting for the cheaper (expected) payoff
 														callableCashflows[j] = thisPayoff;
 													}
