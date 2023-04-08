@@ -1769,7 +1769,6 @@ int _tmain(int argc, WCHAR* argv[])
 					int    thisUid    = atoi(szAllPrices[0]);
 					int    thisUidx   = ulIdNameMap.at(thisUid);
 					int    otherId    = atoi(szAllPrices[1]);
-					int    otherUidx  = ulIdNameMap.at(otherId);
 					double thisCorr   = atof(szAllPrices[2]);
 					// if we already have this correlation (correlation table may have also entered the correlation the other way round)
 					bool done = false;
@@ -1779,7 +1778,7 @@ int _tmain(int argc, WCHAR* argv[])
 						}
 					}
 					if (!done){
-						fxcorrsOtherId[thisUidx].push_back(otherUidx);
+						fxcorrsOtherId[thisUidx].push_back(otherId);
 						fxcorrsCorrelation[thisUidx].push_back(forceEqFxCorr &&	fxCorrelationUid == thisUid && fxCorrelationOtherId == otherId ? forceEqFxCorrelation : thisCorr);
 						foundFxCorr.push_back(std::make_tuple(otherId, thisUid));
 					}
@@ -1788,15 +1787,14 @@ int _tmain(int argc, WCHAR* argv[])
 				// initialise any correlation bumps
 				if (corrNames.size()>0){
 					corrUidx       = ulIdNameMap.at(corrIds[0]);
-					corrOtherUidx  = ulIdNameMap.at(corrIds[1]);
 					if (corrsAreEqEq){
-						corrOtherIndex = getIndexInVector(corrsOtherId[corrUidx], corrOtherUidx);
+						corrOtherIndex = getIndexInVector(corrsOtherId[corrUidx], ulIdNameMap.at(corrIds[1]));
 					}
 					else{
-						corrOtherIndex = getIndexInVector(fxcorrsOtherId[corrUidx], corrOtherUidx);
+						corrOtherIndex = getIndexInVector(fxcorrsOtherId[corrUidx], corrIds[1]);
 					}
 					if (corrOtherIndex<0){
-						cerr << " correlation  between " << corrNames[0].c_str() << " and " << corrNames[0].c_str() << " not involved in this product" << endl;
+						cerr << " correlation  between " << corrNames[0].c_str() << " and " << corrNames[1].c_str() << " not involved in this product" << endl;
 						continue;
 					}
 				}
