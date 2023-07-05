@@ -174,7 +174,7 @@ int _tmain(int argc, WCHAR* argv[])
 		SomeCurve        anyCurve;
 		time_t           startTime = time(0);
 		char             **szAllPrices = new char*[maxUls];
-		vector<int>      corrIds,optimiseProductIds,allProductIds; allProductIds.reserve(1000);
+		vector<int>      corrIds,optimiseUids,allProductIds; allProductIds.reserve(1000);
 		vector<int>::iterator intIterator, intIterator1;
 		for (int i = 0; i < maxUls; i++){
 			szAllPrices[i] = new char[bufSize];
@@ -577,6 +577,7 @@ int _tmain(int argc, WCHAR* argv[])
 
 		// get list of productIds
 		// ... but first deal with any optimisation demands
+		//     ... first element of allProductIds is special ProductId=1 which has chosen underlyings to simulate
 		if (forOptimisation){
 			if (!getMarketData && userParametersId <1){
 				cout << "Optimiser needs scenario-generation from either getMarketData or userParameters" << endl;
@@ -658,18 +659,21 @@ int _tmain(int argc, WCHAR* argv[])
 		
 
 		// deal with any optimisation demands
+		//    ProductId=1                     contains all the underlyings that will be simulated ... typically just those we can FV
+		//    productreturns table            will be populated with each product's simulated returns, payoffs
+		//    simulatedunderlyings table      will be populated with the simulated levels for each underlying
 		if (forOptimisation){
-			// find #underlyings
+			// identify underlyings in special ProductId=1
 			sprintf(lineBuffer, "%s%d%s", "select UnderlyingId from (select distinct underlyingid from barrierrelation join productbarrier using (productbarrierid) where productid in (",
 				allProductIds[0], "))x");			
 			mydb.prepare((SQLCHAR *)lineBuffer, 1); 	
 			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; exit(1); }
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				optimiseProductIds.push_back(atoi(szAllPrices[0]));
+				optimiseUids.push_back(atoi(szAllPrices[0]));
 				retcode = mydb.fetch(false, "");
 			}
-			optimiseNumUls     = (int)optimiseProductIds.size();
-			// find max date for these products
+			optimiseNumUls     = (int)optimiseUids.size();
+			// set lastOptimiseDate to max event date for requested products (except ProdutId=1)
 			strcpy(charBuffer, "");
 			for (int i=1; i < numProducts; i++){
 				sprintf(charBuffer, "%s%s%d", charBuffer, i > 1 ? "," : "", allProductIds[i]);
@@ -681,7 +685,7 @@ int _tmain(int argc, WCHAR* argv[])
 			lastOptimiseDate = szAllPrices[0]; 
 			boost::gregorian::date bLastOptimiseDate(boost::gregorian::from_simple_string(lastOptimiseDate));
 
-			// find last data date
+			// set thisLastDate to endDate, failing which find last data date for all underlyings in requested products
 			sprintf(lineBuffer, "%s%s%s", "select group_concat(underlyingid) from (select distinct underlyingid from barrierrelation join productbarrier using (productbarrierid) where productid in (",
 				charBuffer, "))x");
 			mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -707,7 +711,7 @@ int _tmain(int argc, WCHAR* argv[])
 			// force generation of daily paths
 			forceFullPriceRecord = true;
 
-			// reset SettlementDate,StartDate,EndDate on SpecialProduct (id=1)
+			// on SpecialProduct (id=1) reset SettlementDate,StartDate,EndDate to lastOptimiseDate 
 			sprintf(charBuffer, "%s", lastOptimiseDate.c_str());
 			sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%d", "update barrierrelation join productbarrier using (productbarrierid) join product using (productid) set ",
 				"FinalValuationDate='", charBuffer,
@@ -1055,7 +1059,7 @@ int _tmain(int argc, WCHAR* argv[])
 				ulFixedDivs.push_back(thisFixedDivs);
 				if (fabs(thisTZhrs) > maxTZhrs){ maxTZhrs = fabs(thisTZhrs); }
 				uid         = atoi(szAllPrices[0]);
-				if (forOptimisation && find(optimiseProductIds.begin(), optimiseProductIds.end(), uid) == optimiseProductIds.end()){
+				if (forOptimisation && find(optimiseUids.begin(), optimiseUids.end(), uid) == optimiseUids.end()){
 					cerr << "cannot optimise with this underlyingId:" << uid << endl;
 					exit(107);
 				}

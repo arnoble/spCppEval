@@ -3542,6 +3542,8 @@ public:
 								* EITHER: simulate new correlated shocks and calculate levels from local vols,drifts
 								*/
 								if (forOptimisation && productIndx != 0){
+									// if forOptimisation we already saved (in optimiseMcLevels) simulated levels for underlyings in ProductId=1 
+									// ... for use by other productIds so that we are using the same simulated levels for all such products
 									for (i = 0; i < numUl; i++) {
 										int id = ulIds[i];
 										int ix = optimiseUlIdNameMap[id];
@@ -3576,6 +3578,8 @@ public:
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 
 									// debugCorrelatedRandNos.push_back(currentQuantoLevels[i]/spotLevels[i]);
+									// if forOptimisation we save simulated levels for underlyings in ProductId=1 
+									// ... for use by other productIds so that we are using the same simulated levels for all such products
 									if (forOptimisation && productIndx == 0){
 										optimiseMcLevels[i][thisDay-1].push_back(currentQuantoLevels[i]);
 									}
