@@ -3361,8 +3361,7 @@ public:
 		std::vector< std::vector< std::vector<double>> >  ObsDateVols(numUl); // numUl x numObsDates x strike
 		std::vector<double>                               ObsDatesT(numMonDates);
 		if (getMarketData || useUserParams){
-			// debug only: init antitheticRandom and force its use below using 'true' for 'useAntithetic' in the call to GenerateCorrelatedNormal()
-			
+			// debug only: init antitheticRandom and force its use below using 'true' for 'useAntithetic' in the call to GenerateCorrelatedNormal()			
 			for (i=0; i < (int)antitheticRandom.size(); i++){
 				for (j=0; j < numUl;j++){
 					antitheticRandom[i][j] = -1.0;
@@ -3463,7 +3462,7 @@ public:
 		std::vector<double> debugCorrelatedRandNos;
 		int numDisables(0);
 		int randnosStoreSize = (int)randnosStore.size();
-		double lognormalAdj = useUserParams ? 0.0 : 0.5;
+		double lognormalAdj  = useUserParams ? 0.0 : 0.5;
 		for (thisIteration = 0; thisIteration < numMcIterations &&
 			(!consumeRands || randnoIndx<=randnosStoreSize)     && 
 			(forceIterations || fabs(stdevRatioPctChange)>accuracyTol); thisIteration++) {

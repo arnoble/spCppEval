@@ -72,7 +72,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["bumpUserId"]              = "nnn";
 		argWords["minSecsTaken"]            = "nnn";
 		argWords["maxSecsTaken"]            = "nnn";
-		argWords["userParameters"]          = "userId";
+		argWords["userParameters"]          = "userId BUT cannot also have getMarketData (which is for FV calcs); will use impvol(not localvol),impdivyield for this userId";
 		argWords["only"]                    = "<comma-sep list of underlyings names>";
 		argWords["notOnly"]                 = "<comma-sep list of underlyings names>";
 		argWords["UKSPA"]                   = "Bear|Neutral|Bull";
@@ -577,13 +577,13 @@ int _tmain(int argc, WCHAR* argv[])
 
 		// get list of productIds
 		// ... but first deal with any optimisation demands
-		//     ... first element of allProductIds is special ProductId=1 which has chosen underlyings to simulate
+		//     ... first element of allProductIds is special ProductId=1 which has chosen underlyings to simulate: ONLY products with these underlyings can be optimised
 		if (forOptimisation){
 			if (!getMarketData && userParametersId <1){
 				cout << "Optimiser needs scenario-generation from either getMarketData or userParameters" << endl;
 				exit(106);
 			}
-			allProductIds.push_back(1);  // special product id=1 with UK100,SX5E,SPX			
+			allProductIds.push_back(1);  // special product id=1 with UK100,SX5E,SPX etc chosen underlyings
 			notIllustrative = !commaSepList;
 		}
 
@@ -926,16 +926,15 @@ int _tmain(int argc, WCHAR* argv[])
 			boost::gregorian::date  bProductStartDate(boost::gregorian::from_simple_string(productStartDateString));
 
 			// monitoring info
+			//  ... thisProjectedReturn is NOT USED - just for info on which type of analysis is being done
 			thisProjectedReturn = (thisNumIterations == 1 ? "0" : (doPriips ? "8" : "100"));
 			if      (ukspaCase == "Bear")         { thisProjectedReturn = "10"; }
 			else if (ukspaCase == "Neutral")      { thisProjectedReturn = "20"; }
 			else if (ukspaCase == "Bull")         { thisProjectedReturn = "30"; }
 			if (getMarketData && ukspaCase == "") { thisProjectedReturn = "40"; }
-			if (useUserParams)                    { thisProjectedReturn = "50"; }
-			
+			if (useUserParams)                    { thisProjectedReturn = "50"; }			
 
-			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty..." << endl; continue; }
-
+			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty... skipping this product" << endl; continue; }
 			cout << endl << endl << productIndx << " of " << numProducts << "\nIterations:" << thisNumIterations << " ProductId:" << productId << " " << analysisTypes[thisProjectedReturn].c_str() << " " << (doBumps ? "bumps" : "") << endl << endl;
 			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
@@ -1521,12 +1520,13 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 				
 			}
+			// get vols
 			if (getMarketData || useUserParams){
 				int    thisUidx;
 				double thisFwdVol, thisTenor, previousVol, previousTenor;
 				vector<double> someVols, someStrikes, someFwdVols;
 
-				// vols
+				// UKSPA vols
 				if (ukspaCase != "" && totalNumReturns > 2){
 					// calc vols  - 5y window, daily returns
 					int startPoint = totalNumDays <= 1825 ? 0 : totalNumDays - 1825;
@@ -1575,6 +1575,7 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 
 				}
+				// getMarketData or useUserParams vols
 				else {
 					
 					sprintf(ulSql, "%s%lf%s%s%s%s%s%d", "select UnderlyingId,Tenor,Strike,greatest(0.0,ImpVol+",volShift,") Impvol from ",
