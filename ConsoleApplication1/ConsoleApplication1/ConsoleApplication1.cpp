@@ -599,8 +599,8 @@ int _tmain(int argc, WCHAR* argv[])
 			"cashflows c using (ProductId) join wrappertype w using (wrappertypeid) join producttype pt using (ProductTypeId) join institution i on (p.counterpartyid=i.institutionid) ",
 			(onlyTheseUls      ? onlyTheseUlsBuffer : ""),
 			charBuffer,
-			showMatured        ? "" : " and Matured=0 ",
 			(notIllustrative   ? " and Illustrative=0 " : ""),
+			showMatured        ? "" : " and Matured=0 ",
 			(hasISIN           ? " and ISIN != '' " : ""),
 			(hasInventory      ? " and p.Inventory > 0 " : ""),
 			(notStale          ? " and StalePrice=0 " : ""),
@@ -610,7 +610,7 @@ int _tmain(int argc, WCHAR* argv[])
 		for (int i=0; i < (int)rangeFilterStrings.size(); i++){
 			sprintf(lineBuffer, "%s%s", lineBuffer, rangeFilterStrings[i].c_str());
 		}
-		sprintf(lineBuffer, "%s%s", lineBuffer, " and ProjectedReturn=1 ");
+		sprintf(lineBuffer, "%s%s%lf%s", lineBuffer, " and ProjectedReturn=", (int)rangeFilterStrings.size()>0 && userParametersId>0 ? 0.5 : 1.0," ");
 		
 		if (minSecsTaken){
 			sprintf(lineBuffer, "%s%s%d",lineBuffer, " and SecsTaken>=", minSecsTaken);
