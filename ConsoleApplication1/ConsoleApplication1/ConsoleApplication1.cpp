@@ -1342,7 +1342,7 @@ int _tmain(int argc, WCHAR* argv[])
 			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
 			int daysExtant = (bLastDataDate - bProductStartDate).days();
 			// change to BID/ASK for post/pre-strike; to use MID do: (bidPrice + askPrice) / (2.0*issuePrice)
-			bool ignoreBidAsk    = ((bidAskDateString < lastDataDateString) || stalePrice);
+			bool ignoreBidAsk    = ((bidAskDateString != lastDataDateString) || stalePrice);
 			bool validFairValue  = (fairValueDateString == lastDataDateString) && (daysExtant > 14) && fairValuePrice>0.0;
 			bool isPostStrike    = productStartDateString < lastDataDateString;
 			midPrice             = (isPostStrike && ignoreBidAsk && validFairValue ? fairValuePrice : (ignoreBidAsk ? (validFairValue && isPostStrike ? fairValuePrice : issuePrice) : (isPostStrike ? bidPrice:askPrice))) / issuePrice;
