@@ -5355,9 +5355,13 @@ public:
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelOutperfPV='", bmRelOutperfPV);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelUnderperfPV='", bmRelUnderperfPV);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BmRelAverage='", bmRelAverage);
-								sprintf(lineBuffer, "%s%s%d", lineBuffer, "',NumEpisodes='", numAllEpisodes);
-								sprintf(lineBuffer, "%s%s%d", lineBuffer, "',SecsTaken='", secsTaken);
+								sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',NumEpisodes='", numAllEpisodes);
+								sprintf(lineBuffer, "%s%s%d",    lineBuffer, "',SecsTaken='", secsTaken);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',IRR='", thisIrr);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',MidPriceUsed='", midPrice);
+								if (useUserParams) {
+									sprintf(lineBuffer, "%s%s%d", lineBuffer, "',UserParameId='", userId);
+								}
 							}
 						}
 						sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
