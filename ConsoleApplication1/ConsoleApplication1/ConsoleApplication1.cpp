@@ -46,6 +46,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["barrierBendAmort"]        = "endFraction:numDays";
 		argWords["silent"]                  = "";
 		argWords["verbose"]                 = "";
+		argWords["updateProduct"]           = "";
 		argWords["priips"]                  = "";
 		argWords["doAnyIdTable"]            = "";
 		argWords["getMarketData"]           = "";
@@ -125,7 +126,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              debugLevel(0),corrUidx(0), corrOtherUidx(0), corrOtherIndex(0), doUseMyEqEqCorr(-1), doUseMyEqFxCorr(-1);
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
+		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), silent(false), updateProduct(false),verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
 		bool             doFvEndDate(false),updateCashflows(true),ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
 		
@@ -245,6 +246,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
 			if (strstr(thisArg, "silent"            )){ silent             = true; }
 			if (strstr(thisArg, "verbose"           )){ verbose            = true; }
+			if (strstr(thisArg, "updateProduct"     )){ updateProduct      = true; }
 			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }
 			if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
 			if (strstr(thisArg, "hasInventory"      )){ hasInventory       = true; }
@@ -1904,7 +1906,7 @@ int _tmain(int argc, WCHAR* argv[])
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
-				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice, 
+				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, updateProduct, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,
 				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction);
 			numBarriers = 0;
 

@@ -2880,7 +2880,7 @@ private:
 	const int                       bootstrapStride, daysExtant, productIndx;
 	const double                    gmmMinClusterFraction,compoIntoCcyStrikePrice, benchmarkStrike, fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      hasCompoIntoCcy, localVol, doBumps, silent, verbose, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      hasCompoIntoCcy, localVol, doBumps, silent, updateProduct, verbose, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 	const bool                      extendingPrices;
@@ -2935,6 +2935,7 @@ public:
 		const int                       bootstrapStride,
 		const int                       settleDays,
 		const bool                      silent,
+		const bool                      updateProduct,
 		const bool                      verbose,
 		const bool                      doBumps,
 		const bool                      stochasticDrift,
@@ -2956,7 +2957,7 @@ public:
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
 		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
-		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
+		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
 		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction){};
 
@@ -5419,12 +5420,12 @@ public:
 						evalResult.stdErr = thisStderr*issuePrice;
 
 						// update db
-						if (updateCashflows){
+						if (updateCashflows || updateProduct){
 							sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisMean*issuePrice);
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStderr*issuePrice);
-							sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FundingFractionUsed='", fundingFraction);
-							sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
-							sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
+							sprintf(lineBuffer, "%s%s%.5lf",  lineBuffer, "',FairValueStdev='",      thisStderr*issuePrice);
+							sprintf(lineBuffer, "%s%s%.5lf",  lineBuffer, "',FundingFractionUsed='", fundingFraction);
+							sprintf(lineBuffer, "%s%s%s",     lineBuffer, "',FairValueDate='",       allDates.at(startPoint).c_str());
+							sprintf(lineBuffer, "%s%s%d%s",   lineBuffer, "' where ProductId='",     productId, "'");
 							// std::cout << lineBuffer << std::endl;
 							if (!consumeRands && ukspaCase == ""){
 								mydb.prepare((SQLCHAR *)lineBuffer, 1);
