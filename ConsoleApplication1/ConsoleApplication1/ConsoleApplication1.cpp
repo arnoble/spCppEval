@@ -804,7 +804,7 @@ int _tmain(int argc, WCHAR* argv[])
 			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			int  productMaxIterations  = atoi(szAllPrices[colProductMaxIterations]);
 			bool forceIterations = requesterForceIterations;
-			if (productMaxIterations < thisNumIterations){ 
+			if (productMaxIterations < thisNumIterations && !forceIterations){
 				thisNumIterations = productMaxIterations; 
 				forceIterations = true;
 			}
