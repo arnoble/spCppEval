@@ -229,6 +229,22 @@ int _tmain(int argc, WCHAR* argv[])
 		}
 		
 		// process optional argumants
+		// parse range strings, of the form <name>:<number or number-number>
+		// commandLineName: sql to select corresponding quantity from cashflows table
+		map<string, string> rangeVerbs;  // key:sql
+		rangeVerbs["duration"] = "duration";
+		rangeVerbs["volatility"] = "100*EsVol*sqrt(duration)";
+		rangeVerbs["arithReturn"] = "100*EarithReturn";
+		rangeVerbs["CAGR"] = "100*ExpectedReturn";
+		rangeVerbs["CAGRsharpe"] = "ExpectedReturn/(EsVol*sqrt(duration))";
+		rangeVerbs["tailReturn"] = "eShortfall";
+		// give FairValue precedence over BidAsk if we will run the IPR fairValue simulator
+		sprintf(charBuffer, "%s%s", "ExpectedReturn/(1.0 - IssuePrice*EShortfallTest/100/",
+			getMarketData ? "if(FairValueDate != LastDataDate,if((BidAskDate != LastDataDate) or StalePrice,IssuePrice,Ask),FairValue))"
+			: "if((BidAskDate   != LastDataDate) or StalePrice,if(FairValueDate != LastDataDate,IssuePrice,FairValue),Ask))");
+		rangeVerbs["CAGRtoCVAR95loss"] = charBuffer;
+		rangeVerbs["couponReturn"] = "100*couponReturn";
+
 		for (int i=4 - commaSepList; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations")){ requesterForceIterations = true; }
@@ -262,18 +278,6 @@ int _tmain(int argc, WCHAR* argv[])
 
 			// parse range strings, of the form <name>:<number or number-number>
 			// commandLineName: sql to select corresponding quantity from cashflows table
-			map<string, string> rangeVerbs;  // key:sql
-			rangeVerbs["duration"   ] = "duration";
-			rangeVerbs["volatility" ] = "100*EsVol*sqrt(duration)";
-			rangeVerbs["arithReturn"] = "100*EarithReturn";
-			rangeVerbs["CAGR"       ] = "100*ExpectedReturn";
-			rangeVerbs["CAGRsharpe" ] = "ExpectedReturn/(EsVol*sqrt(duration))";
-			rangeVerbs["tailReturn" ] = "eShortfall";
-			// give FairValue precedence over BidAsk if we will run the IPR fairValue simulator
-			sprintf(charBuffer, "%s%s", "ExpectedReturn/(1.0 - IssuePrice*EShortfallTest/100/", getMarketData ? "if(FairValueDate != LastDataDate,if((BidAskDate != LastDataDate) or StalePrice,IssuePrice,Ask),FairValue))" : "if((BidAskDate != LastDataDate) or StalePrice,if(FairValueDate != LastDataDate,IssuePrice,FairValue),Ask))");
-			rangeVerbs["CAGRtoCVAR95loss"] = charBuffer;
-			rangeVerbs["couponReturn"] = "100*couponReturn";
-
 			strcpy(charBuffer, thisArg);
 			char *thisVerb = std::strtok(charBuffer, ":");
 			if (rangeVerbs.find(thisVerb) != rangeVerbs.end()){
