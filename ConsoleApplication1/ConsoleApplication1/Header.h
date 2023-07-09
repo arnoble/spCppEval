@@ -5069,7 +5069,6 @@ public:
 					bmRelCAGR       = MyMinAbs(1000.0, bmRelCAGR);
 
 					// ** process overall product results
-					const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
 					sort(allPayoffs.begin(), allPayoffs.end());
 					sort(allAnnRets.begin(), allAnnRets.end());
 					if (doPriips){
@@ -5168,16 +5167,17 @@ public:
 					// if (doDebug  && debugLevel >= 2){ std::cerr << "Starting analyseResults SavingToDatabase for case \n" << analyseCase << std::endl; }
 
 					const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
-					int numShortfall((int)floor(confLevel    * (double)numAnnRets));
-					int numShortfallTest((int)floor(confLevelTest*(double)numAnnRets));
+					const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
+					int numShortfall(     (int)floor(confLevel     * (double)numAnnRets));
+					int numShortfallTest( (int)floor(confLevelTest * (double)numAnnRets));
 					// NOTE: eShortfall (which an average of annRets) will be HIGHER than the AnnRet of a KIP barrier, as shown in barrierprob table, which annualises the averagePayoff
 					// ... due to Jensen's inequality: f(average) != average(f)
 					// ... for example try 2 6y payoffs of 0.1 and 0.6
-					double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++){ eShortfall     += allAnnRets[i]; }	if (numShortfall){ eShortfall     /= numShortfall; }
+					double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++){ eShortfall     += allAnnRets[i]; }	if (numShortfall)    { eShortfall     /= numShortfall;     }
 					double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++){ eShortfallTest += allPayoffs[i]; }	if (numShortfallTest){ eShortfallTest /= numShortfallTest; }
 					double esVol     = (1 + averageReturn)>0.0 && (1 + eShortfall)>0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 					double priipsImpliedCost, priipsVaR, priipsDuration;
-					double cVar95PctLoss = -100.0*(1.0 - eShortfallTest / midPrice);
+					double cVar95PctLoss = -100.0*(1.0 - eShortfallTest / midPrice); // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution) so this is the %moneyLoss at that percentile
 					if (doPriips){
 						PriipsStruct &thisPriip(priipsInstances[(unsigned int)floor((double)priipsInstances.size()*0.025)]);
 						priipsVaR          = thisPriip.pvReturn;
@@ -5344,7 +5344,7 @@ public:
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecPar='", numParInstances ? sumParAnnRets / (double)numParInstances : 0.0);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probPar='", (double)numParInstances / (double)numAnnRets);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='", eShortfall*100.0);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EShortfallTest='", eShortfallTest*100.0);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EShortfallTest='", eShortfallTest*100.0);  // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution)
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='", eShortfallDepo*100.0);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',cVar95PctLoss='", cVar95PctLoss);								
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
