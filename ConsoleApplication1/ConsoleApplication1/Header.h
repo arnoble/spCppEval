@@ -3234,13 +3234,18 @@ public:
 		std::vector< std::vector<double> > simulatedLogReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
-		std::vector<double>      callableCashflows; callableCashflows.reserve(numBurnInIterations);
+		std::vector<double>      callableCashflows; if (issuerCallable) { callableCashflows.reserve(numBurnInIterations); }
 		std::vector<double>      stdevRatioPctChanges;
-		std::vector<double>      optimiseProductResult;   optimiseProductResult.reserve(numMcIterations);
-		std::vector<double>      optimiseProductPayoff;   optimiseProductPayoff.reserve(numMcIterations);
-		std::vector<double>      optimiseProductDuration; optimiseProductDuration.reserve(numMcIterations);
-
-		std::vector<int>         optimiseDayMatured; optimiseDayMatured.reserve(numMcIterations);
+		std::vector<double>      optimiseProductResult;   
+		std::vector<double>      optimiseProductPayoff;   
+		std::vector<double>      optimiseProductDuration; 
+		std::vector<int>         optimiseDayMatured;
+		if (forOptimisation) {
+			optimiseProductResult.reserve(numMcIterations);
+			optimiseProductPayoff.reserve(numMcIterations);
+			optimiseProductDuration.reserve(numMcIterations);
+			optimiseDayMatured.reserve(numMcIterations);
+		}
 		std::vector< std::vector<double> > someTimepoints[100];
 		std::vector<double>           someLevels[100], somePaths[100]; 
 		std::vector< std::vector<  std::vector<double> > > timepointLevels;
@@ -4740,8 +4745,12 @@ public:
 					bool     foundEarliest = false;
 					double   probEarly(0.0), probEarliest(0.0);
 					std::vector<double> allPayoffs, allFVpayoffs, allAnnRets, allCouponRets, bmAnnRets, bmRelLogRets, pvInstances;
-					std::vector<PriipsStruct> priipsInstances; priipsInstances.reserve(numMcIterations);
-					std::vector<AnnRet> priipsAnnRetInstances; priipsAnnRetInstances.reserve(numMcIterations);
+					std::vector<PriipsStruct> priipsInstances; 
+					std::vector<AnnRet> priipsAnnRetInstances; 
+					if (doPriips) {
+						priipsInstances.reserve(numMcIterations);
+						priipsAnnRetInstances.reserve(numMcIterations);
+					}
 
 					int    numPosPayoffs(0), numStrPosPayoffs(0), numNegPayoffs(0);
 					double sumPosPayoffs(0), sumStrPosPayoffs(0), sumNegPayoffs(0);
