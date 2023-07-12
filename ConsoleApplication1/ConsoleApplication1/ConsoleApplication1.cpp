@@ -93,7 +93,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta|vega|rho|credit|corr~name~name:-0.05:0.05:3 >";
 		argWords["bumpVolPoint"]            = "tenor:strike:bumpAmount(decimal) eg 1.0:0.6:0.01 ";
-		argWords["forOptimisation"]         = "init|any";
+		argWords["forOptimisation"]         = "init|all  'init' truncates tables OTHERWISE results are ADDED; 'all' ALSO saves underlyings";
 		argWords["duration"]                = "<number ~ number, or just number(min)>";
 		argWords["volatility"]              = "<number ~ number, or just number(min) PERCENT>";
 		argWords["arithReturn"]             = "<number ~ number, or just number(min) PERCENT>";
@@ -126,7 +126,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              debugLevel(0),corrUidx(0), corrOtherUidx(0), corrOtherIndex(0), doUseMyEqEqCorr(-1), doUseMyEqFxCorr(-1);
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
-		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), initOptimisation(false), silent(false), updateProduct(false),verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
+		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), saveOptimisationPaths(false), initOptimisation(false), silent(false), updateProduct(false),verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
 		bool             doFvEndDate(false),updateCashflows(true),ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
 		
@@ -541,7 +541,10 @@ int _tmain(int argc, WCHAR* argv[])
 			if (sscanf(thisArg, "Issuer:%s", lineBuffer))                 { issuerPartName          = lineBuffer; }
 			if (sscanf(thisArg, "fundingFractionFactor:%s",   lineBuffer)){ fundingFractionFactor	= atof(lineBuffer);	}
 			if (sscanf(thisArg, "forceFundingFraction:%s",    lineBuffer)){ forceFundingFraction	= lineBuffer; }		
-			else if (sscanf(thisArg, "forOptimisation:%s", lineBuffer)) { forOptimisation    = true; if (strcmp("init",lineBuffer) == 0) { initOptimisation = true; }  }
+			else if (sscanf(thisArg, "forOptimisation:%s", lineBuffer)) { forOptimisation    = true; 
+					if (strcmp("init",lineBuffer) == 0) { initOptimisation = true; }  
+					if (strcmp("all", lineBuffer) == 0) { initOptimisation = true; saveOptimisationPaths = true; }
+			}
 			else if (sscanf(thisArg, "spotsDate:%s",          lineBuffer)){ strcpy(spotsDate, lineBuffer); }
 			else if (doFvEndDate || sscanf(thisArg, "endDate:%s",       endDate)){ strcpy(endDate,        endDate); }
 			else if (doFvEndDate || sscanf(thisArg, "arcVolDate:%s",    endDate)){ strcpy(arcVolDate,     endDate); sprintf(arcVolDateString,    "%s%s%s", " and LastDataDate='", arcVolDate,     "' "); }
@@ -1912,7 +1915,7 @@ int _tmain(int argc, WCHAR* argv[])
 			SProduct spr(extendingPrices,thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
-				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, productIndx,
+				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, saveOptimisationPaths, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, updateProduct, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,
 				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction);
 			numBarriers = 0;

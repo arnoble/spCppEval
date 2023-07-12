@@ -2880,7 +2880,7 @@ private:
 	const int                       bootstrapStride, daysExtant, productIndx;
 	const double                    gmmMinClusterFraction,compoIntoCcyStrikePrice, benchmarkStrike, fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      hasCompoIntoCcy, localVol, doBumps, silent, updateProduct, verbose, doBootstrapStride, forOptimisation, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      hasCompoIntoCcy, localVol, doBumps, silent, updateProduct, verbose, doBootstrapStride, forOptimisation, saveOptimisationPaths, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 	const bool                      extendingPrices;
@@ -2927,6 +2927,7 @@ public:
 		std::vector<std::vector<std::vector<double>>> &optimiseMcLevels,
 		std::vector<int>                &optimiseUlIdNameMap,
 		const bool                      forOptimisation, 
+		const bool                      saveOptimisationPaths,
 		const int                       productIndx,
 		const double                    bmSwapRate, 
 		const double                    bmEarithReturn,
@@ -2955,7 +2956,7 @@ public:
 		daysExtant(daysExtant), midPrice(midPrice), baseCurve(baseCurve), ulIds(ulIds), forwardStartT(forwardStartT), issuePrice(issuePrice), 
 		ukspaCase(ukspaCase), doPriips(doPriips), ulNames(ulNames), validFairValue(validFairValue), fairValue(fairValue), askPrice(askPrice), baseCcyReturn(baseCcyReturn),
 		shiftPrices(shiftPrices), doShiftPrices(doShiftPrices), forceIterations(forceIterations), optimiseMcLevels(optimiseMcLevels),
-		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), productIndx(productIndx), bmSwapRate(bmSwapRate),
+		optimiseUlIdNameMap(optimiseUlIdNameMap), forOptimisation(forOptimisation), saveOptimisationPaths(saveOptimisationPaths), productIndx(productIndx), bmSwapRate(bmSwapRate),
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
@@ -4515,32 +4516,34 @@ public:
 		if (forOptimisation && !doAccruals){
 			if (productIndx == 0){
 				// save underlying values for each iteration
-				for (optCount=0; optCount < numMcIterations; optCount++){
-					if (optCount % optMaxNumToSend == 0){
-						// send batch
-						if (optCount != 0){
-							mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				if (saveOptimisationPaths) {
+					for (optCount=0; optCount < numMcIterations; optCount++) {
+						if (optCount % optMaxNumToSend == 0) {
+							// send batch
+							if (optCount != 0) {
+								mydb.prepare((SQLCHAR *)lineBuffer, 1);
+							}
+							// init for next batch							
+							strcpy(lineBuffer, "insert into simulatedunderlyings (UnderlyingId,Iteration,Value) values ");
+							optFirstTime = true;
 						}
-						// init for next batch							
-						strcpy(lineBuffer, "insert into simulatedunderlyings (UnderlyingId,Iteration,Value) values ");
-						optFirstTime = true;
+						for (i = 0; i < numUl; i++) {
+							int id = ulIds[i];
+							int ix = optimiseUlIdNameMap[id];
+							double startLevel = ulPrices[i].price[startPoint];
+							/* to use underlying return to date product matured
+							int thisDay = optimiseDayMatured[optCount];
+							*/
+							int thisDay = 7; // to calc 1-week deltas
+							double thisReturn = optimiseMcLevels[ix][thisDay][optCount] / startLevel;
+							sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", id, ",", optCount, ",", thisReturn, ")");
+							optFirstTime  = false;
+						}
 					}
-					for (i = 0; i < numUl; i++) {
-						int id = ulIds[i];
-						int ix = optimiseUlIdNameMap[id];
-						double startLevel = ulPrices[i].price[startPoint];
-						/* to use underlying return to date product matured
-						int thisDay = optimiseDayMatured[optCount];
-						*/
-						int thisDay = 7; // to calc 1-week deltas
-						double thisReturn = optimiseMcLevels[ix][thisDay][optCount] / startLevel;
-						sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", id, ",", optCount, ",", thisReturn, ")");
-						optFirstTime  = false;
+					// send final optimisation stub
+					if (strlen(lineBuffer)) {
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
-				}
-				// send final optimisation stub
-				if (strlen(lineBuffer)){
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 			}
 			else{
