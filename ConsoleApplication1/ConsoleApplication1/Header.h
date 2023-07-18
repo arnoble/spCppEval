@@ -34,7 +34,7 @@
 #define GMM_INIT_MIX_RANDOMLY             0
 #define	INVERT_USING_LU_DECOMPOSITION     1
 #define MY_SQL_GENERAL_ERROR             -1            // all the SQL codes seem to be non-negative, so this is a way of signalling something general went wrong
-constexpr double PI                       = 3.141592653589793238;
+#define PI                              3.141592653589793238
 
 // Numerical Recipes types
 typedef double DP;

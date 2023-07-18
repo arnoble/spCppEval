@@ -1,8 +1,8 @@
 
 // ConsoleApplication1.cpp : Defines the entry point for the console application.
 //
-//  PlatformToolset: v141         (ASUS)   v120         (THINK_PC)
-//  BoostInclude:    boost_1_81_0 (ASUS)   boost_1_55_0 (THINK_PC)
+//  Project -> Properties -> General               PlatformToolset: v141         (ASUS)   v120         (THINK_PC)
+//  Project -> Properties -> C/C++ -> General      BoostInclude:    boost_1_81_0 (ASUS)   boost_1_55_0 (THINK_PC)
 //  project:         c:\users\dad\source\repos\ConsoleApplication1 (ASUS) c:\users\dad\documents\Visual Studio 2013\Projects\ConsoleApplication1 (THINK_PC)
 //
 
