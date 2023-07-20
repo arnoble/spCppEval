@@ -2006,12 +2006,14 @@ public:
 
 class SpBarrier {
 private:
-	const bool                  doFinalAssetReturn;
+	const bool                  couponPaidOut,doFinalAssetReturn;
 	const bool                  doDebug;
 	const int                   productId, debugLevel;
 	const int                   barrierNum;
-	const double                thisBarrierBend;
+	const double                fixedCoupon,thisBarrierBend;
 	const double                bendDirection;
+	const std::vector <double>  &baseCurveTenor, &baseCurveSpread;
+	const std::string           couponFrequency;
 	const std::vector <double> &spots;
 	MyDB                       &mydb;
 
@@ -2051,7 +2053,12 @@ public:
 		const int                   debugLevel,
 		const double                annualFundingUnwindCost,
 		const int                   productId,
-		MyDB                        &mydb
+		MyDB                        &mydb,
+		const double                fixedCoupon,
+		const std::string           couponFrequency,
+		const bool                  couponPaidOut,
+		const std::vector <double>  baseCurveTenor,
+		const std::vector <double>  baseCurveSpread
 		)
 		: barrierNum(barrierNum), barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
@@ -2061,7 +2068,8 @@ public:
 		isMemory(isMemory), isAbsolute(isAbsolute), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), isForfeitCoupons(isForfeitCoupons), 
 		barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), 
 		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2 && avgDays), spots(spots), doDebug(doDebug),
-		debugLevel(debugLevel), annualFundingUnwindCost(annualFundingUnwindCost),productId(productId),mydb(mydb)
+		debugLevel(debugLevel), annualFundingUnwindCost(annualFundingUnwindCost),productId(productId),mydb(mydb),fixedCoupon(fixedCoupon),
+		couponFrequency(couponFrequency),couponPaidOut(couponPaidOut), baseCurveTenor(baseCurveTenor), baseCurveSpread(baseCurveSpread)
 	{
 		init();
 	};
@@ -2108,6 +2116,25 @@ public:
 		hasBeenHit               = false;
 		proportionHits           = 1.0;
 		sumProportion            = 0.0;
+		forwardRate              = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
+		if (couponFrequency.size()) {  // add fixed coupon
+			int    freqLen      = (int)couponFrequency.length();
+			char   freqChar     = toupper(couponFrequency[freqLen - 1]);
+			std::string freqNumber = couponFrequency.substr(0, freqLen - 1);
+			sprintf(charBuffer, "%s", freqNumber.c_str());
+			double couponEvery  = atof(charBuffer);
+			double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 365.25;
+			double daysElapsed  = (bEndDate - bProductStartDate).days();
+			double couponPeriod = daysPerEvery * couponEvery;
+			if (couponPaidOut) {
+				daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod; // floor() so as to include accrued stub
+			}
+			double numFixedCoupons = max(0.0, /*floor*/(daysElapsed / couponPeriod)); // allow fractional coupons
+			double periodicRate    = exp(log(forwardRate) * (couponPeriod / 365.25));
+			double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
+			fixedCouponValue = fixedCoupon * (couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
+		}
+
 		isLargestN               = underlyingFunctionId == uFnLargestN && payoffTypeId == fixedPayoff;
 		if (isLargestN){
 			isHit = &SpBarrier::isHitLargestN;
@@ -2147,7 +2174,7 @@ public:
 	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
-	double                          maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
+	double                          fixedCouponValue,maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          lsConstant, lsWorstB, lsWorstSquaredB, lsNextWorstB, lsNextWorstSquaredB, proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate, discountFactor;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <finalAssetInfo>    fars; // final asset returns
@@ -2216,7 +2243,7 @@ public:
 			}
 		}
 		// check for early exercise
-		double thisPayoff = payoff;
+		double thisPayoff = payoff + fixedCouponValue;
 		bool   isCalled(false);
 		double thisFundingUnwindCost = annualFundingUnwindCost * (maxYears - (daysExtant + endDays) / 365.25);
 		if (conditionalExpectation > (thisPayoff + thisFundingUnwindCost)){
@@ -2960,7 +2987,10 @@ public:
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
-		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction){};
+		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction){
+	
+		for (int i=0; i < (int)baseCurve.size(); i++) { baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
+	};
 
 	// public members: DOME consider making private
 	MyDB                           &mydb;
@@ -3054,7 +3084,6 @@ public:
 		int numAllDates = (int)allDates.size();	allBdates.reserve(numAllDates);
 		for (int thisPoint = 0; thisPoint < numAllDates; thisPoint += 1) { allBdates.push_back(boost::gregorian::from_simple_string(allDates.at(thisPoint))); }
 
-		for (int i=0; i < (int)baseCurve.size(); i++){ baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 		numUls = (int)ulIds.size();
 		for (int i=0; i < numUls; i++){ useUl.push_back(true); fixedDiv.push_back(0.0);  }
 		barrier.reserve(100); // for more efficient push_back
@@ -3283,8 +3312,6 @@ public:
 		std::vector<int>   numCouponHits(numIncomeBarriers+1);
 		for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 			barrierDisabled.push_back(false);
-			SpBarrier& b(barrier.at(thisBarrier));
-			b.forwardRate            = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, b.yearsToBarrier); // DOME: very crude for now
 		}
 
 
@@ -4186,6 +4213,20 @@ public:
 														bool    emDone(false);                          // EM is done once minimal BIC improvement, or if we need to reduce #clusters
 														int     thisIter;
 														for(thisIter=0; !emDone && thisIter < gmmIterations; thisIter++) {
+															// fixup clusters with small determinants - usually constant y payoffs
+															for (int i=0; i < numClusters; i++) {
+																int	thisCount = 0;
+																while (my2dDet(covX[i], covXY[i], covXY[i], covY[i]) < 1.0e-08) {
+																	covY[i]   = covY[i] == 0.0 ? covX[i] * 0.0001 : covY[i] * 10.0;    // increase y variability a bit - won't impact the conditional regression which does not need covY
+																	thisCount += 1;
+																	if (thisCount > 1000) {
+																		// something wrong if we get here
+																		std::cerr << "IssuerCallable: cannot make determinant large enough for cluster:" << i << std::endl;
+																		evalResult.errorCode = 11123;
+																		return(evalResult);
+																	}
+																}
+															}
 															// Calculate into z the PDF for each x,y point under each cluster mean and covariances
 															Mat_IO_DP  oldZ(z);
 															evalResult = mvpdf(z, x, y, mu, covX, covY, covXY, numClusters);
@@ -4270,20 +4311,7 @@ public:
 																covXY[i] = thisCovXY / mc[i];
 																totalCovarX += covX[i];
 															}
-															// fixup clusters with small determinants - usually constant y payoffs
-															for (int i=0; i < numClusters; i++) {
-																int	thisCount = 0;
-																while (my2dDet(covX[i], covXY[i], covXY[i], covY[i]) < 1.0e-08) {
-																	covY[i]   = covY[i] == 0.0 ? covX[i]*0.0001 : covY[i] * 10.0;    // increase y variability a bit - won't impact the conditional regression which does not need covY
-																	thisCount += 1;
-																	if (thisCount > 1000) {       
-																		// something wrong if we get here
-																		std::cerr << "IssuerCallable: cannot make determinant large enough for cluster:" << i << std::endl;
-																		evalResult.errorCode = 11123;
-																		return(evalResult);
-																	}
-																}
-															}
+															
 															// compute logLikelihood - sum the PDF's weighted by mix
 															double llik = 0.0;
 															for (int j=0; j < numBurnInIterations; j++) {
@@ -4410,7 +4438,7 @@ public:
 												}
 												double thisFundingUnwindCost = thatB.annualFundingUnwindCost * (maxProductDays - daysExtant - thatB.endDays) / 365.25;
 												for (int j=0; j < numBurnInIterations; j++) {
-													double thisPayoff            = thatB.payoff;
+													double thisPayoff            = thatB.payoff + thatB.fixedCouponValue;
 													double continuationValue     = conditionalExpectation[j][0];
 													double oldCashflow           = callableCashflows[j];
 													if (continuationValue > (thisPayoff + thisFundingUnwindCost)) {

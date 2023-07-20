@@ -852,7 +852,7 @@ int _tmain(int argc, WCHAR* argv[])
 			double forceBarrierBendDays     = atoi(szAllPrices[colProductBarrierBendDays]);
 			double forceBarrierBendFraction = atof(szAllPrices[colProductBarrierBendFraction]);
 			bool   issuerCallable           = atoi(szAllPrices[colProductIssuerCallable]) == 1;
-			if (issuerCallable && getMarketData && thisNumIterations > 1 && thisNumIterations < 100000) { thisNumIterations = 100000; } // callables need 10k burnin
+			// if (issuerCallable && getMarketData && thisNumIterations > 1 && thisNumIterations < 100000) { thisNumIterations = 100000; } // callables need 10k burnin
 			bool   useMyEqEqCorr            = ajaxCalling &&  (doUseMyEqEqCorr == 1 || (doUseMyEqEqCorr != 0 && atoi(szAllPrices[colProductUseMyEqEqCorr]) == 1)) ;
 			bool   useMyEqFxCorr            = ajaxCalling &&  (doUseMyEqFxCorr == 1 || (doUseMyEqFxCorr != 0 && atoi(szAllPrices[colProductUseMyEqFxCorr]) == 1));
 			double volShift                 = doUseThisVolShift ? useThisVolShift : atof(szAllPrices[colProductVolShift]);
@@ -1992,7 +1992,8 @@ int _tmain(int argc, WCHAR* argv[])
 				spr.barrier.push_back(SpBarrier(numBarriers, barrierId, capitalOrIncome, nature, payoff, settlementDate, description,
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
 					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice,
-					thisBarrierBend,bendDirection,spots,doDebug,debugLevel,annualFundingUnwindCost,productId,mydb));
+					thisBarrierBend,bendDirection,spots,doDebug,debugLevel,annualFundingUnwindCost,productId,mydb,fixedCoupon,couponFrequency,
+					couponPaidOut,spr.baseCurveTenor,spr.baseCurveSpread));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 	
 				// get barrier relations from DB
