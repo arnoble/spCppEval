@@ -3302,6 +3302,7 @@ public:
 			initBarriers();
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				SpBarrier& b(barrier.at(thisBarrier));
+				// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
 				double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
 				b.discountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 
@@ -4017,6 +4018,7 @@ public:
 										double thisYears  = b.yearsToBarrier;
 										int    dayMatured = (int)floor(b.yearsToBarrier*365.25);
 										double thisAnnRet = thisYears <= 0.0 ? 0.0 : min(0.4, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+										// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
 										double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
 										double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 										double thisPvPayoff = thisAmount*thisDiscountFactor;
@@ -4822,6 +4824,7 @@ public:
 							thisBarrierSumPayoffs += thisAmount;   // but not if couponPaidOut
 						}
 
+						// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
 						double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
 						double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 
