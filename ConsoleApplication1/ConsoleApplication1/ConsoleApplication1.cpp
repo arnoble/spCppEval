@@ -968,12 +968,19 @@ int _tmain(int argc, WCHAR* argv[])
 			
 
 			// get counterparty info
-			std::vector<std::vector<double>> cdsTenors;  cdsTenors.push_back(vector<double>());  // allocate 1
-			std::vector<std::vector<double>> cdsSpreads; cdsSpreads.push_back(vector<double>()); // allocate 1
+			const double recoveryRate(0.4);
+			std::vector<std::vector<double>> cdsTenors;  
+			std::vector<std::vector<double>> cdsSpreads; 
+			// annual default probability curve
+			std::vector<std::vector<double>> hazardCurves; 
+
 			vector<int>  theseIssuerIds; theseIssuerIds.push_back(counterpartyId);
-			for (int possibleIssuerIndx; possibleIssuerIndx < (int)possibleIssuerIds.size(); possibleIssuerIndx++) { theseIssuerIds.push_back(possibleIssuerIds[possibleIssuerIndx]); }
-			for (int possibleIssuerIndx; possibleIssuerIndx < (int)theseIssuerIds.size(); possibleIssuerIndx++) {
+			for (int possibleIssuerIndx=0; possibleIssuerIndx < (int)possibleIssuerIds.size(); possibleIssuerIndx++) { theseIssuerIds.push_back(possibleIssuerIds[possibleIssuerIndx]); }
+			for (int possibleIssuerIndx=0; possibleIssuerIndx < (int)theseIssuerIds.size(); possibleIssuerIndx++) {
 				int counterpartyId = theseIssuerIds[possibleIssuerIndx];
+				cdsTenors.push_back(    vector<double>() );  // allocate 1
+				cdsSpreads.push_back(   vector<double>() );  // allocate 1
+				hazardCurves.push_back( vector<double>() );  // allocate 1
 				// ...mult-issuer product's have comma-separated issuers...ASSUMED equal weight
 				sprintf(lineBuffer, "%s%d%s", "select EntityName from institution where institutionid='", counterpartyId, "' ");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -2262,11 +2269,9 @@ int _tmain(int argc, WCHAR* argv[])
 				continue;
 			}
 			double maxYears = 0; for (i = 0; i<numBarriers; i++) { double t = spr.barrier.at(i).yearsToBarrier;   if (t > maxYears){ maxYears = t; } }
-			vector<double> hazardCurve;  // annual default probability curve
-			std::vector<std::vector<double>> hazardCurves; hazardCurves.push_back(vector<double>());  // allocate 1
-			const double recoveryRate(0.4); 
-			buildHazardCurve(cdsSpreads[0], cdsTenors[0], maxYears, recoveryRate, hazardCurves[0]);
-
+			for (int possibleIssuerIndx=0; possibleIssuerIndx < (int)theseIssuerIds.size(); possibleIssuerIndx++) {
+				buildHazardCurve(cdsSpreads[possibleIssuerIndx], cdsTenors[possibleIssuerIndx], maxYears, recoveryRate, hazardCurves[possibleIssuerIndx]);
+			}
 			// initialise product, now we have all the state
 			spr.init(maxYears);
 			productNeedsFullPriceRecord = forceFullPriceRecord || productNeedsFullPriceRecord;
