@@ -4809,7 +4809,7 @@ public:
 							double              sumProportion   = b.sumProportion;
 							double              thisYears       = b.yearsToBarrier;
 							double              prob;
-							double              thisProbDefault = probDefault(hazardCurves[0], thisYears);
+							double              thisProbDefault = probDefault(hazardCurve, thisYears);
 							int                 yearsAsMapKey   = (int)floor(b.yearsToBarrier * YEARS_TO_INT_MULTIPLIER);
 
 							prob            = b.hasBeenHit ? 1.0 : (b.isCountAvg ? numHits * sumProportion / b.totalNumPossibleHits / numAllEpisodes : sumProportion / numAllEpisodes); // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
@@ -4831,7 +4831,7 @@ public:
 							}
 
 							// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
-							double thisDiscountRate   = b.forwardRate + fundingFraction * interpCurve(cdsTenors[0], cdsSpreads[0], b.yearsToBarrier);
+							double thisDiscountRate   = b.forwardRate + fundingFraction * interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
 							double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 
 							if (b.capitalOrIncome && b.yearsToBarrier >= 0.0) {
@@ -5450,7 +5450,7 @@ public:
 											sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(", thisStderr, ")[", thisMean / spotLevels[i], "]");
 										}
 										double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
-										forwardRate            += fundingFraction * interpCurve(cdsTenors[0], cdsSpreads[0], yearsToBarrier);
+										forwardRate            += fundingFraction * interpCurve(cdsTenor, cdsSpread, yearsToBarrier);
 										double discountT        = yearsToBarrier - forwardStartT;
 										double discountFactor   = pow(forwardRate, -discountT);
 										sprintf(charBuffer, "%s\t%.5lf", charBuffer, discountFactor);
