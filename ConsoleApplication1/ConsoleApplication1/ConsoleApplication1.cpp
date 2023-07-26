@@ -1003,8 +1003,8 @@ int _tmain(int argc, WCHAR* argv[])
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
 			retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			vector<double> cdsTenor, cdsSpread;
-			std::vector<std::vector<double>> cdsTenors(MAX_ISSUERS);
-			std::vector<std::vector<double>> cdsSpreads(MAX_ISSUERS);
+			std::vector<std::vector<double>> cdsTenors;  cdsTenors.push_back(vector<double>());  // allocate 1
+			std::vector<std::vector<double>> cdsSpreads; cdsSpreads.push_back(vector<double>()); // allocate 1
 
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				double thisSpread,thisTenor;
@@ -2254,7 +2254,7 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			double maxYears = 0; for (i = 0; i<numBarriers; i++) { double t = spr.barrier.at(i).yearsToBarrier;   if (t > maxYears){ maxYears = t; } }
 			vector<double> hazardCurve;  // annual default probability curve
-			std::vector<std::vector<double>> hazardCurves(MAX_ISSUERS);
+			std::vector<std::vector<double>> hazardCurves; hazardCurves.push_back(vector<double>());  // allocate 1
 			const double recoveryRate(0.4); 
 			buildHazardCurve(cdsSpreads[0], cdsTenors[0], maxYears, recoveryRate, hazardCurves[0]);
 
