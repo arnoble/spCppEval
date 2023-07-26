@@ -76,6 +76,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["userParameters"]          = "userId BUT cannot also have getMarketData (which is for FV calcs); will use impvol(not localvol),impdivyield for this userId";
 		argWords["only"]                    = "<comma-sep list of underlyings names>";
 		argWords["notOnly"]                 = "<comma-sep list of underlyings names>";
+		argWords["possibleIssuerIds"]       = "<comma-sep list of issuerIds>";
 		argWords["UKSPA"]                   = "Bear|Neutral|Bull";
 		argWords["Issuer"]                  = "partName";
 		argWords["useThisVolShift"]         = "x.x (percent)";
@@ -168,6 +169,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char dbServer[100]; strcpy(dbServer, "newSp");  // on local PC: newSp for local, spIPRL for IXshared        on IXcloud: spCloud
 		vector<string>   rangeFilterStrings,corrNames;
 		vector<string>   rescaleTypes; rescaleTypes.push_back("spots");
+		vector<int>      possibleIssuerIds;
 		const int        maxUls(MAX_ULS);
 		const int        bufSize(1000);
 
@@ -525,6 +527,11 @@ int _tmain(int argc, WCHAR* argv[])
 					notOnlyStr.c_str()," in (",
 					lineBuffer, "))) z using (productid) ");
 				sprintf(onlyTheseUlsBuffer, "%s%s", onlyTheseUlsBuffer, charBuffer);
+			}
+
+			if (sscanf(thisArg, "possibleIssuerIds:%s", lineBuffer)) {
+				char *token = std::strtok(lineBuffer, ",");
+				while (token != NULL) { possibleIssuerIds.push_back(atoi(token)); token = std::strtok(NULL, ","); }
 			}
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer))  { strcpy(startDate, lineBuffer); }
 			if (sscanf(thisArg, "debug:%s", lineBuffer))       { doDebug = true; debugLevel = atoi(lineBuffer); }
@@ -959,67 +966,69 @@ int _tmain(int argc, WCHAR* argv[])
 				if (retcode == SQL_SUCCESS && atof(szAllPrices[0]) > 0){ doPriceShift = false; }
 			}
 			
-			// get counterparty info
-			// ...mult-issuer product's have comma-separated issuers...ASSUMED equal weight
-			sprintf(lineBuffer, "%s%d%s", "select EntityName from institution where institutionid='", counterpartyId, "' ");
-			mydb.prepare((SQLCHAR *)lineBuffer, 1);
-			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
-			string counterpartyName = szAllPrices[0];
-			vector<string> counterpartyNames;
-			splitCommaSepName(counterpartyNames, counterpartyName);
-			sprintf(charBuffer, "%s%s%s", "'", counterpartyNames.at(0).c_str(), "'");
-			for (i = 1; i < (int)counterpartyNames.size(); i++){
-				sprintf(charBuffer, "%s%s%s%s", charBuffer, ",'", counterpartyNames.at(i).c_str(), "'");
-			}
 
-			if (counterpartyNames.size()>1){
-				sprintf(lineBuffer, "%s%s%s%s%s%s%s", 
-					"select Maturity,avg(Spread) Spread from cdsspread",
-					strlen(arcCdsDate) ? "archive" : "",
-					" join institution using (institutionid) where EntityName in (",
-					charBuffer,
-					") ",
-					arcCdsDateString,
-					" and spread is not null and ccy = '' group by Maturity order by Maturity");
-			}
-			// see if there are ccy-specific spreads
-			else {
-				sprintf(lineBuffer, "%s%s%s%d%s%s%s%s%s%s%s%d%s%s",
-					"select * from (select maturity,spread from cdsspread",
-					strlen(arcCdsDate) ? "archive" : "",
-					" where institutionid=",
-					counterpartyId,
-					" and ccy='", 
-					productCcy.c_str(), 
-					"' ",
-					arcCdsDateString,
-					" and spread is not null union select maturity,spread from cdsspread",
-					strlen(arcCdsDate) ? "archive" : "",
-					" where institutionid=",
-					counterpartyId,
-					arcCdsDateString,
-					"  and ccy=''  and spread is not null)x group by Maturity order by Maturity");
-			}
-			mydb.prepare((SQLCHAR *)lineBuffer, 2);
-			retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
-			vector<double> cdsTenor, cdsSpread;
+			// get counterparty info
 			std::vector<std::vector<double>> cdsTenors;  cdsTenors.push_back(vector<double>());  // allocate 1
 			std::vector<std::vector<double>> cdsSpreads; cdsSpreads.push_back(vector<double>()); // allocate 1
-
-			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				double thisSpread,thisTenor;
-				thisTenor = atof(szAllPrices[0]);
-				cdsTenor.push_back(thisTenor);
-				cdsTenors[0].push_back(thisTenor);
-				thisSpread = atof(szAllPrices[1]) / 10000.0;
-				cdsSpread.push_back(thisSpread);
-				cdsSpreads[0].push_back(thisSpread);
-				if (fabs(thisTenor - 5.0) < 0.01){
-					cds5y = thisSpread;
+			vector<int>  theseIssuerIds; theseIssuerIds.push_back(counterpartyId);
+			for (int possibleIssuerIndx; possibleIssuerIndx < (int)possibleIssuerIds.size(); possibleIssuerIndx++) { theseIssuerIds.push_back(possibleIssuerIds[possibleIssuerIndx]); }
+			for (int possibleIssuerIndx; possibleIssuerIndx < (int)theseIssuerIds.size(); possibleIssuerIndx++) {
+				int counterpartyId = theseIssuerIds[possibleIssuerIndx];
+				// ...mult-issuer product's have comma-separated issuers...ASSUMED equal weight
+				sprintf(lineBuffer, "%s%d%s", "select EntityName from institution where institutionid='", counterpartyId, "' ");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR) { std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
+				string counterpartyName = szAllPrices[0];
+				vector<string> counterpartyNames;
+				splitCommaSepName(counterpartyNames, counterpartyName);
+				sprintf(charBuffer, "%s%s%s", "'", counterpartyNames.at(0).c_str(), "'");
+				for (i = 1; i < (int)counterpartyNames.size(); i++) {
+					sprintf(charBuffer, "%s%s%s%s", charBuffer, ",'", counterpartyNames.at(i).c_str(), "'");
 				}
-				retcode = mydb.fetch(false,"");
-			}
 
+				if (counterpartyNames.size() > 1) {
+					sprintf(lineBuffer, "%s%s%s%s%s%s%s",
+						"select Maturity,avg(Spread) Spread from cdsspread",
+						strlen(arcCdsDate) ? "archive" : "",
+						" join institution using (institutionid) where EntityName in (",
+						charBuffer,
+						") ",
+						arcCdsDateString,
+						" and spread is not null and ccy = '' group by Maturity order by Maturity");
+				}
+				// see if there are ccy-specific spreads
+				else {
+					sprintf(lineBuffer, "%s%s%s%d%s%s%s%s%s%s%s%d%s%s",
+						"select * from (select maturity,spread from cdsspread",
+						strlen(arcCdsDate) ? "archive" : "",
+						" where institutionid=",
+						counterpartyId,
+						" and ccy='",
+						productCcy.c_str(),
+						"' ",
+						arcCdsDateString,
+						" and spread is not null union select maturity,spread from cdsspread",
+						strlen(arcCdsDate) ? "archive" : "",
+						" where institutionid=",
+						counterpartyId,
+						arcCdsDateString,
+						"  and ccy=''  and spread is not null)x group by Maturity order by Maturity");
+				}
+				mydb.prepare((SQLCHAR *)lineBuffer, 2);
+				retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR) { std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
+
+				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+					double thisSpread, thisTenor;
+					thisTenor = atof(szAllPrices[0]);
+					cdsTenors[possibleIssuerIndx].push_back(thisTenor);
+					thisSpread = atof(szAllPrices[1]) / 10000.0;
+					cdsSpreads[possibleIssuerIndx].push_back(thisSpread);
+					if (fabs(thisTenor - 5.0) < 0.01) {
+						cds5y = thisSpread;
+					}
+					retcode = mydb.fetch(false, "");
+				}
+			}
 			// get baseCurve
 			sprintf(lineBuffer, "%s%s%s%s%s%s%s", 
 				"select Tenor,Rate/100 Spread from curve",
@@ -2563,7 +2572,7 @@ int _tmain(int argc, WCHAR* argv[])
 					vector< vector<vector<double>> >  holdUlFwdVol(thisMarketData.ulVolsFwdVol);
 					vector< vector<vector<double>> >  holdUlImpVol(thisMarketData.ulVolsImpVol);
 					vector<vector<vector<double>>>    holdUlVolsStrike(thisMarketData.ulVolsStrike);
-					vector<double>                    holdCdsSpread(cdsSpread);
+					vector<double>                    holdCdsSpread(cdsSpreads[0]);
 					vector<SomeCurve>                 holdBaseCurve(baseCurve);
 					vector <int>                      holdMonDateIndx;
 					vector <double>                   holdMonDateT;
@@ -2678,8 +2687,8 @@ int _tmain(int argc, WCHAR* argv[])
 						for (int creditBump=0; creditBump < creditBumps; creditBump++){
 							creditBumpAmount = creditBumpStart + creditBumpStep*creditBump;
 							// change credit curve
-							for (i=0; i < (int)cdsSpread.size(); i++){
-								cdsSpread[i] = holdCdsSpread[i] + creditBumpAmount;
+							for (i=0; i < (int)cdsSpreads[0].size(); i++){
+								cdsSpreads[0][i] = holdCdsSpread[i] + creditBumpAmount;
 							}
 							buildHazardCurve(cdsSpreads[0], cdsTenors[0], maxYears, recoveryRate, hazardCurves[0]);
 
@@ -2922,8 +2931,8 @@ int _tmain(int argc, WCHAR* argv[])
 							} // for (int rhoBump=0; rhoBump < rhoBumps; rhoBump++){
 							// reinstate credit
 							// change credit curve
-							for (i=0; i < (int)cdsSpread.size(); i++){
-								cdsSpread[i] = holdCdsSpread[i];
+							for (i=0; i < (int)cdsSpreads[0].size(); i++){
+								cdsSpreads[0][i] = holdCdsSpread[i];
 							}
 							buildHazardCurve(cdsSpreads[0], cdsTenors[0], maxYears, recoveryRate, hazardCurves[0]);
 						} // for (int creditBump=0; creditBump < creditBumps; creditBump++){
