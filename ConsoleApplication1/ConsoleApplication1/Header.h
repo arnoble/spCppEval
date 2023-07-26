@@ -18,7 +18,8 @@
 #include <chrono>
 #include <iomanip>
 
-#define MAX_ULS                               100
+#define MAX_ULS                            100
+#define MAX_ISSUERS                        10
 #define MAX_SP_BUF                         500000
 #define MIN_CALLABLE_ITERATIONS            100
 #define MAX_CALLABLE_ITERATIONS          200000
@@ -3206,7 +3207,7 @@ public:
 		const std::vector<int>    monDateIndx,
 		const std::vector<double> monDateT, 
 		const double              recoveryRate,
-		const std::vector<double> hazardCurve,
+		const std::vector<std::vector<double>> hazardCurves,
 		MyDB                      &mydb,
 		double                    &accruedCoupon,
 		const bool                doAccruals,
@@ -3228,8 +3229,8 @@ public:
 		const bool                getMarketData, 
 		const bool                useUserParams,
 		const MarketData          &md,
-		const std::vector<double> &cdsTenor,
-		const std::vector<double> &cdsSpread,
+		const std::vector<std::vector<double>> &cdsTenors,
+		const std::vector<std::vector<double>> &cdsSpreads,
 		const double              fundingFraction,
 		const bool                productNeedsFullPriceRecord,
 		const bool                ovveridePriipsStartDate,
@@ -3303,7 +3304,7 @@ public:
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				SpBarrier& b(barrier.at(thisBarrier));
 				// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
-				double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
+				double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenors[0], cdsSpreads[0], b.yearsToBarrier);
 				b.discountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 
 				if (!barrier.at(thisBarrier).capitalOrIncome) { numIncomeBarriers  += 1; }
@@ -4019,7 +4020,7 @@ public:
 										int    dayMatured = (int)floor(b.yearsToBarrier*365.25);
 										double thisAnnRet = thisYears <= 0.0 ? 0.0 : min(0.4, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 										// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
-										double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
+										double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenors[0], cdsSpreads[0], b.yearsToBarrier);
 										double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 										double thisPvPayoff = thisAmount*thisDiscountFactor;
 
@@ -4803,7 +4804,7 @@ public:
 						double              sumProportion   = b.sumProportion;
 						double              thisYears       = b.yearsToBarrier;
 						double              prob;
-						double              thisProbDefault = probDefault(hazardCurve, thisYears);
+						double              thisProbDefault = probDefault(hazardCurves[0], thisYears);
 						int                 yearsAsMapKey   = (int)floor(b.yearsToBarrier * YEARS_TO_INT_MULTIPLIER);
 
 						prob            = b.hasBeenHit ? 1.0 : (b.isCountAvg ? numHits * sumProportion / b.totalNumPossibleHits / numAllEpisodes : sumProportion / numAllEpisodes); // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
@@ -4825,7 +4826,7 @@ public:
 						}
 
 						// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
-						double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenor, cdsSpread, b.yearsToBarrier);
+						double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenors[0], cdsSpreads[0], b.yearsToBarrier);
 						double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 
 						if (b.capitalOrIncome && b.yearsToBarrier >= 0.0) {
@@ -5444,7 +5445,7 @@ public:
 										sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(", thisStderr, ")[", thisMean / spotLevels[i], "]");
 									}
 									double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
-									forwardRate            += fundingFraction*interpCurve(cdsTenor, cdsSpread, yearsToBarrier);
+									forwardRate            += fundingFraction*interpCurve(cdsTenors[0], cdsSpreads[0], yearsToBarrier);
 									double discountT        = yearsToBarrier - forwardStartT;
 									double discountFactor   = pow(forwardRate, -discountT);
 									sprintf(charBuffer, "%s\t%.5lf", charBuffer, discountFactor);

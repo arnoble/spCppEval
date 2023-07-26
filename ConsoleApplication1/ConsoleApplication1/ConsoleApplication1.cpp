@@ -1003,12 +1003,17 @@ int _tmain(int argc, WCHAR* argv[])
 			mydb.prepare((SQLCHAR *)lineBuffer, 2);
 			retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			vector<double> cdsTenor, cdsSpread;
+			std::vector<std::vector<double>> cdsTenors(MAX_ISSUERS);
+			std::vector<std::vector<double>> cdsSpreads(MAX_ISSUERS);
+
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				double thisSpread,thisTenor;
 				thisTenor = atof(szAllPrices[0]);
 				cdsTenor.push_back(thisTenor);
+				cdsTenors[0].push_back(thisTenor);
 				thisSpread = atof(szAllPrices[1]) / 10000.0;
 				cdsSpread.push_back(thisSpread);
+				cdsSpreads[0].push_back(thisSpread);
 				if (fabs(thisTenor - 5.0) < 0.01){
 					cds5y = thisSpread;
 				}
@@ -2249,8 +2254,9 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			double maxYears = 0; for (i = 0; i<numBarriers; i++) { double t = spr.barrier.at(i).yearsToBarrier;   if (t > maxYears){ maxYears = t; } }
 			vector<double> hazardCurve;  // annual default probability curve
+			std::vector<std::vector<double>> hazardCurves(MAX_ISSUERS);
 			const double recoveryRate(0.4); 
-			buildHazardCurve(cdsSpread, cdsTenor, maxYears, recoveryRate, hazardCurve);
+			buildHazardCurve(cdsSpreads[0], cdsTenors[0], maxYears, recoveryRate, hazardCurves[0]);
 
 			// initialise product, now we have all the state
 			spr.init(maxYears);
@@ -2324,9 +2330,9 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			else {
 				accrualEvalResult = spr.evaluate(totalNumDays, totalNumDays - 1, totalNumDays, 1, historyStep, ulPrices, ulReturns,
-					numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, accrualMonDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, true, false, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+					numBarriers, numUl, ulIdNameMap, accrualMonDateIndx, accrualMonDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, true, false, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, false, false, timepointDays, timepointNames, simPercentiles, false, useProto, false /* getMarketData */, useUserParams, thisMarketData,
-					cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ false,/* updateCashflows */false);
+					cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord, false, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 			}
 			// ...check product not matured
 			numMonPoints = (int)monDateIndx.size();
@@ -2354,9 +2360,9 @@ int _tmain(int argc, WCHAR* argv[])
 				EvalResult evalResult(0.0,0.0,0);
 				// first-time we set conserveRande=true and consumeRande=false
 				evalResult = spr.evaluate(totalNumDays,thisStartPoint, thisLastPoint, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles,false /* doPriipsStress */, 
-					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
+					useProto, getMarketData, useUserParams, thisMarketData,cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord, 
 					ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 					/* updateCashflows */!doBumps && !solveFor && !doRescale && !useMyEqEqCorr && !useMyEqFxCorr && updateCashflows);
 				if (evalResult.errorCode != 0){
@@ -2438,9 +2444,9 @@ int _tmain(int argc, WCHAR* argv[])
 					spr.solverSet(solveForThis,solverParam*x1);
 					cerr << "try:" << solverParam*x1 << endl;
 					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
-						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					fl = evalResult1.value - targetFairValue;
 					if (fl == 0.0) {
@@ -2452,9 +2458,9 @@ int _tmain(int argc, WCHAR* argv[])
 					spr.solverSet(solveForThis, solverParam*x2);
 					cerr << "try:" << solverParam*x2 << endl;
 					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
-						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					fh = evalResult2.value - targetFairValue;
 					if (fh == 0.0) {
@@ -2480,16 +2486,16 @@ int _tmain(int argc, WCHAR* argv[])
 					spr.solverSet(solveForThis, solverParam*rts);
 					cerr << "try:" << solverParam*rts << endl;
 					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
-						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					f = evalResult1.value - targetFairValue;
 					spr.solverSet(solveForThis, solverParam*(rts + solverStep));
 					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
-						useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 					f2 = evalResult2.value - targetFairValue;
 					df = (f - f2) / solverStep;
@@ -2524,17 +2530,17 @@ int _tmain(int argc, WCHAR* argv[])
 						spr.solverSet(solveForThis, solverParam*rts);
 						cerr << "try:" << solverParam*rts << endl;
 						evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
-							useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+							useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 						f = evalResult1.value - targetFairValue;
 						
 						spr.solverSet(solveForThis, solverParam*(rts + solverStep));
 						evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
-							useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+							useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 						f2 = evalResult2.value - targetFairValue;
 						df = (f - f2) / solverStep;
@@ -2675,7 +2681,7 @@ int _tmain(int argc, WCHAR* argv[])
 							for (i=0; i < (int)cdsSpread.size(); i++){
 								cdsSpread[i] = holdCdsSpread[i] + creditBumpAmount;
 							}
-							buildHazardCurve(cdsSpread, cdsTenor, maxYears, recoveryRate, hazardCurve);
+							buildHazardCurve(cdsSpreads[0], cdsTenors[0], maxYears, recoveryRate, hazardCurves[0]);
 
 							/*
 							* rho loop
@@ -2801,9 +2807,9 @@ int _tmain(int argc, WCHAR* argv[])
 
 														// re-evaluate
 														spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-															numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+															numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 															contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
-															cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */,
+															cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true /* consumeRands */,
 															productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 														if (doDeltas){
 															if (deltaBumpAmount != 0.0){
@@ -2847,9 +2853,9 @@ int _tmain(int argc, WCHAR* argv[])
 												// re-evaluate
 												cerr << "BUMPALL: credit:" << creditBumpAmount << " rho:" << rhoBumpAmount << " vega:" << vegaBumpAmount << " corr:" << corrBumpAmount << " delta:" << deltaBumpAmount << endl;
 												spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-													numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+													numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 													contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false, useProto, getMarketData, useUserParams, thisMarketData,
-													cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true,
+													cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord, ovveridePriipsStartDate, bumpedFairValue, doBumps /* conserveRands */, true,
 													productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */false);
 												if (doDeltas) {
 													if (deltaBumpAmount != 0.0){
@@ -2919,7 +2925,7 @@ int _tmain(int argc, WCHAR* argv[])
 							for (i=0; i < (int)cdsSpread.size(); i++){
 								cdsSpread[i] = holdCdsSpread[i];
 							}
-							buildHazardCurve(cdsSpread, cdsTenor, maxYears, recoveryRate, hazardCurve);
+							buildHazardCurve(cdsSpreads[0], cdsTenors[0], maxYears, recoveryRate, hazardCurves[0]);
 						} // for (int creditBump=0; creditBump < creditBumps; creditBump++){
 						// re-initialise barriers
 						for (j=0; j < numBarriers; j++){
@@ -2957,9 +2963,9 @@ int _tmain(int argc, WCHAR* argv[])
 			if (doPriips){
 				// real-world drifts
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
-					useProto, getMarketData, useUserParams, thisMarketData,cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord, 
+					useProto, getMarketData, useUserParams, thisMarketData,cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord, 
 					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured,/* priipsUsingRNdrifts */ false,/* updateCashflows */true);
 
 				// adjust driftrate to riskfree (? minus divs ?)
@@ -2987,9 +2993,9 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 				// re-evaluate, this time setting priipsUsingRNdrifts=true
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
-					useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+					useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ true,/* updateCashflows */true);
 
 
@@ -3066,9 +3072,9 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 				// reinitialise for the stresstest
 				spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurve, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+					numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 					contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, true /* doPriipsStress */,
-					useProto, getMarketData, useUserParams, thisMarketData, cdsTenor, cdsSpread, fundingFraction, productNeedsFullPriceRecord,
+					useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ true,/* updateCashflows */true);
 
 			}
