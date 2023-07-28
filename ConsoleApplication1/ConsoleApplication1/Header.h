@@ -2913,7 +2913,7 @@ private:
 	postStrikeState                 thisPostStrikeState;
 	const bool                      extendingPrices;
 	const bool                      issuerCallable;
-
+	const bool                      multiIssuer;
 public:
 	SProduct(
 		const bool                      extendingPrices,
@@ -2975,7 +2975,8 @@ public:
 		const bool                      issuerCallable,
 		const std::vector<double>       &spots,
 		const std::vector<double>       &strikeDateLevels,
-		const double                    gmmMinClusterFraction
+		const double                    gmmMinClusterFraction,
+		const bool                      multiIssuer
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -2988,7 +2989,7 @@ public:
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
-		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction){
+		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer){
 	
 		for (int i=0; i < (int)baseCurve.size(); i++) { baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 	};
@@ -3239,7 +3240,7 @@ public:
 		const bool                consumeRands,
 		bool                      &productHasMatured,
 		const bool                priipsUsingRNdrifts,
-		const bool                updateCashflows
+		bool                      updateCashflows
 		){
 		// ScopedTimer timer{ "evaluate " + std::to_string(numMcIterations) };
 		char                     charBuffer[1000];
@@ -4766,6 +4767,7 @@ public:
 					const std::vector<double> &hazardCurve(hazardCurves[thisIssuerIndx]);
 					const std::vector<double> &cdsTenor(cdsTenors[thisIssuerIndx]);
 					const std::vector<double> &cdsSpread(cdsSpreads[thisIssuerIndx]);
+					if (thisIssuerIndx > 0) { updateCashflows = false; }
 					// analyse each results case
 					for (int analyseCase = 0; analyseCase < (doPriips || getMarketData || useUserParams ? 1 : 2); analyseCase++) {
 						if (doDebug  && debugLevel >= 2) { std::cerr << "Starting analyseResults  for case \n" << analyseCase << std::endl; }

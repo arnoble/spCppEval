@@ -651,7 +651,9 @@ int _tmain(int argc, WCHAR* argv[])
 			int x(atoi(szAllPrices[0])); allProductIds.push_back(x);
 			retcode = mydb.fetch(false,"");
 		}
-		int numProducts = (int)allProductIds.size();
+		int  numProducts = (int)allProductIds.size();
+		bool multiIssuer = (int)possibleIssuerIds.size() > 1;
+
 		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
 		/*
@@ -1938,7 +1940,7 @@ int _tmain(int argc, WCHAR* argv[])
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, saveOptimisationPaths, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, updateProduct, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,
-				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction);
+				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer);
 			numBarriers = 0;
 
 			// get barriers from DB
