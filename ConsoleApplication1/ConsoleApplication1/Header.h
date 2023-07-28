@@ -3079,6 +3079,7 @@ public:
 		// ReportSomeRandomNumbers(artsRandomNumber.bits[0]);
 		return(artsRandomNumber.bits[0] * normalizer);
 	}
+	void ArtsRanInit() { artsRandomNumber.bucket = 0; }
 
 	// init
 	void init(const double maxYears){
@@ -4774,12 +4775,12 @@ public:
 						bool     applyCredit = analyseCase == 1;
 						std::map<int, double> cashflowMap;
 						double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));
-						if (ukspaCase == "Bear") { projectedReturn = 0.1; }
+						if      (ukspaCase == "Bear"   ) { projectedReturn = 0.1; }
 						else if (ukspaCase == "Neutral") { projectedReturn = 0.2; }
-						else if (ukspaCase == "Bull") { projectedReturn = 0.3; }
+						else if (ukspaCase == "Bull"   ) { projectedReturn = 0.3; }
 						if (getMarketData && ukspaCase == "") { projectedReturn = 0.4; }
 						if (useUserParams) { projectedReturn = 0.5; }
-
+						if (applyCredit) { ArtsRanInit(); }  // so multiIssuer analysis always sees the same ran sequence
 						bool     foundEarliest = false;
 						double   probEarly(0.0), probEarliest(0.0);
 						std::vector<double> allPayoffs, allFVpayoffs, allAnnRets, allCouponRets, bmAnnRets, bmRelLogRets, pvInstances;
