@@ -2190,6 +2190,42 @@ int _tmain(int argc, WCHAR* argv[])
 				sort(monDateT.begin(), monDateT.end());				
 			}
 
+			double oncurveVol(0.1); // default 10%pa vol
+			double cdsVol(0.01);    // default  1%pa vol
+			if (issuerCallable && thisNumIterations > 1) {
+				// calculate oncurve vol
+				sprintf(lineBuffer, "%s%s%s%lf%s%lf%s"
+					, "select std(Rate)*365.25/7/100 from oncurvearchive where ccy='"
+					, productCcy.c_str()
+					, "' and Tenor>="
+					, (maxBarrierDays - 365) / 365
+					, " and Tenor<="
+					, (maxBarrierDays + 365) / 365
+					, " and LastDataDate != '0000-00-00' ");
+				mydb.prepare((SQLCHAR *)lineBuffer,1);
+				retcode = mydb.fetch(false, lineBuffer); 
+				if (retcode == MY_SQL_GENERAL_ERROR) { std::cerr << "IPRerror:" << lineBuffer << endl; }  
+				else {
+					oncurveVol = atof(szAllPrices[0]);
+				}
+				// calculate cds vol
+				sprintf(lineBuffer, "%s%d%s%lf%s%lf%s"
+					, "select std(Spread)*365.25/7/10000 from cdsspreadarchive where InstitutionId="
+					, counterpartyId
+					, " and Maturity>="
+					, (maxBarrierDays - 365) / 365
+					, " and Maturity<="
+					, (maxBarrierDays + 365) / 365
+					, " and LastDataDate != '0000-00-00' ");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(false, lineBuffer);
+				if (retcode == MY_SQL_GENERAL_ERROR) { std::cerr << "IPRerror:" << lineBuffer << endl; }
+				else {
+					cdsVol = atof(szAllPrices[0]);
+				}
+			}
+			spr.oncurveVol = oncurveVol;
+			spr.cdsVol     = cdsVol;
 
 			// possibly pad future ulPrices for resampling into if there is not enough history
 			int daysPadding = (int)max(maxBarrierDays, maxBarrierDays + daysExtant - totalNumDays + 1);

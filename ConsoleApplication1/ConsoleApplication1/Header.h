@@ -3000,7 +3000,7 @@ public:
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips, notUKSPA, stochasticDrift;
 	int                             addCompoIntoCcy, numIncomeBarriers, settleDays, maxProductDays, productDays, numUls, maxEndDays;
-	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
+	double                          cdsVol,oncurveVol,cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl,doShiftPrices;
@@ -3540,6 +3540,10 @@ public:
 							thisValue           = interpVector(theseRates, theseTenors, thisT);
 							thatValue           = interpVector(theseRates, theseTenors, thatT);
 							thisDriftRate[i]    = thatT == thisT ? thatValue : (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
+							if (issuerCallable) {
+								double  thisWobble = thatT == thisT ? 0.0 : oncurveVol * NormSInv(ArtsRan()) * (thatT - thisT);
+								thisDriftRate[i]  += thisWobble;
+							}
 							// get forward div rate = r2.t2 = r1.t1 + dr.d
 							theseTenors = md.divYieldsTenor[i];
 							theseRates  = md.divYieldsRate[i];
