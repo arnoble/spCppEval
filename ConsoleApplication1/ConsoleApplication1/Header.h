@@ -2914,6 +2914,8 @@ private:
 	const bool                      extendingPrices;
 	const bool                      issuerCallable;
 	const bool                      multiIssuer;
+	const std::vector <double>      &cdsVols;
+	const double                    oncurveVol;
 public:
 	SProduct(
 		const bool                      extendingPrices,
@@ -2976,7 +2978,9 @@ public:
 		const std::vector<double>       &spots,
 		const std::vector<double>       &strikeDateLevels,
 		const double                    gmmMinClusterFraction,
-		const bool                      multiIssuer
+		const bool                      multiIssuer,
+		const double                    oncurveVol,
+		const std::vector <double>      &cdsVols
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -2989,7 +2993,7 @@ public:
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
-		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer){
+		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer), oncurveVol(oncurveVol), cdsVols(cdsVols){
 	
 		for (int i=0; i < (int)baseCurve.size(); i++) { baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 	};
@@ -3000,7 +3004,7 @@ public:
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips, notUKSPA, stochasticDrift;
 	int                             addCompoIntoCcy, numIncomeBarriers, settleDays, maxProductDays, productDays, numUls, maxEndDays;
-	double                          cdsVol,oncurveVol,cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
+	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl,doShiftPrices;
@@ -3196,7 +3200,7 @@ public:
 		return(0);
 	}
 	// evaluate product at this point in time
-	EvalResult evaluate(const int       totalNumDays,
+	EvalResult evaluate(const int totalNumDays,
 		const int                 startPoint,
 		const int                 lastPoint,
 		const int                 numMcIterations,
@@ -3241,7 +3245,8 @@ public:
 		const bool                consumeRands,
 		bool                      &productHasMatured,
 		const bool                priipsUsingRNdrifts,
-		bool                      updateCashflows
+		bool                      updateCashflows,
+		const int                 issuerIndx
 		){
 		// ScopedTimer timer{ "evaluate " + std::to_string(numMcIterations) };
 		char                     charBuffer[1000];
@@ -3306,7 +3311,7 @@ public:
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				SpBarrier& b(barrier.at(thisBarrier));
 				// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
-				double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenors[0], cdsSpreads[0], b.yearsToBarrier);
+				double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenors[issuerIndx], cdsSpreads[issuerIndx], b.yearsToBarrier);
 				b.discountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 
 				if (!barrier.at(thisBarrier).capitalOrIncome) { numIncomeBarriers  += 1; }
@@ -3540,10 +3545,6 @@ public:
 							thisValue           = interpVector(theseRates, theseTenors, thisT);
 							thatValue           = interpVector(theseRates, theseTenors, thatT);
 							thisDriftRate[i]    = thatT == thisT ? thatValue : (thatValue * thatT - thisValue * thisT) / (thatT - thisT);
-							if (issuerCallable) {
-								double  thisWobble = thatT == thisT ? 0.0 : oncurveVol * NormSInv(ArtsRan()) * (thatT - thisT);
-								thisDriftRate[i]  += thisWobble;
-							}
 							// get forward div rate = r2.t2 = r1.t1 + dr.d
 							theseTenors = md.divYieldsTenor[i];
 							theseRates  = md.divYieldsRate[i];
@@ -4026,7 +4027,7 @@ public:
 										int    dayMatured = (int)floor(b.yearsToBarrier*365.25);
 										double thisAnnRet = thisYears <= 0.0 ? 0.0 : min(0.4, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 										// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
-										double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenors[0], cdsSpreads[0], b.yearsToBarrier);
+										double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenors[issuerIndx], cdsSpreads[issuerIndx], b.yearsToBarrier);
 										double thisDiscountFactor = pow(thisDiscountRate, -(b.yearsToBarrier - forwardStartT));
 										double thisPvPayoff = thisAmount*thisDiscountFactor;
 
@@ -4104,8 +4105,12 @@ public:
 												// discount callableCashflows back to this obsDate
 												double thisDiscountFactor = laterDiscountFactor / thatB.discountFactor;
 												laterDiscountFactor = thatB.discountFactor;
+												double dT           = b.yearsToBarrier - thatB.yearsToBarrier;
+												if (dT != 0.0) { dT = pow(dT,0.5); }
+												double issuerCdsVol = cdsVols[issuerIndx];
 												for (int i=0; i < numBurnInIterations; i++) {
-													callableCashflows[i]  *= thisDiscountFactor;
+													double  thisWobble = 1.0 - (oncurveVol * NormSInv(ArtsRan()) + issuerCdsVol * NormSInv(ArtsRan()) ) * dT;
+													callableCashflows[i]  *= thisDiscountFactor * thisWobble;
 												}
 												// check data
 												if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()) {
