@@ -652,7 +652,7 @@ int _tmain(int argc, WCHAR* argv[])
 			retcode = mydb.fetch(false,"");
 		}
 		int  numProducts = (int)allProductIds.size();
-		bool multiIssuer = (int)possibleIssuerIds.size() > 1;
+		bool multiIssuer = (int)possibleIssuerIds.size() > 0;
 
 		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
@@ -1075,23 +1075,6 @@ int _tmain(int argc, WCHAR* argv[])
 				anyCurve.spread = atof(szAllPrices[1]);
 				baseCurve.push_back(anyCurve);
 				retcode = mydb.fetch(false,"");
-			}
-			// calculate oncurve vol
-			double oncurveVol(0.1); // default 10%pa vol
-			if (issuerCallable && thisNumIterations > 1) {
-				sprintf(lineBuffer, "%s%s%s%lf%s%lf%s"
-					, "select std(Rate)*365.25/7/100 from oncurvearchive where ccy='"
-					, productCcy.c_str()
-					, "' and Tenor>="
-					, (maxBarrierDays - 365) / 365
-					, " and Tenor<="
-					, (maxBarrierDays + 365) / 365
-					, " and LastDataDate != '0000-00-00' ");
-				mydb.prepare((SQLCHAR *)lineBuffer, 1);
-				retcode = mydb.fetch(false, lineBuffer);
-				if (retcode != MY_SQL_GENERAL_ERROR) {
-					oncurveVol = atof(szAllPrices[0]);
-				}
 			}
 
 
@@ -1977,7 +1960,7 @@ int _tmain(int argc, WCHAR* argv[])
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, saveOptimisationPaths, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, updateProduct, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,
-				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,oncurveVol,cdsVols);
+				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols);
 			numBarriers = 0;
 
 			// get barriers from DB
@@ -2298,6 +2281,25 @@ int _tmain(int argc, WCHAR* argv[])
 
 
 			// further initialisation, given product info
+						// calculate oncurve vol
+			double oncurveVol(0.1); // default 10%pa vol
+			if (issuerCallable && thisNumIterations > 1) {
+				sprintf(lineBuffer, "%s%s%s%lf%s%lf%s"
+					, "select std(Rate)*sqrt(365.25/7)/100 from oncurvearchive where ccy='"
+					, productCcy.c_str()
+					, "' and Tenor >= greatest(3,"
+					, (maxBarrierDays - 366) / 365
+					, ") and Tenor <= least(7,"
+					, (maxBarrierDays + 366) / 365
+					, ") and LastDataDate != '0000-00-00' ");
+				mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				retcode = mydb.fetch(false, lineBuffer);
+				if (retcode != MY_SQL_GENERAL_ERROR) {
+					oncurveVol = atof(szAllPrices[0]);
+				}
+			}
+			spr.oncurveVol = oncurveVol;
+
 			// ...check product not matured
 			if ((int)monDateIndx.size() == 0 && (int)accrualMonDateIndx.size() == 0){ continue; }
 			spr.maxProductDays = (int)maxBarrierDays + daysExtant;
@@ -2415,7 +2417,7 @@ int _tmain(int argc, WCHAR* argv[])
 				EvalResult evalResult(0.0, 0.0, 0);
 				// multiIssuer issuerCallable products get .evaluated repeatedly cos product cashflows depend on each issuer's cds and cdsVol
 				for (int thisIssuerIndx = 0; 
-					thisIssuerIndx < (int)theseIssuerIds.size() && (thisIssuerIndx < 1 || (multiIssuer && issuerCallable && evalResult.errorCode != 0 ) ); 
+					thisIssuerIndx < (int)theseIssuerIds.size() && (thisIssuerIndx < 1 || (multiIssuer && issuerCallable && evalResult.errorCode == 0 ) ); 
 					thisIssuerIndx++) {
 					spr.ArtsRanInit();  // so that multiIssuer analysis always sees the same ran sequence
 					// first-time we set conserveRande=doBumps and consumeRande=false
@@ -2424,7 +2426,7 @@ int _tmain(int argc, WCHAR* argv[])
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
-						/* updateCashflows */!doBumps && !solveFor && !doRescale && !useMyEqEqCorr && !useMyEqFxCorr && updateCashflows,/* issuerIndx */thisIssuerIndx);
+						/* updateCashflows */!doBumps && !solveFor && !doRescale && !useMyEqEqCorr && !useMyEqFxCorr && updateCashflows && thisIssuerIndx == 0,/* issuerIndx */thisIssuerIndx);
 				}
 				if (evalResult.errorCode != 0) {
 					continue;

@@ -2915,7 +2915,6 @@ private:
 	const bool                      issuerCallable;
 	const bool                      multiIssuer;
 	const std::vector <double>      &cdsVols;
-	const double                    oncurveVol;
 public:
 	SProduct(
 		const bool                      extendingPrices,
@@ -2979,7 +2978,6 @@ public:
 		const std::vector<double>       &strikeDateLevels,
 		const double                    gmmMinClusterFraction,
 		const bool                      multiIssuer,
-		const double                    oncurveVol,
 		const std::vector <double>      &cdsVols
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
@@ -2993,7 +2991,7 @@ public:
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
-		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer), oncurveVol(oncurveVol), cdsVols(cdsVols){
+		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer), cdsVols(cdsVols){
 	
 		for (int i=0; i < (int)baseCurve.size(); i++) { baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 	};
@@ -3004,7 +3002,7 @@ public:
 	const unsigned int              longNumOfSequences=1000;
 	bool                            doPriips, notUKSPA, stochasticDrift;
 	int                             addCompoIntoCcy, numIncomeBarriers, settleDays, maxProductDays, productDays, numUls, maxEndDays;
-	double                          cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
+	double                          oncurveVol,cds5y,bmSwapRate, bmEarithReturn, bmVol, forwardStartT, issuePrice, priipsRfr;
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl,doShiftPrices;
@@ -4773,7 +4771,9 @@ public:
 				double   actualRecoveryRate = depositGteed ? 0.9 : (collateralised ? 0.9 : recoveryRate);
 				double maxYears(0.0); for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){ double ytb=barrier.at(thisBarrier).yearsToBarrier; if (ytb>maxYears){ maxYears = ytb; } }
 				// credit-analyse for possibly multiIssuer
-				for (int thisIssuerIndx = 0; thisIssuerIndx < (int)hazardCurves.size(); thisIssuerIndx++) {
+				for (int thisIssuerIndx = issuerIndx; 
+					!(multiIssuer && issuerCallable && thisIssuerIndx > issuerIndx) && thisIssuerIndx < (int)hazardCurves.size();
+					thisIssuerIndx++) {
 					const std::vector<double> &hazardCurve(hazardCurves[thisIssuerIndx]);
 					const std::vector<double> &cdsTenor(cdsTenors[thisIssuerIndx]);
 					const std::vector<double> &cdsSpread(cdsSpreads[thisIssuerIndx]);
@@ -5427,7 +5427,7 @@ public:
 								}
 							}
 							sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductId='", productId, "' and ProjectedReturn='", projectedReturn, "'");
-							if (!silent) { std::cout << lineBuffer << std::endl; }
+							if (!silent && doDebug && debugLevel > 0) { std::cout << lineBuffer << std::endl; }
 							if (mydb.prepare((SQLCHAR *)lineBuffer, 1)) { evalResult.errorCode = 10003; return(evalResult); }
 							if (!doBumps && analyseCase == 0) {
 								sprintf(lineBuffer, "%s%s%s%.5lf%s%d", "update ", useProto, "product set MidPriceUsed=", midPrice, " where ProductId=", productId);
