@@ -4865,6 +4865,7 @@ public:
 												maxFirstKoReturn    = b.payoff / midPrice - 1.0;
 											}
 										}
+										if (fabs(maxFirstKoMoneyness) > 100000.0) { maxFirstKoMoneyness  = (maxFirstKoMoneyness > 0.0 ? 1.0 : -1.0) * 100000.0 ; }
 										sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%d%s%.5lf", "update ", useProto, "cashflows set MaxFirstKoMoneyness='", maxFirstKoMoneyness - 1.0,
 											"',MaxFirstKoReturn='", maxFirstKoReturn,
 											"' where ProductId='", productId, "' and ProjectedReturn=", projectedReturn);
