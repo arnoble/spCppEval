@@ -4824,7 +4824,7 @@ public:
 							double              thisProbDefault = probDefault(hazardCurve, thisYears);
 							int                 yearsAsMapKey   = (int)floor(b.yearsToBarrier * YEARS_TO_INT_MULTIPLIER);
 
-							prob            = b.hasBeenHit ? 1.0 : (b.isCountAvg ? numHits * sumProportion / b.totalNumPossibleHits / numAllEpisodes : sumProportion / numAllEpisodes); // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
+							prob            = b.hasBeenHit ? 1.0 : (b.isCountAvg ? (b.totalNumPossibleHits <=0 ? 0.0 : numHits * sumProportion / b.totalNumPossibleHits / numAllEpisodes) : sumProportion / numAllEpisodes); // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
 
 							for (i = 0; i < numHits; i++) {
 								thisAmount = b.hit[i].amount;
