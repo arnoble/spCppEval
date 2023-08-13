@@ -973,34 +973,16 @@ int _tmain(int argc, WCHAR* argv[])
 			const double                     recoveryRate(0.4);
 			std::vector<std::vector<double>> cdsTenors;  
 			std::vector<std::vector<double>> cdsSpreads; 
-			std::vector<double>              cdsVols;
 			// annual default probability curve
 			std::vector<std::vector<double>> hazardCurves; 
 			vector<int>  theseIssuerIds; theseIssuerIds.push_back(counterpartyId);
-			for (int possibleIssuerIndx=0; possibleIssuerIndx < (int)possibleIssuerIds.size(); possibleIssuerIndx++) { theseIssuerIds.push_back(possibleIssuerIds[possibleIssuerIndx]); }
+			for (int possibleIssuerIndx=0; possibleIssuerIndx < (int)possibleIssuerIds.size(); possibleIssuerIndx++) { theseIssuerIds.push_back(possibleIssuerIds[possibleIssuerIndx]); }			
 			for (int possibleIssuerIndx=0; possibleIssuerIndx < (int)theseIssuerIds.size(); possibleIssuerIndx++) {
 				int counterpartyId = theseIssuerIds[possibleIssuerIndx];
 				cdsTenors.push_back(    vector<double>() );  // allocate 1
 				cdsSpreads.push_back(   vector<double>() );  // allocate 1
 				hazardCurves.push_back( vector<double>() );  // allocate 1
-				if (issuerCallable && thisNumIterations > 1) {					
-					// calculate cds vol
-					double cdsVol(0.01);    // default  1%pa vol
-					sprintf(lineBuffer, "%s%d%s%lf%s%lf%s"
-						, "select std(Spread)*365.25/7/10000 from cdsspreadarchive where InstitutionId="
-						, counterpartyId
-						, " and Maturity>="
-						, (maxBarrierDays - 365) / 365
-						, " and Maturity<="
-						, (maxBarrierDays + 365) / 365
-						, " and LastDataDate != '0000-00-00' ");
-					mydb.prepare((SQLCHAR *)lineBuffer, 1);
-					retcode = mydb.fetch(false, lineBuffer);
-					if (retcode != MY_SQL_GENERAL_ERROR) {
-						cdsVol = atof(szAllPrices[0]);
-						cdsVols.push_back(cdsVol);
-					}
-				}
+				
 				// ...mult-issuer product's have comma-separated issuers...ASSUMED equal weight
 				sprintf(lineBuffer, "%s%d%s", "select EntityName from institution where institutionid='", counterpartyId, "' ");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -1954,6 +1936,7 @@ int _tmain(int argc, WCHAR* argv[])
 				cerr << endl << "******NOTE******* issuerCallable product needs iterations in the range" << MIN_CALLABLE_ITERATIONS << ":" << MAX_CALLABLE_ITERATIONS << endl;
 				thisNumIterations = MAX_CALLABLE_ITERATIONS;
 			}
+			std::vector<double>  cdsVols;
 			double annualFundingUnwindCost(0.0);  // not getting sensible results for IssuerCallables ... so hold off until we know more what issuers do ...
 			SProduct spr(extendingPrices,thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
@@ -2190,6 +2173,28 @@ int _tmain(int argc, WCHAR* argv[])
 				// next barrier record
 				numBarriers += 1;
 				retcode = mydb.fetch(false,"");
+			}
+
+			// calculate cds vols
+			if (issuerCallable && thisNumIterations > 1) {
+				for (int possibleIssuerIndx=0; possibleIssuerIndx < (int)theseIssuerIds.size(); possibleIssuerIndx++) {
+					int counterpartyId = theseIssuerIds[possibleIssuerIndx];
+					double cdsVol(0.01);    // default  1%pa vol
+					sprintf(lineBuffer, "%s%d%s%lf%s%lf%s"
+						, "select std(Spread)*sqrt(365.25/7)/10000 from cdsspreadarchive where InstitutionId="
+						, counterpartyId
+						, " and Maturity >= greatest(3,"
+						, (maxBarrierDays - 365) / 365
+						, ") and Maturity <= least(7,"
+						, (maxBarrierDays + 365) / 365
+						, ") and LastDataDate != '0000-00-00' ");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					retcode = mydb.fetch(false, lineBuffer);
+					if (retcode != MY_SQL_GENERAL_ERROR) {
+						cdsVol = atof(szAllPrices[0]);
+						cdsVols.push_back(cdsVol);
+					}
+				}
 			}
 
 			//	add vol tenors to MonDates

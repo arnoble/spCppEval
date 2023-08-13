@@ -2914,7 +2914,7 @@ private:
 	const bool                      extendingPrices;
 	const bool                      issuerCallable;
 	const bool                      multiIssuer;
-	const std::vector <double>      &cdsVols;
+
 public:
 	SProduct(
 		const bool                      extendingPrices,
@@ -2978,7 +2978,7 @@ public:
 		const std::vector<double>       &strikeDateLevels,
 		const double                    gmmMinClusterFraction,
 		const bool                      multiIssuer,
-		const std::vector <double>      &cdsVols
+		std::vector<double>             &cdsVols
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -2991,7 +2991,7 @@ public:
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
-		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer), cdsVols(cdsVols){
+		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer),cdsVols(cdsVols){
 	
 		for (int i=0; i < (int)baseCurve.size(); i++) { baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 	};
@@ -3006,7 +3006,7 @@ public:
 	std::string                     couponFrequency,ukspaCase;
 	std::vector <SpBarrier>         barrier;
 	std::vector <bool>              useUl,doShiftPrices;
-	std::vector <double>            fixedDiv,priipsStressVols,baseCurveTenor, baseCurveSpread,randnosStore,shiftPrices;
+	std::vector <double>            &cdsVols,fixedDiv,priipsStressVols,baseCurveTenor, baseCurveSpread,randnosStore,shiftPrices;
 	std::vector<boost::gregorian::date> allBdates;
 	std::vector<SpPayoffAndDate>        storeFixedCoupons;
 	std::vector<std::vector<std::vector<double>>> &optimiseMcLevels;
@@ -4107,7 +4107,7 @@ public:
 												if (dT != 0.0) { dT = pow(dT,0.5); }
 												double issuerCdsVol = cdsVols[issuerIndx];
 												for (int i=0; i < numBurnInIterations; i++) {
-													double  thisWobble = 1.0 - (oncurveVol * NormSInv(ArtsRan()) + issuerCdsVol * NormSInv(ArtsRan()) ) * dT;
+  													double  thisWobble = 1.0 - (oncurveVol * NormSInv(ArtsRan()) + issuerCdsVol * NormSInv(ArtsRan()) ) * dT;
 													callableCashflows[i]  *= thisDiscountFactor * thisWobble;
 												}
 												// check data
