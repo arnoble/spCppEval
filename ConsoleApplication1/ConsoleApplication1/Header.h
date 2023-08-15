@@ -3497,6 +3497,17 @@ public:
 		if (     !getMarketData && numMcIterations <= 25000){ accuracyTol = 2.0; }
 		else if (!getMarketData && numMcIterations <= 50000){ accuracyTol = 1.0; }
 		else if ( getMarketData || numMcIterations > 200000){ accuracyTol = 0.01; }
+
+
+		/*
+		* debug
+		*/
+		if (doDebug && debugLevel>=3) {
+			// marketData
+			for (int i=0; i < spots.size();i++) {
+				std::cerr << "SPOT" << i << ":" << spots[i] << std::endl;
+			}
+		}
 		// ***********************
 		// START LOOP McIterations
 		// ***********************

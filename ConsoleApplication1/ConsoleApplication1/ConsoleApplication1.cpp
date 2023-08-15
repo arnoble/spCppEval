@@ -153,7 +153,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           gmmMinClusterFraction(0.001),useThisVolShift,rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue, bumpedFairValue;
+		double           gmmMinClusterFraction(0.001),useThisVolShift,rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue;
 		double           deltaBumpAmount(0.05), deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0);
 		int              thetaBumpStart(0), thetaBumpStep(0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), corrBumpStart(0.0), corrBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(180.0);
@@ -2633,8 +2633,8 @@ int _tmain(int argc, WCHAR* argv[])
 
 				
 				
-				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), rhoBumpAmount(0.0), creditBumpAmount(0.0), corrBumpAmount(0.0);
-				int    thetaBumpAmount(0);
+				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), rhoBumpAmount(0.0), creditBumpAmount(0.0), corrBumpAmount(0.0),bumpedFairValue(0.0);
+				int    thetaBumpAmount(0);				
 				if (doBumps && (deltaBumps || vegaBumps || thetaBumps || rhoBumps || creditBumps || bumpPointTenor > 0.0)  /* && daysExtant>0 */){
 					vector< vector<vector<double>> >  holdUlFwdVol(thisMarketData.ulVolsFwdVol);
 					vector< vector<vector<double>> >  holdUlImpVol(thisMarketData.ulVolsImpVol);
@@ -2912,7 +2912,7 @@ int _tmain(int argc, WCHAR* argv[])
 													} // for (thisUidx=0; thisUidx < numUl; thisUidx++){
 												} // if (bumpEachUnderlying){
 												// for ALL underlyings
-												if (!doRescaleSpots || bumpedFairValue){
+												if (!doRescaleSpots || bumpedFairValue > 0.0){
 													for (i=0; i < numUl; i++){
 														int ulId = ulIds[i];
 														bumpSpots(spr, i, ulIds, spots, ulPrices, doStickySmile, thisMarketData, holdUlVolsStrike, deltaBumpAmount, totalNumDays, daysExtant, false);
