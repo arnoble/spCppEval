@@ -28,7 +28,8 @@ int _tmain(int argc, WCHAR* argv[])
 		// initialise
 		map<string, string> argWords;
 		argWords["doFAR"          ]         = "";      
-		argWords["slidingTheta"]            = "";      
+		argWords["bumpOnlyALL"    ]         = "";
+		argWords["slidingTheta"]            = "";
 		argWords["doTesting"]               = "";
 		argWords["doDeltas"       ]         = "";
 		argWords["notIllustrative"]         = "";
@@ -129,7 +130,7 @@ int _tmain(int argc, WCHAR* argv[])
 		bool             doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), saveOptimisationPaths(false), initOptimisation(false), silent(false), updateProduct(false),verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
-		bool             doFvEndDate(false),updateCashflows(true),ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
+		bool             bumpOnlyALL(false),doFvEndDate(false),updateCashflows(true),ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
 		
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -259,6 +260,7 @@ int _tmain(int argc, WCHAR* argv[])
 			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }				
 			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
+			if (strstr(thisArg, "bumpOnlyALL"       )){ bumpOnlyALL        = true; bumpEachUnderlying = false; }
 			if (strstr(thisArg, "slidingTheta"      )){ slidingTheta       = true; }
 			if (strstr(thisArg, "doTesting"         )){ doTesting          = true; }				
 			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
@@ -310,7 +312,7 @@ int _tmain(int argc, WCHAR* argv[])
 				getMarketData      = true;
 				doDeltas           = true; 
 				doBumps            = true;
-				bumpEachUnderlying = true;
+				bumpEachUnderlying = !bumpOnlyALL;
 				deltaBumpStart     = -deltaBumpAmount;
 				deltaBumpStep      =  deltaBumpAmount;
 				deltaBumps         = 3;
@@ -343,7 +345,7 @@ int _tmain(int argc, WCHAR* argv[])
 				if (doDeltas){ cerr << "cannot do deltas and bumps together" << endl; exit(103); }
 				doBumps            = true;
 				getMarketData      = true;
-				bumpEachUnderlying = true;
+				bumpEachUnderlying = !bumpOnlyALL;
 				char *token   = std::strtok(lineBuffer, ":");
 				std::vector<std::string> tokens;
 				while (token != NULL) { tokens.push_back(token); token = std::strtok(NULL, ":"); }
@@ -413,13 +415,13 @@ int _tmain(int argc, WCHAR* argv[])
 					deltaBumpStart     = start;
 					deltaBumpStep      = step;
 					deltaBumps         = num;
-					bumpEachUnderlying = true;
+					bumpEachUnderlying = !bumpOnlyALL;
 					break;
 				case 2: // vega
 					vegaBumpStart      = start;
 					vegaBumpStep       = step;
 					vegaBumps          = num;
-					bumpEachUnderlying = true;
+					bumpEachUnderlying = !bumpOnlyALL;
 					break;
 				case 3: // theta
 					thetaBumpStart  = atoi(tokens[1].c_str());
