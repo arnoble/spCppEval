@@ -5241,12 +5241,12 @@ public:
 
 						const double depoRate = 0.01;  // in decimal...DOME: could maybe interpolate curve for each instance
 						const double confLevel(0.1), confLevelTest(0.05);  // confLevelTest is for what-if analysis, for different levels of conf
-						int numShortfall((int)floor(confLevel     * (double)numAnnRets));
-						int numShortfallTest((int)floor(confLevelTest * (double)numAnnRets));
+						int numShortfall(     (int)floor(confLevel     * (double)numAnnRets));
+						int numShortfallTest( (int)floor(confLevelTest * (double)numAnnRets));
 						// NOTE: eShortfall (which an average of annRets) will be HIGHER than the AnnRet of a KIP barrier, as shown in barrierprob table, which annualises the averagePayoff
 						// ... due to Jensen's inequality: f(average) != average(f)
 						// ... for example try 2 6y payoffs of 0.1 and 0.6
-						double eShortfall(0.0);	    for (i = 0; i < numShortfall; i++) { eShortfall     += allAnnRets[i]; }	if (numShortfall) { eShortfall     /= numShortfall; }
+						double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++) { eShortfall     += allAnnRets[i]; }	if (numShortfall)     { eShortfall     /= numShortfall; }
 						double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++) { eShortfallTest += allPayoffs[i]; }	if (numShortfallTest) { eShortfallTest /= numShortfallTest; }
 						double esVol     = (1 + averageReturn) > 0.0 && (1 + eShortfall) > 0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 						double priipsImpliedCost, priipsVaR, priipsDuration;

@@ -543,7 +543,6 @@ int _tmain(int argc, WCHAR* argv[])
 				getMarketData = true;
 			}
 			if (sscanf(thisArg, "fvEndDate:%s", lineBuffer)) {
-				updateCashflows  = false;
 				doFvEndDate      = true;
 				strcpy(endDate, lineBuffer);
 			}
@@ -577,6 +576,7 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "gmmMinClusterFraction:%s", lineBuffer)){ gmmMinClusterFraction = atof(lineBuffer); gmmMinClusterFraction = fMax(0.0, fMin(gmmMinClusterFraction, 0.5)); }			
 
 		}
+		updateCashflows  = doFvEndDate && !userParametersId ? false : true;   // allow userParameters to update its own cashflows
 		if (doPriips){
 			if (strlen(startDate)){
 				ovveridePriipsStartDate = true;
@@ -2957,7 +2957,7 @@ int _tmain(int argc, WCHAR* argv[])
 														// save vegas to product table
 														if (vegaBumpAmount != 0.0 && thetaBumpAmount == 0.0 && creditBumpAmount == 0.0 && rhoBumpAmount == 0.0){
 															double  vega = (bumpedFairValue - thisFairValue) / (100.0*vegaBumpAmount);
-															sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", vegaBump == 0 ? "Vega" : "VegaUp", "=", vega, ",VegaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
+															sprintf(lineBuffer, "%s%s%s%.5lf%s%s%s%d%s", "update product set ", vegaBumpAmount < 0.0 ? "Vega" : "VegaUp", "=", vega, ",VegaDate='", lastDataDateString.c_str(), "' where productid=", productId, "");
 															mydb.prepare((SQLCHAR *)lineBuffer, 1);
 														}
 														// save rho to product table
