@@ -251,33 +251,32 @@ int _tmain(int argc, WCHAR* argv[])
 		for (int i=4 - commaSepList; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations")){ requesterForceIterations = true; }
-			if (strstr(thisArg, "priips"            )){ doPriips           = true; }
-			if (strstr(thisArg, "useProductFundingFractionFactor")){  useProductFundingFractionFactor  = true; }
-			if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
-			if (strstr(thisArg, "bsPricer"          )){ bsPricer = true;  localVol           = false; }
-			if (strstr(thisArg, "forceLocalVol"     )){ forceLocalVol      = true; }
-			
-			// if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
-			if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }				
-			if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
-			if (strstr(thisArg, "bumpOnlyALL"       )){ bumpOnlyALL        = true; bumpEachUnderlying = false; }
-			if (strstr(thisArg, "slidingTheta"      )){ slidingTheta       = true; }
-			if (strstr(thisArg, "doTesting"         )){ doTesting          = true; }				
-			if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
-			if (strstr(thisArg, "silent"            )){ silent             = true; }
-			if (strstr(thisArg, "verbose"           )){ verbose            = true; }
-			if (strstr(thisArg, "updateProduct"     )){ updateProduct      = true; }
-			if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }
-			if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
-			if (strstr(thisArg, "hasInventory"      )){ hasInventory       = true; }
-			if (strstr(thisArg, "showMatured"       )){ showMatured        = true; }			
-			if (strstr(thisArg, "notStale"          )){ notStale           = true; }
-			if (strstr(thisArg, "incomeProducts"    )){ doIncomeProducts   = true; }			
-			if (strstr(thisArg, "capitalProducts"   )){ doCapitalProducts  = true; }
-			if (strstr(thisArg, "ignoreBenchmark"   )){ ignoreBenchmark    = true; }
-			if (strstr(thisArg, "stickySmile"       )){ doStickySmile      = true; }
-			if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
-			if (strstr(thisArg, "ajaxCalling"       )){ ajaxCalling        = true; }			
+			else if (strstr(thisArg, "priips"            )){ doPriips           = true; }
+			else if (strstr(thisArg, "useProductFundingFractionFactor")){  useProductFundingFractionFactor  = true; }
+			else if (strstr(thisArg, "getMarketData"     )){ getMarketData      = true; }
+			else if (strstr(thisArg, "bsPricer"          )){ bsPricer = true;  localVol           = false; }
+			else if (strstr(thisArg, "forceLocalVol"     )){ forceLocalVol      = true; }
+			// else if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
+			else if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }
+			else if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
+			else if (strstr(thisArg, "bumpOnlyALL"       )){ bumpOnlyALL        = true; bumpEachUnderlying = false; }
+			else if (strstr(thisArg, "slidingTheta"      )){ slidingTheta       = true; }
+			else if (strstr(thisArg, "doTesting"         )){ doTesting          = true; }
+			else if (strstr(thisArg, "doAnyIdTable"      )){ doAnyIdTable       = true; }
+			else if (strstr(thisArg, "silent"            )){ silent             = true; }
+			else if (strstr(thisArg, "verbose"           )){ verbose            = true; }
+			else if (strstr(thisArg, "updateProduct"     )){ updateProduct      = true; }
+			else if (strstr(thisArg, "notIllustrative"   )){ notIllustrative    = true; }
+			else if (strstr(thisArg, "hasISIN"           )){ hasISIN            = true; }
+			else if (strstr(thisArg, "hasInventory"      )){ hasInventory       = true; }
+			else if (strstr(thisArg, "showMatured"       )){ showMatured        = true; }
+			else if (strstr(thisArg, "notStale"          )){ notStale           = true; }
+			else if (strstr(thisArg, "incomeProducts"    )){ doIncomeProducts   = true; }
+			else if (strstr(thisArg, "capitalProducts"   )){ doCapitalProducts  = true; }
+			else if (strstr(thisArg, "ignoreBenchmark"   )){ ignoreBenchmark    = true; }
+			else if (strstr(thisArg, "stickySmile"       )){ doStickySmile      = true; }
+			else if (strstr(thisArg, "forOptimisation"   )){ forOptimisation    = true; }
+			else if (strstr(thisArg, "ajaxCalling"       )){ ajaxCalling        = true; }
 
 
 			// parse range strings, of the form <name>:<number or number-number>
@@ -547,20 +546,13 @@ int _tmain(int argc, WCHAR* argv[])
 				strcpy(endDate, lineBuffer);
 			}
 			if (sscanf(thisArg, "Issuer:%s", lineBuffer))                 { issuerPartName          = lineBuffer; }
-			if (sscanf(thisArg, "fundingFractionFactor:%s",   lineBuffer)){ fundingFractionFactor	= atof(lineBuffer);	}
-			if (sscanf(thisArg, "forceFundingFraction:%s",    lineBuffer)){ forceFundingFraction	= lineBuffer; }		
-			else if (sscanf(thisArg, "forOptimisation:%s", lineBuffer)) { forOptimisation    = true; 
+			else if (sscanf(thisArg, "fundingFractionFactor:%s",   lineBuffer)){ fundingFractionFactor	= atof(lineBuffer);	}
+			else if (sscanf(thisArg, "forceFundingFraction:%s",    lineBuffer)){ forceFundingFraction	= lineBuffer; }
+			else if (sscanf(thisArg, "forOptimisation:%s", lineBuffer)) { forOptimisation    = true;
 					if (strcmp("init",lineBuffer) == 0) { initOptimisation = true; }  
 					if (strcmp("all", lineBuffer) == 0) { initOptimisation = true; saveOptimisationPaths = true; }
 			}
 			else if (sscanf(thisArg, "spotsDate:%s",          lineBuffer)){ strcpy(spotsDate, lineBuffer); }
-			else if (doFvEndDate || sscanf(thisArg, "endDate:%s",       endDate)){ strcpy(endDate,        endDate); }
-			else if (doFvEndDate || sscanf(thisArg, "arcVolDate:%s",    endDate)){ strcpy(arcVolDate,     endDate); sprintf(arcVolDateString,    "%s%s%s", " and LastDataDate='", arcVolDate,     "' "); }
-			else if (doFvEndDate || sscanf(thisArg, "arcCorDate:%s",    endDate)){ strcpy(arcCorDate,     endDate); sprintf(arcCorDateString,    "%s%s%s", " and LastDataDate='", arcCorDate,     "' "); }
-			else if (doFvEndDate || sscanf(thisArg, "arcDivDate:%s",    endDate)){ strcpy(arcDivDate,     endDate); sprintf(arcDivDateString,    "%s%s%s", " and LastDataDate='", arcDivDate,     "' "); }
-			else if (doFvEndDate || sscanf(thisArg, "arcOnCurveDate:%s",endDate)){ strcpy(arcOnCurveDate, endDate); sprintf(arcOnCurveDateString,"%s%s%s", " and LastDataDate='", arcOnCurveDate, "' "); }
-			else if (doFvEndDate || sscanf(thisArg, "arcCurveDate:%s",  endDate)){ strcpy(arcCurveDate,   endDate); sprintf(arcCurveDateString,  "%s%s%s", " and LastDataDate='", arcCurveDate,   "' "); }
-			else if (doFvEndDate || sscanf(thisArg, "arcCdsDate:%s",    endDate)){ strcpy(arcCdsDate,     endDate); sprintf(arcCdsDateString,    "%s%s%s", " and LastDataDate='", arcCdsDate,     "' "); }
 			else if (sscanf(thisArg, "bumpUserId:%s",            lineBuffer)){ bumpUserId            = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "corrUserId:%s",            lineBuffer)){ corrUserId            = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "minSecsTaken:%s",          lineBuffer)){ minSecsTaken          = atoi(lineBuffer); }
@@ -573,8 +565,15 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "useThisVolShift:%s",       lineBuffer)){ useThisVolShift       = atof(lineBuffer) / 100.0; doUseThisVolShift    = true; }
 			else if (sscanf(thisArg, "useMyEqEqCorr:%s",         lineBuffer)){ doUseMyEqEqCorr       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "useMyEqFxCorr:%s",         lineBuffer)){ doUseMyEqFxCorr       = atoi(lineBuffer); }
-			else if (sscanf(thisArg, "gmmMinClusterFraction:%s", lineBuffer)){ gmmMinClusterFraction = atof(lineBuffer); gmmMinClusterFraction = fMax(0.0, fMin(gmmMinClusterFraction, 0.5)); }			
+			else if (sscanf(thisArg, "gmmMinClusterFraction:%s", lineBuffer)){ gmmMinClusterFraction = atof(lineBuffer); gmmMinClusterFraction = fMax(0.0, fMin(gmmMinClusterFraction, 0.5)); }
 
+			if (doFvEndDate || sscanf(thisArg, "endDate:%s", endDate)) { strcpy(endDate, endDate); }
+			if (doFvEndDate || sscanf(thisArg, "arcVolDate:%s", endDate)) { strcpy(arcVolDate, endDate); sprintf(arcVolDateString, "%s%s%s", " and LastDataDate='", arcVolDate, "' "); }
+			if (doFvEndDate || sscanf(thisArg, "arcCorDate:%s", endDate)) { strcpy(arcCorDate, endDate); sprintf(arcCorDateString, "%s%s%s", " and LastDataDate='", arcCorDate, "' "); }
+			if (doFvEndDate || sscanf(thisArg, "arcDivDate:%s", endDate)) { strcpy(arcDivDate, endDate); sprintf(arcDivDateString, "%s%s%s", " and LastDataDate='", arcDivDate, "' "); }
+			if (doFvEndDate || sscanf(thisArg, "arcOnCurveDate:%s", endDate)) { strcpy(arcOnCurveDate, endDate); sprintf(arcOnCurveDateString, "%s%s%s", " and LastDataDate='", arcOnCurveDate, "' "); }
+			if (doFvEndDate || sscanf(thisArg, "arcCurveDate:%s", endDate)) { strcpy(arcCurveDate, endDate); sprintf(arcCurveDateString, "%s%s%s", " and LastDataDate='", arcCurveDate, "' "); }
+			if (doFvEndDate || sscanf(thisArg, "arcCdsDate:%s", endDate)) { strcpy(arcCdsDate, endDate); sprintf(arcCdsDateString, "%s%s%s", " and LastDataDate='", arcCdsDate, "' "); }
 		}
 		updateCashflows  = doFvEndDate && !userParametersId ? false : true;   // allow userParameters to update its own cashflows
 		if (doPriips){
