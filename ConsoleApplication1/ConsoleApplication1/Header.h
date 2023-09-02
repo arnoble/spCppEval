@@ -1625,8 +1625,11 @@ public:
 		else if (dataSource == "newSp"){
 			fsts =  dbConn(hEnv, &hDBC, L"newSp", L"root", L"ragtinmor");
 		}
-		else if (dataSource == "spIPRL"){
-			fsts =  dbConn(hEnv, &hDBC, L"spIPRL", L"C85693_anoble", L"Ragtin_Mor14");
+		else if (dataSource == "spArrow"){
+			fsts =  dbConn(hEnv, &hDBC, L"spArrow", L"anoble", L"Ragtin_Mor14_Lucian");
+		}
+		else if (dataSource == "spLevendi") {
+			fsts =  dbConn(hEnv, &hDBC, L"spLevendi", L"anoble", L"Ragtin_Mor14_Lucian");
 		}
 		else {
 			std::cerr << "Unknown database " << dataSource << "\n";
