@@ -1767,7 +1767,7 @@ int _tmain(int argc, WCHAR* argv[])
 					for (i = 1; i < numUl; i++) {
 						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
 					}
-					sprintf(ulSql, "%s%s%d%s%s", ulSql, ")  and userid=", useMyEqEqCorr ? (corrUserId>0 ? corrUserId : productUserId) : userId,
+					sprintf(ulSql, "%s%s%d%s%s", ulSql, ")   and UnderlyingId != OtherId and userid=", useMyEqEqCorr ? (corrUserId>0 ? corrUserId : productUserId) : userId,
 						arcCorDateString,
 						" order by UnderlyingId,OtherId ");
 					// .. parse each record <Date,price0,...,pricen>

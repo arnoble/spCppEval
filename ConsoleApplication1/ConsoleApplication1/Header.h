@@ -3423,6 +3423,9 @@ public:
 				for (j=0; j<(int)md.corrsCorrelation[i].size(); j++) {
 					int otherId = md.corrsOtherId[i][j];
 					double thisCorr = md.corrsCorrelation[i][j];
+					if (i == otherId) {
+						int jj = 1;
+					}
 					rnCorr[i][otherId]  = thisCorr;
 					rnCorr[otherId][i]  = thisCorr;
 				}
