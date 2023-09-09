@@ -2182,19 +2182,19 @@ int _tmain(int argc, WCHAR* argv[])
 					int counterpartyId = theseIssuerIds[possibleIssuerIndx];
 					double cdsVol(0.01);    // default  1%pa vol
 					sprintf(lineBuffer, "%s%d%s%lf%s%lf%s"
-						, "select std(Spread)*sqrt(365.25/7)/10000 from cdsspreadarchive where InstitutionId="
+						, "select std(Spread)*sqrt(365.25/7)/10000 vol from cdsspreadarchive where InstitutionId="
 						, counterpartyId
-						, " and Maturity >= greatest(3,"
+						, " and Maturity >= "
 						, (maxBarrierDays - 365) / 365
-						, ") and Maturity <= least(7,"
+						, " and Maturity <= least(7,"
 						, (maxBarrierDays + 365) / 365
-						, ") and LastDataDate != '0000-00-00' ");
+						, ") and LastDataDate != '0000-00-00' HAVING vol != NULL");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					retcode = mydb.fetch(false, lineBuffer);
-					if (retcode != MY_SQL_GENERAL_ERROR) {
+					if (retcode != MY_SQL_GENERAL_ERROR && retcode != SQL_NO_DATA_FOUND) {
 						cdsVol = atof(szAllPrices[0]);
-						cdsVols.push_back(cdsVol);
 					}
+					cdsVols.push_back(cdsVol);
 				}
 			}
 
@@ -2293,9 +2293,9 @@ int _tmain(int argc, WCHAR* argv[])
 				sprintf(lineBuffer, "%s%s%s%lf%s%lf%s"
 					, "select std(Rate)*sqrt(365.25/7)/100 from oncurvearchive where ccy='"
 					, productCcy.c_str()
-					, "' and Tenor >= greatest(3,"
+					, "' and Tenor >= "
 					, (maxBarrierDays - 366) / 365
-					, ") and Tenor <= least(7,"
+					, " and Tenor <= least(7,"
 					, (maxBarrierDays + 366) / 365
 					, ") and LastDataDate != '0000-00-00' ");
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);

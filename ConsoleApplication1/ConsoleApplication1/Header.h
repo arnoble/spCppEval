@@ -2,6 +2,7 @@
 //#include <boost/regex.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+// standard includes: C:\Program Files (x86)\Windows Kits\10\Include\10.0.17763.0\um
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -4124,7 +4125,9 @@ public:
 												if (dT != 0.0) { dT = pow(dT,0.5); }
 												double issuerCdsVol = cdsVols[issuerIndx];
 												for (int i=0; i < numBurnInIterations; i++) {
-  													double  thisWobble = 1.0 - (oncurveVol * NormSInv(ArtsRan()) + issuerCdsVol * NormSInv(ArtsRan()) ) * dT;
+													double  oncurveWobble  =  oncurveVol   * NormSInv(ArtsRan());
+													double  cdsWobble      =  issuerCdsVol * NormSInv(ArtsRan());
+													double  thisWobble = 1.0 -(oncurveVol * NormSInv(ArtsRan()) + issuerCdsVol * NormSInv(ArtsRan())) * dT;
 													callableCashflows[i]  *= thisDiscountFactor * thisWobble;
 												}
 												// check data
