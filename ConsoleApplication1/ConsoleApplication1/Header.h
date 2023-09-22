@@ -4075,9 +4075,9 @@ public:
 												if (!bOther.capitalOrIncome && !bOther.hasBeenHit  && !barrierWasHit[k]) {
 													double payoffOther = bOther.payoff;
 													barrierWasHit[k] = true;
-													if (!couponPaidOut){
-														couponValue += payoffOther;
-													}
+													// if (!couponPaidOut)  ... already know this barrier was not hit, so couponPaidOut not relevant to memory-barriers
+													couponValue += payoffOther;
+													
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
 													bOther.storePayoff(thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, 
