@@ -5493,17 +5493,18 @@ public:
 							}
 							// fair value
 							MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
+							double issuerCallableComplexityMargin = issuerCallable ? 0.015 : 0.0;
+							thisFairValue      = (thisMean - issuerCallableComplexityMargin) * issuePrice;
 							simulatedFairValue = thisMean;
 							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf", "FairValueResults(stdev):",
-								thisMean*issuePrice, ":", thisStderr*issuePrice, ":", duration);
+								thisFairValue, ":", thisStderr*issuePrice, ":", duration);
 							std::cout << charBuffer << std::endl;
-							thisFairValue = thisMean * issuePrice;
 							evalResult.value  = thisFairValue;
 							evalResult.stdErr = thisStderr * issuePrice;
 
 							// update db
 							if (updateCashflows || updateProduct) {
-								sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisMean*issuePrice);
+								sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisFairValue);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStderr*issuePrice);
 								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FundingFractionUsed='", fundingFraction);
 								sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
