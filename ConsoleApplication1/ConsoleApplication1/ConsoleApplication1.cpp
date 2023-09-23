@@ -1041,8 +1041,12 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			
 			// get baseCurve
-			sprintf(lineBuffer, "%s%s%s%s%s%s%s", 
-				"select Tenor,Rate/100 Spread from curve",
+			//  ... check, but THINK USD swaps are quoted semiannual compounding
+			string rateString = productCcy == "USD" ? "(exp(2.0*log(1.0 + (Rate/100.0/2.0))) - 1.0) " : "Rate / 100 ";
+			sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s", 
+				"select Tenor,",
+				rateString.c_str(),
+				"Spread from curve",
 				strlen(arcCurveDate) ? "archive" : "",
 				" where ccy='", 
 				productCcy.c_str(),
@@ -1685,6 +1689,7 @@ int _tmain(int argc, WCHAR* argv[])
 				} // END vols
 				//  OIS rates
 				//  ... 2022 saw a lot of ois tickers disappear, so we now use corresponding swap tickers ... hence need to convert to continuous compounding
+				//  ... the impDivYield Excel calcs assume annual compounding, so (despite USD semiannual basis ) we have to assume the same here
 				sprintf(ulSql, "%s%s%s%s", "select ccy,Tenor,log(1+Rate/100)*100 Rate from oncurve",
 					strlen(arcOnCurveDate) ? "archive" : "",
 					" v where ccy in ('", ulCcys[0].c_str());
