@@ -1684,7 +1684,8 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 				} // END vols
 				//  OIS rates
-				sprintf(ulSql, "%s%s%s%s", "select ccy,Tenor,Rate from oncurve",
+				//  ... 2022 saw a lot of ois tickers disappear, so we now use corresponding swap tickers ... hence need to convert to continuous compounding
+				sprintf(ulSql, "%s%s%s%s", "select ccy,Tenor,log(1+Rate/100)*100 Rate from oncurve",
 					strlen(arcOnCurveDate) ? "archive" : "",
 					" v where ccy in ('", ulCcys[0].c_str());
 				for (i = 1; i < numUl; i++) {
