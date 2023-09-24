@@ -1042,6 +1042,7 @@ int _tmain(int argc, WCHAR* argv[])
 			
 			// get baseCurve
 			//  ... check, but THINK USD swaps are quoted semiannual compounding
+			//  ... SQL to check:         select Tenor,(exp(2.0*log(1.0 + (Rate/100.0/2.0))) - 1.0) Spread from curve where ccy='USD'  order by Tenor;
 			string rateString = productCcy == "USD" ? "(exp(2.0*log(1.0 + (Rate/100.0/2.0))) - 1.0) " : "Rate / 100 ";
 			sprintf(lineBuffer, "%s%s%s%s%s%s%s%s%s", 
 				"select Tenor,",
@@ -1689,8 +1690,8 @@ int _tmain(int argc, WCHAR* argv[])
 				} // END vols
 				//  OIS rates
 				//  ... 2022 saw a lot of ois tickers disappear, so we now use corresponding swap tickers ... hence need to convert to continuous compounding
-				//  ... the impDivYield Excel calcs assume annual compounding, so (despite USD semiannual basis ) we have to assume the same here
-				sprintf(ulSql, "%s%s%s%s", "select ccy,Tenor,log(1+Rate/100)*100 Rate from oncurve",
+				//  ... the impDivYield Excel calcs assume USD compounding is semi-annual
+				sprintf(ulSql, "%s%s%s%s", "select ccy,Tenor,Rate from oncurve",
 					strlen(arcOnCurveDate) ? "archive" : "",
 					" v where ccy in ('", ulCcys[0].c_str());
 				for (i = 1; i < numUl; i++) {
@@ -1704,13 +1705,17 @@ int _tmain(int argc, WCHAR* argv[])
 				mydb.prepare((SQLCHAR *)ulSql, 3);
 				retcode = mydb.fetch(false, ulSql);
 				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					string thisCcy   = szAllPrices[0];
-					double thisTenor = atof(szAllPrices[1]);
-					double thisRate  = atof(szAllPrices[2]);
+					string thisCcy         = szAllPrices[0];
+					double compoundingFreq = thisCcy == "USD" ? 2.0 : 1.0;
+					double thisTenor       = atof(szAllPrices[1]);
+					double thisRate        = atof(szAllPrices[2]) / 100.0;
+					// DB now grabs SWAP rates from Bberg (previously ois tickers were available, but then became unavailable ... forget why
+					// ... anyway we now must convert to continuous-compounding
+					thisRate               = log(1.0 + (thisRate/compoundingFreq)) * compoundingFreq;
 					if (doUseThisOIS) { thisRate = useThisOIS; }
 					for (thisUidx = 0; thisUidx < numUl; thisUidx++) {
 						if (ccyToUidMap[ulIds[thisUidx]] == thisCcy) {
-							oisRatesRate[thisUidx].push_back(thisRate / 100.0);
+							oisRatesRate[thisUidx].push_back(thisRate);
 							oisRatesTenor[thisUidx].push_back(thisTenor);
 						}
 					}
@@ -2206,7 +2211,7 @@ int _tmain(int argc, WCHAR* argv[])
 
 			//	add vol tenors to MonDates
 			spr.reportableMonDateIndx = monDateIndx;
-			if (getMarketData || useUserParams){
+			if ((getMarketData || useUserParams)){
 				int  maxObsDays = monDateIndx.size() > 0 ? monDateIndx[monDateIndx.size() - 1] : 1000000;
 				for (i = 0; i < ulVolsTenor[0].size(); i++) {
 					double thisT  = 365.25*ulVolsTenor[0][i];
