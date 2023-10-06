@@ -4825,7 +4825,7 @@ public:
 						double sumPosDurations(0), sumStrPosDurations(0), sumNegDurations(0), sumYearsToBarrier(0);
 						// most likely barrier
 						double maxBarrierProb(0.0), maxBarrierProbMoneyness(0.0), maxFirstKoMoneyness(0.0), maxFirstKoReturn(0.0);
-						bool doMostLikelyBarrier(analyseCase == 0);
+						bool doMostLikelyBarrier(analyseCase == 0 || analyseCase == 1);
 
 						// ** process barrier results
 						double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumCouponRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
