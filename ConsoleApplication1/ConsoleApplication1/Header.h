@@ -5476,11 +5476,20 @@ public:
 									if (std::find(reportableMonDateIndx.begin(), reportableMonDateIndx.end(), thisMonValue) != reportableMonDateIndx.end()) {
 										int thisMonPoint = startPoint + thisMonValue;
 										thisDateString = allDates.at(thisMonPoint);
-										double yearsToBarrier   = monDateIndx[thisMonIndx] / 365.25;
-										sprintf(charBuffer, "%s%s%s%.2lf", "Fwds(stdev)[%ofSpot] and discountFactor on: ", thisDateString.c_str(), " T:", yearsToBarrier);
+										double yearsToBarrier     = monDateIndx[thisMonIndx] / 365.25;
+										double rootYearsToBarrier = pow(yearsToBarrier,0.5);
+										sprintf(charBuffer, "%s%s%s%.2lf", "Fwds(stdev)[%ofSpot][%vol] and discountFactor on: ", thisDateString.c_str(), " T:", yearsToBarrier);
 										for (i = 0; i < numUl; i++) {
+											double thisSpot = spotLevels[i];
+											double meanLogRets, stdevLogRets, stderrLogRets;
 											MeanAndStdev(mcForwards[i][thisMonIndx], thisMean, thisStdev, thisStderr);
-											sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(", thisStderr, ")[", thisMean / spotLevels[i], "]");
+											// vols ... helps check localVol
+											std::vector<double> logRets;
+											for (int j=0, len=(int)mcForwards[i][thisMonIndx].size(); j < len; j++) {
+												logRets.push_back(log(mcForwards[i][thisMonIndx][j]/ thisSpot));
+											}
+											MeanAndStdev(logRets, meanLogRets, stdevLogRets, stderrLogRets);
+											sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf%s%.2lf%s", charBuffer, thisMean, "(", thisStderr, ")[", 100.0*thisMean / spotLevels[i],"][", 100.0*stdevLogRets / rootYearsToBarrier,"]");
 										}
 										double forwardRate      = 1 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
 										forwardRate            += fundingFraction * interpCurve(cdsTenor, cdsSpread, yearsToBarrier);
