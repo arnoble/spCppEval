@@ -3301,12 +3301,24 @@ public:
 		int                      numIncomeBarriers(0);
 		
 		// init
-		/*		
-		for (i=0; i < 100;i++){
-			double x = ArtsRan();
-			int j = 1;
+		// form totalVariance surfaces, for use in thisSig InterpolateMatrix ... give a more correct time-interpolation of volSurfaces
+		std::vector< std::vector<  std::vector<double>> >  totalVariance;
+		if ((getMarketData || useUserParams) && (numMcIterations > 1)) {
+			for (i=0; i < numUl; i++) {
+				int numStrikes = (int)md.ulVolsStrike[i][0].size();
+				int numTenors  = (int)md.ulVolsTenor[i].size();
+				std::vector<std::vector<double>>  someVolSurface(numTenors, std::vector<double>(numStrikes));
+				for (j=0; j < numTenors; j++) {
+					double thisT = md.ulVolsTenor[i][j];
+					std::vector<double>  someImpVol;
+					for (k=0; k < numStrikes; k++) {
+						double thisVol         = md.ulVolsImpVol[i][j][k];
+						someVolSurface[j][k]   = thisVol * thisVol * thisT;
+					}
+				}
+				totalVariance.push_back(someVolSurface);
+			}
 		}
-		*/
 
 		if (!doAccruals){
 			initBarriers();
@@ -3623,9 +3635,13 @@ public:
 
 								for (i = 0; i < numUl; i++) {
 									double thisFixedDiv = fixedDiv[i] * dt;
+									double varianceBasedSig;
 
 									// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
-									thisSig = InterpolateMatrix(localVol ? md.ulVolsImpVol[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
+									// thisSig          = InterpolateMatrix(localVol ? md.ulVolsImpVol[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
+									varianceBasedSig = InterpolateMatrix(localVol ? totalVariance[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
+									varianceBasedSig = pow(varianceBasedSig / thisT, 0.5);
+									thisSig          = varianceBasedSig;
 									//... calculate return for thisDt  for this underlying
 									
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
