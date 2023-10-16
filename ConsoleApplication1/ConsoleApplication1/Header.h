@@ -1219,6 +1219,8 @@ void buildAveragingInfo(const char* avgTenorText, const char* avgFreqText, int &
 }
 
 // cds functions
+
+//  interpCurve: interpolate the 'curveValue' for a 'point' in time
 double interpCurve(std::vector<double> curveTimes, std::vector<double> curveValues,double point){
 	int len = (int)curveTimes.size();
 	if (!len) return 0.0;
@@ -1251,11 +1253,16 @@ double probDefault(std::vector<double> curveProbs, const double point){
 	return cumProb;
 }
 
-void bootstrapCDS(const std::vector<double> r, std::vector<double> &dpCurve, const double recoveryRate){
+// bootstrapCDS:  calculate probOfDefault for each time bucket of a given CDS curve
+void bootstrapCDS(const std::vector<double> r,                     // cdsSpreads
+	              std::vector<double>       &dpCurve,              // probOfDefault vector to build and return
+	              const double              recoveryRate){         // constant % of debt recovery
 	int len((int)r.size());
 	if (!len) return;
 	double thisProb, cumProbAlive(0.0), probAliveThisPeriod(1.0), cumProbDefault(0.0);
 	for (int i = 0; i<len; i++) {
+		// probability of default during this time slot
+		// ... the CDS spread is the required compensation, conditional on still being alive at the start of the period
 		thisProb = (r[i] * (cumProbAlive + probAliveThisPeriod) - (1 - recoveryRate)*cumProbDefault) / ((r[i] + 1 - recoveryRate)*probAliveThisPeriod);
 		probAliveThisPeriod  *= 1 - thisProb;
 		cumProbAlive         += probAliveThisPeriod;
@@ -1264,12 +1271,15 @@ void bootstrapCDS(const std::vector<double> r, std::vector<double> &dpCurve, con
 	}
 }
 
+// buld a hazardCurve = probOfdefault in each time bucket
 void buildHazardCurve(const std::vector<double> cdsSpread, const std::vector<double> cdsTenor,const double maxYears, const double recoveryRate,std::vector<double> &hazardCurve){
-	std::vector<double> dpCurve, fullCurve;             // populate a full annual CDS curve
+	std::vector<double> dpCurve, fullCurve;             
+	// first populate a full annual CDS curve of cdsSpreads
 	for (int j = 0; j<maxYears + 1; j++) {
 		fullCurve.push_back(interpCurve(cdsTenor, cdsSpread, j + 1));
 	}
-
+	// now compute a bootstrapped 'defaultProbability' curve dpCurve
+	// ... and copy it into hazardCurve
 	bootstrapCDS(fullCurve, dpCurve, recoveryRate);
 	hazardCurve.empty();
 	for (int j = 0, len = (int)fullCurve.size(); j<len; j++) {
