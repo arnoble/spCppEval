@@ -1238,6 +1238,7 @@ double interpCurve(std::vector<double> curveTimes, std::vector<double> curveValu
 	return value;
 }
 
+// probDefault: cumulatveProbDefault by time 'point'
 double probDefault(std::vector<double> curveProbs, const double point){
 	int len = (int)curveProbs.size();
 	if (!len) return 0.0;
@@ -1262,7 +1263,7 @@ void bootstrapCDS(const std::vector<double> r,                     // cdsSpreads
 	double thisProb, cumProbAlive(0.0), probAliveThisPeriod(1.0), cumProbDefault(0.0);
 	for (int i = 0; i<len; i++) {
 		// probability of default during this time slot
-		// ... the CDS spread is the required compensation, conditional on still being alive at the start of the period
+		// ... the CDS spread is the required compensation, conditional on still being alive at the start of the period, assuming a given recoveryRate
 		thisProb = (r[i] * (cumProbAlive + probAliveThisPeriod) - (1 - recoveryRate)*cumProbDefault) / ((r[i] + 1 - recoveryRate)*probAliveThisPeriod);
 		probAliveThisPeriod  *= 1 - thisProb;
 		cumProbAlive         += probAliveThisPeriod;
@@ -5034,7 +5035,11 @@ public:
 							}
 							// ** SQL 
 							// ** WARNING: keep the "'" to delimit SQL values, in case a #INF or #IND sneaks in - it prevents the # char being seem as a comment, with disastrous consequences
-							if (updateCashflows && ((!getMarketData && !useUserParams) || analyseCase == 0) && (!doPriips || (priipsUsingRNdrifts && !doPriipsStress))) {
+
+
+							// if (updateCashflows && ((!getMarketData && !useUserParams) || analyseCase == 0) && (!doPriips || (priipsUsingRNdrifts && !doPriipsStress))) 
+							// just save to barrierprob table regardless, esp as we are now also interested in the credit-adjusted numbers for Arrow
+							{
 								sprintf(lineBuffer, "%s%s%s%.5lf%s%.5lf%s%.5lf%s%d", "update ", useProto, "barrierprob set Prob='", prob,
 									"',AnnReturn='", annReturn > 10.0 ? 10.0 : annReturn,
 									"',CondPayoff='", mean,
@@ -5048,6 +5053,10 @@ public:
 									pFile = fopen("debug.txt", "a");
 									fprintf(pFile, "%s\n", lineBuffer);
 									fclose(pFile);
+								}
+								if (doDebug && debugLevel>0) {
+									std::cerr << updateCashflows << ":" << getMarketData << ":" << useUserParams << ":" << analyseCase << ":" << doPriips << ":" << priipsUsingRNdrifts << ":" << doPriipsStress << std::endl;
+									std::cerr << lineBuffer << std::endl;
 								}
 								mydb.prepare((SQLCHAR *)lineBuffer, 1);
 							}
@@ -5407,7 +5416,9 @@ public:
 						int    secsTaken      = (int)difftime(time(0), startTime);
 
 						// if (!getMarketData || (ukspaCase != "" && analyseCase == 0)){
-						if (updateCashflows && ((!getMarketData && !useUserParams) || analyseCase == 0)) {
+						// if (updateCashflows && ((!getMarketData && !useUserParams) || analyseCase == 0)) 
+						// update cashflows anyway, esp as ARROW using
+						{
 							sprintf(lineBuffer, "%s%s%s", "update ", useProto, "cashflows set ");
 							if (doPriipsStress) {
 								sort(priipsStressVols.begin(), priipsStressVols.end());
