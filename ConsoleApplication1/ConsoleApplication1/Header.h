@@ -5567,7 +5567,7 @@ public:
 							}
 							// fair value
 							MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
-							double issuerCallableComplexityMargin = issuerCallable ? 0.015 : 0.0;
+							double issuerCallableComplexityMargin = issuerCallable ? 0.025 : 0.0;
 							thisFairValue      = (thisMean - issuerCallableComplexityMargin) * issuePrice;
 							simulatedFairValue = thisMean;
 							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf", "FairValueResults(stdev):",
