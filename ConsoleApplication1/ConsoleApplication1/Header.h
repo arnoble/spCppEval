@@ -2132,6 +2132,7 @@ public:
 		hasBeenHit               = false;
 		proportionHits           = 1.0;
 		sumProportion            = 0.0;
+		fixedCouponValue         = 0.0;
 		forwardRate              = 1.0 + interpCurve(baseCurveTenor, baseCurveSpread, yearsToBarrier); // DOME: very crude for now
 		if (couponFrequency.size()) {  // add fixed coupon
 			int    freqLen      = (int)couponFrequency.length();
@@ -2190,7 +2191,7 @@ public:
 	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
-	double                          fixedCouponValue,maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
+	double                          thisCouponValue, fixedCouponValue,maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          lsConstant, lsWorstB, lsWorstSquaredB, lsNextWorstB, lsNextWorstSquaredB, proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate, discountFactor;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels);
 	std::vector <finalAssetInfo>    fars; // final asset returns
@@ -2259,7 +2260,7 @@ public:
 			}
 		}
 		// check for early exercise
-		double thisPayoff = payoff + fixedCouponValue;
+		double thisPayoff = payoff + fixedCouponValue + thisCouponValue;
 		bool   isCalled(false);
 		double thisFundingUnwindCost = annualFundingUnwindCost * (maxYears - (daysExtant + endDays) / 365.25);
 		if (conditionalExpectation > (thisPayoff + thisFundingUnwindCost)){
@@ -3935,7 +3936,25 @@ public:
 
 							// averaging/lookback - will replace thesePrices with their averages							
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls);
+							
+							//
 							// START is barrier hit
+							//
+							// if issuerCallable, need forwardValue of paidOutCoupons for earlyExercise decision
+							if (issuerCallable && couponPaidOut && !doAccruals) {
+								double thisCouponValue = 0.0;
+								for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++) {
+									if (!barrier[paidOutBarrier].capitalOrIncome
+										&&  barrierWasHit[paidOutBarrier]
+										&& !(issuerCallable && barrier[paidOutBarrier].endDays == b.endDays)
+										&& (barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))) {
+										SpBarrier &ib(barrier[paidOutBarrier]);
+										thisCouponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
+									}
+								}
+								b.thisCouponValue = thisCouponValue;
+							}
+
 							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.countAveraging || (!b.isExtremum && (b .* (b.isHit))(thisMonPoint, ulPrices, thesePrices, true, startLevels))){
 								barrierWasHit[thisBarrier] = true;
 
@@ -4022,8 +4041,10 @@ public:
 										// add forwardValue of paidOutCoupons
 										if (couponPaidOut && !doAccruals) {
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
-												if (!barrier[paidOutBarrier].capitalOrIncome && barrierWasHit[paidOutBarrier] &&
-													(barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
+												if (   !barrier[paidOutBarrier].capitalOrIncome 
+													&&  barrierWasHit[paidOutBarrier] 
+													&&  !(issuerCallable && barrier[paidOutBarrier].endDays == barrier[thisBarrier].endDays)
+													&& (barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
 													SpBarrier &ib(barrier[paidOutBarrier]);
 													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
@@ -5567,7 +5588,7 @@ public:
 							}
 							// fair value
 							MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
-							double issuerCallableComplexityMargin = issuerCallable ? 0.055 : 0.0;
+							double issuerCallableComplexityMargin = issuerCallable ? (productShape == "Phoenix" ? 0.03 : 0.015) : 0.0;  // to be investigated - is there a coupon missed?
 							thisFairValue      = (thisMean - issuerCallableComplexityMargin) * issuePrice;
 							simulatedFairValue = thisMean;
 							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf", "FairValueResults(stdev):",
