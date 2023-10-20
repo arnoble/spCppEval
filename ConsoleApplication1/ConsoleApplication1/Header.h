@@ -2267,12 +2267,13 @@ public:
 			isCalled = true;
 		}
 		if (doDebug  && debugLevel >= 2) {
-			sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%d%s",
-				"insert into conditionalexpectation (ProductId,BarrierId,X1,Y,Called) values (",
+			sprintf(charBuffer, "%s%d%s%d%s%lf%s%lf%s%lf%s%d%s",
+				"insert into conditionalexpectation (ProductId,BarrierId,X1,Y,Payoff,Called) values (",
 				productId, ",",
 				barrierNum, ",",
 				thisWorst, ",",
 				conditionalExpectation, ",",
+				thisPayoff, ",",
 				isCalled ? 1:0, ");");
 			mydb.prepare((SQLCHAR *)charBuffer, 1);
 		}
