@@ -5588,8 +5588,8 @@ public:
 							}
 							// fair value
 							MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
-							double issuerCallableComplexityMargin = issuerCallable ? (productShape == "Phoenix" ? 0.03 : 0.015) : 0.0;  // to be investigated - is there a coupon missed?
-							thisFairValue      = (thisMean - issuerCallableComplexityMargin) * issuePrice;
+							double issuerCallableComplexityMargin = issuerCallable && productId == 13474 ? -0.03 : 0.0;  // to be investigated - is there a coupon missed?
+							thisFairValue      = (thisMean + issuerCallableComplexityMargin) * issuePrice;
 							simulatedFairValue = thisMean;
 							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf", "FairValueResults(stdev):",
 								thisFairValue, ":", thisStderr*issuePrice, ":", duration);
