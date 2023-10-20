@@ -3941,18 +3941,23 @@ public:
 							// START is barrier hit
 							//
 							// if issuerCallable, need forwardValue of paidOutCoupons for earlyExercise decision
-							if (issuerCallable && couponPaidOut && !doAccruals) {
+							if (issuerCallable && couponPaidOut && !doAccruals && b.capitalOrIncome) {
 								double thisCouponValue = 0.0;
 								for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++) {
 									if (!barrier[paidOutBarrier].capitalOrIncome
 										&&  barrierWasHit[paidOutBarrier]
-										&& !(issuerCallable && barrier[paidOutBarrier].endDays == b.endDays)
+										// && !(issuerCallable && barrier[paidOutBarrier].endDays == b.endDays)
 										&& (barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))) {
 										SpBarrier &ib(barrier[paidOutBarrier]);
 										thisCouponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 									}
 								}
-								b.thisCouponValue = thisCouponValue;
+								if (thisIteration < numBurnInIterations) {
+									b.couponValues.push_back(thisCouponValue);
+								}
+								else {
+									b.thisCouponValue = thisCouponValue;
+								}
 							}
 
 							if (b.hasBeenHit || barrierWasHit[thisBarrier] || b.proportionalAveraging || b.countAveraging || (!b.isExtremum && (b .* (b.isHit))(thisMonPoint, ulPrices, thesePrices, true, startLevels))){
@@ -4043,7 +4048,7 @@ public:
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
 												if (   !barrier[paidOutBarrier].capitalOrIncome 
 													&&  barrierWasHit[paidOutBarrier] 
-													&&  !(issuerCallable && barrier[paidOutBarrier].endDays == barrier[thisBarrier].endDays)
+													// &&  !(issuerCallable && barrier[paidOutBarrier].endDays == barrier[thisBarrier].endDays)
 													&& (barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
 													SpBarrier &ib(barrier[paidOutBarrier]);
 													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
@@ -4227,7 +4232,7 @@ public:
 														}
 													}
 													// iterate until done, or there is only 2 clusters
-													while (!done && numClusters > 2) {
+													while (!done && numClusters > 3) {
 														//
 														// init cluster assignment uniformly
 														//
@@ -4518,7 +4523,7 @@ public:
 												}
 												double thisFundingUnwindCost = thatB.annualFundingUnwindCost * (maxProductDays - daysExtant - thatB.endDays) / 365.25;
 												for (int j=0; j < numBurnInIterations; j++) {
-													double thisPayoff            = thatB.payoff + thatB.fixedCouponValue;
+													double thisPayoff            = thatB.payoff + thatB.fixedCouponValue + thatB.couponValues[j];
 													double continuationValue     = conditionalExpectation[j][0];
 													double oldCashflow           = callableCashflows[j];
 													if (continuationValue > (thisPayoff + thisFundingUnwindCost)) {
@@ -4555,7 +4560,10 @@ public:
 										for (j=0; j < numBarriers; j++){
 											SpBarrier& b(barrier.at(j));
 											// clear hits
-											if (b.startDays>0){ b.hit.clear(); }
+											if (b.startDays>0){ 
+												b.hit.clear(); 
+												b.couponValues.clear();
+											}
 											// install callableIsHit
 											if (b.capitalOrIncome && b.endDays < maxEndDays){
 												b.setIsCallableHit();
@@ -5069,13 +5077,13 @@ public:
 									sprintf(lineBuffer, "%s%s%.5lf%s%.5lf%s%.5lf", lineBuffer, "',NonCreditPayoff='", b.yearsToBarrier, "',Reason1Prob='", thisDiscountRate, "',Reason2Prob='", thisDiscountFactor);
 								}
 								sprintf(lineBuffer, "%s%s%d%s%.2lf%s", lineBuffer, "' where ProductBarrierId='", barrier.at(thisBarrier).barrierId, "' and ProjectedReturn='", projectedReturn, "'");
-								if (doDebug  && debugLevel >= 2) {
+								if (doDebug  && debugLevel >= 4) {
 									FILE * pFile;
 									pFile = fopen("debug.txt", "a");
 									fprintf(pFile, "%s\n", lineBuffer);
 									fclose(pFile);
 								}
-								if (doDebug && debugLevel>0) {
+								if (doDebug && debugLevel >= 4) {
 									std::cerr << updateCashflows << ":" << getMarketData << ":" << useUserParams << ":" << analyseCase << ":" << doPriips << ":" << priipsUsingRNdrifts << ":" << doPriipsStress << std::endl;
 									std::cerr << lineBuffer << std::endl;
 								}
@@ -5588,7 +5596,7 @@ public:
 							}
 							// fair value
 							MeanAndStdev(pvInstances, thisMean, thisStdev, thisStderr);
-							double issuerCallableComplexityMargin = issuerCallable && productId == 13474 ? -0.03 : 0.0;  // to be investigated - is there a coupon missed?
+							double issuerCallableComplexityMargin = issuerCallable ? -0.005 : 0.0;  // to be investigated - is there a coupon missed?
 							thisFairValue      = (thisMean + issuerCallableComplexityMargin) * issuePrice;
 							simulatedFairValue = thisMean;
 							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf", "FairValueResults(stdev):",
