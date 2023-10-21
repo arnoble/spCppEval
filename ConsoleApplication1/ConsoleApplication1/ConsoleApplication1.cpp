@@ -959,7 +959,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if (useUserParams)                    { thisProjectedReturn = "50"; }			
 
 			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty... skipping this product" << endl; continue; }
-			cout << endl << endl << productIndx << " of " << numProducts << "\nIterations:" << thisNumIterations << " ProductId:" << productId << " " << analysisTypes[thisProjectedReturn].c_str() << " " << (doBumps ? "bumps" : "") << endl << endl;
+			cout << endl << productIndx << " of " << numProducts << "\nIterations:" << thisNumIterations << " ProductId:" << productId << " " << analysisTypes[thisProjectedReturn].c_str() << " " << (doBumps ? "bumps" : "") << endl;
 			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
 
 			// see if product has levelsCall payoffs ... in which case we do not do a lognormalShift of the underlyings

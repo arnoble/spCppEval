@@ -4627,10 +4627,7 @@ public:
 			}
 		} // END LOOP McIterations
 
-		std::cout << std::endl;
-
-
-
+		
 		// *****************
 		// ** handle results
 		// *****************
