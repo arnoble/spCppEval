@@ -864,7 +864,7 @@ int _tmain(int argc, WCHAR* argv[])
 			double forceBarrierBendDays     = atoi(szAllPrices[colProductBarrierBendDays]);
 			double forceBarrierBendFraction = atof(szAllPrices[colProductBarrierBendFraction]);
 			bool   issuerCallable           = atoi(szAllPrices[colProductIssuerCallable]) == 1;
-			if (issuerCallable && getMarketData && thisNumIterations > 1 && thisNumIterations < 100000) { thisNumIterations = 100000; } // callables need 10k burnin
+			if (issuerCallable && getMarketData && thisNumIterations > 1 && thisNumIterations < 100000 && !doDebug) { thisNumIterations = 100000; } // callables need 20k burnin
 			bool   useMyEqEqCorr            = ajaxCalling &&  (doUseMyEqEqCorr == 1 || (doUseMyEqEqCorr != 0 && atoi(szAllPrices[colProductUseMyEqEqCorr]) == 1)) ;
 			bool   useMyEqFxCorr            = ajaxCalling &&  (doUseMyEqFxCorr == 1 || (doUseMyEqFxCorr != 0 && atoi(szAllPrices[colProductUseMyEqFxCorr]) == 1));
 			double volShift                 = doUseThisVolShift ? useThisVolShift : atof(szAllPrices[colProductVolShift]);
@@ -1960,7 +1960,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if (AMC != 0.0){
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
-			if (issuerCallable && getMarketData && thisNumIterations > 1 && (thisNumIterations < MIN_CALLABLE_ITERATIONS || thisNumIterations > MAX_CALLABLE_ITERATIONS)){
+			if (issuerCallable && getMarketData && thisNumIterations > 1 && !doDebug && (thisNumIterations < MIN_CALLABLE_ITERATIONS || thisNumIterations > MAX_CALLABLE_ITERATIONS)){
 				cerr << endl << "******NOTE******* issuerCallable product needs iterations in the range" << MIN_CALLABLE_ITERATIONS << ":" << MAX_CALLABLE_ITERATIONS << endl;
 				thisNumIterations = MAX_CALLABLE_ITERATIONS;
 			}

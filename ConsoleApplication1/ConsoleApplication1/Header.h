@@ -4179,10 +4179,19 @@ public:
 												if (dT != 0.0) { dT = pow(dT,0.5); }
 												double issuerCdsVol = cdsVols[issuerIndx];
 												for (int i=0; i < numBurnInIterations; i++) {
-													double  oncurveWobble  =  oncurveVol   * NormSInv(ArtsRan());
-													double  cdsWobble      =  issuerCdsVol * NormSInv(ArtsRan());
-													double  thisWobble = 1.0 -(oncurveVol * NormSInv(ArtsRan()) + issuerCdsVol * NormSInv(ArtsRan())) * dT;
-													callableCashflows[i]  *= thisDiscountFactor * thisWobble;
+													// ... omit wobble for now, which adds ~25bp to FVs
+													// ... not sure the EDG desk cares about better rates/cds to as to benefit from better funding conditions
+													// ...  ... the EDG desk is surely swapped-up at inception
+													if (false) {
+														double  oncurveWobble  =  oncurveVol * NormSInv(ArtsRan());
+														double  cdsWobble      =  issuerCdsVol * NormSInv(ArtsRan());
+														double  thisWobble = 1.0 - (oncurveVol * NormSInv(ArtsRan()) + issuerCdsVol * NormSInv(ArtsRan())) * dT;
+														if (doDebug) {
+															thisWobble = 1.0;
+														}
+														callableCashflows[i]  *= thisDiscountFactor * thisWobble;
+													}
+													callableCashflows[i]  *= thisDiscountFactor;
 												}
 												// check data
 												if (numBurnInIterations != (int)thatB.worstUlRegressionPrices.size()) {
