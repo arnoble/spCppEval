@@ -4178,11 +4178,14 @@ public:
 												double dT           = b.yearsToBarrier - thatB.yearsToBarrier;
 												if (dT != 0.0) { dT = pow(dT,0.5); }
 												double issuerCdsVol = cdsVols[issuerIndx];
+												double ccMean, ccStdev, ccStdErr;
+												MeanAndStdev(callableCashflows, ccMean, ccStdev, ccStdErr);
 												for (int i=0; i < numBurnInIterations; i++) {
 													// ... omit wobble for now, which adds ~25bp to FVs
 													// ... not sure the EDG desk cares about better rates/cds to as to benefit from better funding conditions
 													// ...  ... the EDG desk is surely swapped-up at inception
-													if (false) {
+													// but if there is  no variability in callableCashflows,assume product is fixed-income only, so allow 'wobble'
+													if (ccStdev<1.0e-5) {
 														double  oncurveWobble  =  oncurveVol * NormSInv(ArtsRan());
 														double  cdsWobble      =  issuerCdsVol * NormSInv(ArtsRan());
 														double  thisWobble = 1.0 - (oncurveVol * NormSInv(ArtsRan()) + issuerCdsVol * NormSInv(ArtsRan())) * dT;
@@ -4532,8 +4535,9 @@ public:
 													mydb.prepare((SQLCHAR *)charBuffer, 1);
 												}
 												double thisFundingUnwindCost = thatB.annualFundingUnwindCost * (maxProductDays - daysExtant - thatB.endDays) / 365.25;
+												bool   hasNonFixedCoupons    = thatB.couponValues.size() > 0;
 												for (int j=0; j < numBurnInIterations; j++) {
-													double thisPayoff            = thatB.payoff + thatB.fixedCouponValue + thatB.couponValues[j];
+													double thisPayoff            = thatB.payoff + thatB.fixedCouponValue + (hasNonFixedCoupons ? thatB.couponValues[j] : 0.0);
 													double continuationValue     = conditionalExpectation[j][0];
 													double oldCashflow           = callableCashflows[j];
 													if (continuationValue > (thisPayoff + thisFundingUnwindCost)) {
