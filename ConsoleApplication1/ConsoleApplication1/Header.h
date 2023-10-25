@@ -3139,7 +3139,18 @@ public:
 			// clear un-accrued hits ... where we call evaluate() several times eg PRIIPs and PRIIPsStresstest, or doing bumps
 			if (!b.hasBeenHit){
 				b.hit.clear();
-				b.sumProportion = 0.0;
+				b.couponValues.clear();
+				b.fars.clear();
+				b.bmrs.clear();
+				b.sumProportion     = 0.0;
+				b.sumPayoffs        = 0.0;
+				b.sumStrPosPayoffs  = 0.0;
+				b.numStrPosPayoffs  = 0;
+				b.sumPosPayoffs     = 0.0;
+				b.numPosPayoffs     = 0;
+				b.sumNegPayoffs     = 0.0;
+				b.numNegPayoffs     = 0;
+				b.hitWithDate.clear();
 			}
 		}
 	}
@@ -4571,13 +4582,9 @@ public:
 											int jj = 1;
 										} // for (int thatBarrier 
 										// re-initialise barriers
-										for (j=0; j < numBarriers; j++){
+										initBarriers();
+										for (j=0; j < numBarriers; j++) {
 											SpBarrier& b(barrier.at(j));
-											// clear hits
-											if (b.startDays>0){ 
-												b.hit.clear(); 
-												b.couponValues.clear();
-											}
 											// install callableIsHit
 											if (b.capitalOrIncome && b.endDays < maxEndDays){
 												b.setIsCallableHit();
