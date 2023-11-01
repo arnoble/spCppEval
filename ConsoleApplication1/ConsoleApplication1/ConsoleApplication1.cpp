@@ -1971,7 +1971,7 @@ int _tmain(int argc, WCHAR* argv[])
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, saveOptimisationPaths, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, updateProduct, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,
-				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols);
+				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift);
 			numBarriers = 0;
 
 			// get barriers from DB

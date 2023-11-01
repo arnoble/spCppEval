@@ -2104,8 +2104,15 @@ public:
 		}
 		// conditional is weighted expectation of each cluster's expected y|x
 		double thisExpectation(0.0);
+		// inefficient, but useful in debugging to see the wts
 		for (int i=0; i < gmmNumClusters; i++) {
-			thisExpectation += wts[i] * (muY[i] + covXY[i] / covX[i] * (x - muX[i])) / sumWts;
+			wts[i]  = wts[i] / sumWts;
+		}
+		for (int i=0; i < gmmNumClusters; i++) {
+			// VERY unlikely for worstOf > 1.0 and long PUT position; more likely an unfortunate cluster, which will give too low a condExp
+			double thisCovXY = x > 1.0 && covXY[i] < 0.0 ? 0.0 : covXY[i];
+			double thisSlope = thisCovXY / covX[i];
+			thisExpectation += wts[i] * ( muY[i]  +  thisSlope*(x - muX[i]) );
 		}
 		return(thisExpectation);
 	}
@@ -2923,7 +2930,7 @@ private:
 	const std::vector <std::string> &allDates;
 	const boost::gregorian::date    bProductStartDate,&bLastDataDate;
 	const int                       bootstrapStride, daysExtant, productIndx;
-	const double                    gmmMinClusterFraction,compoIntoCcyStrikePrice, benchmarkStrike, fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
+	const double                    volShift,gmmMinClusterFraction,compoIntoCcyStrikePrice, benchmarkStrike, fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
 	const bool                      hasCompoIntoCcy, localVol, doBumps, silent, updateProduct, verbose, doBootstrapStride, forOptimisation, saveOptimisationPaths, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
@@ -2995,7 +3002,8 @@ public:
 		const std::vector<double>       &strikeDateLevels,
 		const double                    gmmMinClusterFraction,
 		const bool                      multiIssuer,
-		std::vector<double>             &cdsVols
+		std::vector<double>             &cdsVols,
+		const double                    volShift
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -3008,7 +3016,7 @@ public:
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
-		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer),cdsVols(cdsVols){
+		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer),cdsVols(cdsVols),volShift(volShift){
 	
 		for (int i=0; i < (int)baseCurve.size(); i++) { baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 	};
@@ -3662,7 +3670,7 @@ public:
 									double varianceBasedSig;
 
 									// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
-									// thisSig          = InterpolateMatrix(localVol ? md.ulVolsImpVol[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
+									thisSig          = InterpolateMatrix(localVol ? md.ulVolsImpVol[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									varianceBasedSig = InterpolateMatrix(localVol ? totalVariance[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									varianceBasedSig = pow(varianceBasedSig / thisT, 0.5);
 									thisSig          = varianceBasedSig;
@@ -5620,6 +5628,9 @@ public:
 							sprintf(charBuffer, "%s\t%.2lf%s%.2lf%s%.2lf", "FairValueResults(stdev):",
 								thisFairValue, ":", thisStderr*issuePrice, ":", duration);
 							std::cout << charBuffer << std::endl;
+							if (volShift != 0.0) {
+								std::cout << "VOLS HAVE BEEN SHIFTED:" << volShift*100 << std::endl;
+							}
 							evalResult.value  = thisFairValue;
 							evalResult.stdErr = thisStderr * issuePrice;
 
