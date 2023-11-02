@@ -3670,7 +3670,7 @@ public:
 									double varianceBasedSig;
 
 									// assume for now that all strikeVectors are the same ... so we just use the first with md.ulVolsStrike[i][0]
-									thisSig          = InterpolateMatrix(localVol ? md.ulVolsImpVol[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
+									// thisSig          = InterpolateMatrix(localVol ? md.ulVolsImpVol[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									varianceBasedSig = InterpolateMatrix(localVol ? totalVariance[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									varianceBasedSig = pow(varianceBasedSig / thisT, 0.5);
 									thisSig          = varianceBasedSig;
