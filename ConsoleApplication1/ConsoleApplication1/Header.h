@@ -3442,6 +3442,7 @@ public:
 		bool   doQuantoDriftAdj = calledByPricer && notUKSPA;
 		bool useAntithetic = true;
 		double thisT,thatT,thisPrice;
+		std::vector<std::vector<double> > simulatedShocks(numUl);
 		std::vector<std::vector<double> > cholMatrix(numUl, std::vector<double>(numUl)), rnCorr(numUl, std::vector<double>(numUl)),
 			antitheticRandom(productDays+1, std::vector<double>(numUl));
 		std::vector<std::vector<std::vector<double>>> mcForwards(numUl, std::vector<std::vector<double>>(numMonDates));
@@ -3664,7 +3665,11 @@ public:
 									consumeRands,
 									randnoIndx,
 									randnosStore);
-
+								if (doDebug && debugLevel > 4) {
+									for (i = 0; i < numUl; i++) {
+										simulatedShocks[i].push_back(correlatedRandom[i]);
+									}
+								}
 								for (i = 0; i < numUl; i++) {
 									double thisFixedDiv = fixedDiv[i] * dt;
 									double varianceBasedSig;
@@ -3678,7 +3683,7 @@ public:
 									
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);
 									currentLevels[i]       = currentLevels[i] * thisReturn - thisFixedDiv;
-									if (currentLevels[i] < 0.0){ currentLevels[i]  = 0.0; }  // some fixed divs could do this eg UKXFD
+									if (currentLevels[i] < 0.0){ currentLevels[i]  = 0.1; }  // some fixed divs could do this eg UKXFD, tiny positive avoids varianceCalcs blowing up
 									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0) - thisFixedDiv;
 									if (currentQuantoLevels[i] < 0.0){ currentQuantoLevels[i]  = 0.0; }  // some fixed divs could do this eg UKXFD
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
@@ -3964,7 +3969,7 @@ public:
 							if (issuerCallable && couponPaidOut && !doAccruals && b.capitalOrIncome) {
 								double thisCouponValue = 0.0;
 								for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++) {
-									if (!barrier[paidOutBarrier].capitalOrIncome
+									if (!barrier[paidOutBarrier].capitalOrIncome		
 										&&  barrierWasHit[paidOutBarrier]
 										// && !(issuerCallable && barrier[paidOutBarrier].endDays == b.endDays)
 										&& (barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))) {
@@ -5631,6 +5636,14 @@ public:
 							if (volShift != 0.0) {
 								std::cout << "VOLS HAVE BEEN SHIFTED:" << volShift*100 << std::endl;
 							}
+							if (doDebug && debugLevel > 4) {
+								for (i = 0; i < numUl; i++) {
+									for (j = i+1; j < numUl; j++) {
+										std::cout << "CORR: " << i << " vs " << j << ":" << MyCorrelation(simulatedShocks[i], simulatedShocks[j], false) << std::endl;										
+									}
+								}
+							}
+
 							evalResult.value  = thisFairValue;
 							evalResult.stdErr = thisStderr * issuePrice;
 
