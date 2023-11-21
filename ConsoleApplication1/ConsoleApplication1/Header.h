@@ -1264,6 +1264,7 @@ void bootstrapCDS(const std::vector<double> r,                     // cdsSpreads
 	for (int i = 0; i<len; i++) {
 		// probability of default during this time slot
 		// ... the CDS spread is the required compensation, conditional on still being alive at the start of the period, assuming a given recoveryRate
+		// ... see my "DefaultProbabilities from CDS.docx" for the derivation of this calc  
 		thisProb = (r[i] * (cumProbAlive + probAliveThisPeriod) - (1 - recoveryRate)*cumProbDefault) / ((r[i] + 1 - recoveryRate)*probAliveThisPeriod);
 		probAliveThisPeriod  *= 1 - thisProb;
 		cumProbAlive         += probAliveThisPeriod;
