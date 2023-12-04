@@ -887,7 +887,10 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			if (fundingFractionFactor > MIN_FUNDING_FRACTION_FACTOR){
 				fundingFraction = defaultFundingFraction*fundingFractionFactor;
-				}
+			}
+			if (depositGteed) {
+				fundingFraction = 0.0;
+			}
 			if (forceFundingFraction != ""){
 				fundingFraction = atof(forceFundingFraction.c_str());
 			}
