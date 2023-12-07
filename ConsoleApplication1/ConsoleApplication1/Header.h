@@ -2339,7 +2339,7 @@ public:
 
 
 	// AutocallHimalaya test if barrier is hit
-	// ... omit underlyings failing to hit barrier
+	// ... underlyings that hit barrier are Memoried
 	bool isHitAutocallHimalaya(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl) {
 		int j, thisIndx;
 		bool isHit  = isAnd;
@@ -2361,7 +2361,16 @@ public:
 				diff     = thisUlPrice - thisBrel.uBarrierLevel;
 				thisTest &= above ? diff < 0 : diff>0;
 			}
-			if (isAnd)  isHit &= thisTest;
+			if (isAnd) {
+				// memory of thisTest
+				if (thisTest) {
+					useUl[thisIndx] = false;
+				}
+				if (!useUl[thisIndx]) {
+					thisTest = true;
+				}
+				isHit &= thisTest;
+			}
 			else        isHit |= thisTest;
 		}
 		//std::cout << "isHit:" << isHit << "Press a key to continue..." << std::endl;  std::getline(std::cin, word);
