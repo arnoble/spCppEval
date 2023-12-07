@@ -2050,7 +2050,7 @@ int _tmain(int argc, WCHAR* argv[])
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
 					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice,
 					thisBarrierBend,bendDirection,spots,doDebug,debugLevel,annualFundingUnwindCost,productId,mydb,fixedCoupon,couponFrequency,
-					couponPaidOut,spr.baseCurveTenor,spr.baseCurveSpread));
+					couponPaidOut,spr.baseCurveTenor,spr.baseCurveSpread,productShape));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 	
 				// get barrier relations from DB
