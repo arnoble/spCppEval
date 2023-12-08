@@ -874,8 +874,8 @@ int _tmain(int argc, WCHAR* argv[])
 				thisBarrierBendDays        = forceBarrierBendDays;
 			}
 			else{
-				thisBarrierBendDays     = barrierBendDays;
-				thisBarrierBendFraction = barrierBendEndFraction;
+				thisBarrierBendFraction    = barrierBendEndFraction;
+				thisBarrierBendDays        = barrierBendDays;
 			}
 			if (thisBarrierBendFraction <0.0 || thisBarrierBendFraction > 1.0){ cerr << "barrierBendAmort: first arg must be between 1.0 and 0.0" << endl; exit(104); }
 			if (thisBarrierBendDays <1.0){ cerr << "barrierBendAmort: second arg must be at least 1" << endl; exit(104); }
@@ -2014,7 +2014,12 @@ int _tmain(int argc, WCHAR* argv[])
 				settlementDate          = szAllPrices[colSettlementDate];
 				double thisCoupon       = capitalOrIncome ? max(0.0, payoff - 1.0) : payoff;
 				double barrierBendAmort = (!(doBarrierBendAmort) || daysExtant <= 0) ? 1.0 : (daysExtant > thisBarrierBendDays ? thisBarrierBendFraction : 1.0 - (1.0 - thisBarrierBendFraction)*(double)daysExtant / thisBarrierBendDays);
-				double thisBarrierBend  = getMarketData && !doUKSPA ? (!doUseThisBarrierBend && thisCoupon > 0.0 ? 0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon) : barrierBend) : 0.0;  // 10% of any coupon, but limit to 5%
+				double thisBarrierBend  = (getMarketData && !doUKSPA) ?                        // only bend for FV
+												(!doUseThisBarrierBend && thisCoupon > 0.0 ?   // does barrier have a "coupon" including capitalPayoff > 100%  (and not command-line-overridden)
+													0.1*(thisCoupon>0.5 ? 0.5 : thisCoupon)    // ... if so:    10% of any coupon, but limit to 5%
+													: barrierBend                              // ... if not:   product table field, possibly command-line-overriden by doUseThisBarrierBend
+												) 
+												: 0.0 ; 
 				thisBarrierBend        *= barrierBendAmort;
 				if (doUseThisBarrierBend){ thisBarrierBend = useThisBarrierBend / 100.0; }
 
@@ -2035,8 +2040,11 @@ int _tmain(int argc, WCHAR* argv[])
 				double bendParticipation = participation > 0.0                            ?  1.0 : participation < 0.0                           ? -1.0 : 0.0;
 				double bendDirection     = bendCallPut * bendParticipation;
 				if (ucPayoffType.find("FIXED") != std::string::npos) { bendDirection  = -1.0; }
-				strike          = max(0.0,atof(szAllPrices[colStrike]) + thisBarrierBend*bendDirection);
-				cap             = max(-1.0,max(-1.0,atof(szAllPrices[colCap])    - barrierBend*bendDirection));
+				strike          = max(0.0,          atof(szAllPrices[colStrike]) + thisBarrierBend * bendDirection);
+				// cap changed from barrierBend to thisBarrierBend ... can't think why we treated the cap differently to the strike
+				// ... and changed again to reduce barrierBend by 50%, and 100% if cap < 0.1
+				cap             = atof(szAllPrices[colCap]);
+				cap             = max(-1.0,max(-1.0,cap - thisBarrierBend * bendDirection * (cap<0.1 ? 0.0 : 0.5)));   
 				int     underlyingFunctionId = atoi(szAllPrices[colUnderlyingFunctionId]);
 				double  param1 = atof(szAllPrices[colParam1]);
 				if (ucPayoffType.find("BASKET") != std::string::npos){
