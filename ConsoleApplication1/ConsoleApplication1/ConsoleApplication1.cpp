@@ -2043,8 +2043,9 @@ int _tmain(int argc, WCHAR* argv[])
 				strike          = max(0.0,          atof(szAllPrices[colStrike]) + thisBarrierBend * bendDirection);
 				// cap changed from barrierBend to thisBarrierBend ... can't think why we treated the cap differently to the strike
 				// ... and changed again to reduce barrierBend by 50%, and 100% if cap < 0.1
+				// ... actually lets reduce the cap barrierBend to zero ... there should be 1 amount of margin, shared by whichever strike is ausing the most gamma
 				cap             = atof(szAllPrices[colCap]);
-				cap             = max(-1.0,max(-1.0,cap - thisBarrierBend * bendDirection * (cap<0.1 ? 0.0 : 0.5)));   
+				cap             = max(-1.0,max(-1.0,cap - thisBarrierBend * bendDirection * 0.0));   
 				int     underlyingFunctionId = atoi(szAllPrices[colUnderlyingFunctionId]);
 				double  param1 = atof(szAllPrices[colParam1]);
 				if (ucPayoffType.find("BASKET") != std::string::npos){
