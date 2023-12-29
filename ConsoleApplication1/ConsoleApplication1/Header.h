@@ -1644,6 +1644,9 @@ public:
 		else if (dataSource == "spLevendi") {
 			fsts =  dbConn(hEnv, &hDBC, L"spLevendi", L"anoble", L"Ragtin_Mor14_Lucian");
 		}
+		else if (dataSource == "Arrow_AWS") {
+			fsts =  dbConn(hEnv, &hDBC, L"Arrow_AWS", L"risk_engine_user", L"R!skEC1ie7");
+		}
 		else {
 			std::cerr << "Unknown database " << dataSource << "\n";
 			exit(101);

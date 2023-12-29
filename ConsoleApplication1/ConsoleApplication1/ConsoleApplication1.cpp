@@ -762,7 +762,7 @@ int _tmain(int argc, WCHAR* argv[])
 		if (numProducts>1){ doUseThisPrice = false; }
 		for (int productIndx = 0; productIndx < numProducts; productIndx++) {
 			int              thisNumIterations = requesterNumIterations, numBarriers = 0, thisIteration = 0, compoIntoCcyUid = 0;
-			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid;
+			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid, daysToFirstCapitalBarrier = 0;
 			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
 			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
 			double           compoIntoCcyStrikePrice(0.0), baseCcyReturn, benchmarkStrike, thisBarrierBendDays, thisBarrierBendFraction;
@@ -2403,6 +2403,7 @@ int _tmain(int argc, WCHAR* argv[])
 				for (i=0; i < numBarriers; i++){
 					const SpBarrier&    b(spr.barrier.at(i));
 					if (b.capitalOrIncome){
+						if (daysToFirstCapitalBarrier == 0) { daysToFirstCapitalBarrier  = b.endDays; }
 						if (b.endDays > maxEndDays){ maxEndDays = b.endDays; }
 					}
 				}
@@ -2424,7 +2425,7 @@ int _tmain(int argc, WCHAR* argv[])
 			
 			
 			// issuerCallable: since cannot control when Issuer might call, look for stale price 
-			if (issuerCallable && stalePrice){
+			if (issuerCallable && stalePrice && daysToFirstCapitalBarrier <0){
 				productHasMatured = true;
 				// update DB with last MID
 				sprintf(lineBuffer, "%s%lf%s%s%s%d%s%d", "update product set matured=1,MaturityPayoff=", (bidPrice + askPrice) / 2.0, ",DateMatured='", bidAskDateString.c_str(), "' where userid=", userId, " and productid=", productId);
