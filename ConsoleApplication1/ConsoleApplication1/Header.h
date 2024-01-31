@@ -3996,6 +3996,9 @@ public:
 					const std::string   thisDateString(allDates.at(thisMonPoint));
 					for (i = 0; i < numUl + addCompoIntoCcy; i++) {
 						thesePrices[i] = ulPrices[i].price.at(thisMonPoint);
+						if (false) {
+							std::cerr << "Iteration:" << thisIteration << "thisMonDays:" << thisMonDays << "UL#" << i << "level:" << thesePrices[i] << std::endl;								
+						}
 					}
 					int lastTradingIndx = thisMonPoint - (thisMonPoint>0 ? 1:0);
 					while (lastTradingIndx && ulPrices[0].nonTradingDay[lastTradingIndx]){ lastTradingIndx -= 1; }
@@ -4682,16 +4685,23 @@ public:
 				if (!doAccruals){
 					// count NUMBER of couponHits, and update running count for that NUMBER  
 					int thisNumCouponHits=0;
+					bool someCapitalBarrierWasHit(false);
 					for (int thisBarrier = 0; thisBarrier <= maturityBarrier; thisBarrier++){
 						SpBarrier &b(barrier[thisBarrier]);
 						if (!b.capitalOrIncome && (b.hasBeenHit || barrierWasHit[thisBarrier]) && b.proportionHits == 1.0){ thisNumCouponHits += 1; }
+						if (b.capitalOrIncome && b.hasBeenHit){
+							someCapitalBarrierWasHit = true;
+						}
+					}
+					if (!someCapitalBarrierWasHit && !doAccruals) {
+						int jj = 1;
 					}
 					numCouponHits.at(thisNumCouponHits) += 1;
 				}
 			} // END LOOP wind 'thisPoint' forwards to next TRADING date, so as to start a new product
 
 			// debug
-			if (!matured){
+			if (!matured && !doAccruals){
 				int j = 1;
 			}
 			// end-this-iteration convergence test
@@ -4971,6 +4981,18 @@ public:
 						double maxBarrierProb(0.0), maxBarrierProbMoneyness(0.0), maxFirstKoMoneyness(0.0), maxFirstKoReturn(0.0);
 						bool doMostLikelyBarrier(analyseCase == 0 || analyseCase == 1);
 
+						// DEBUG: how many capital hits
+						if (false) {
+							int checkNumHits(0);
+							for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++) {
+								const SpBarrier&    b(barrier.at(thisBarrier));
+								if (b.capitalOrIncome && b.yearsToBarrier >= 0.0) {
+									int numHits = (int)b.hit.size();
+									checkNumHits += numHits;
+								}
+							}
+						}
+						
 						// ** process barrier results
 						double eStrPosPayoff(0.0), ePosPayoff(0.0), eNegPayoff(0.0), sumPayoffs(0.0), sumAnnRets(0.0), sumCouponRets(0.0), sumParAnnRets(0.0), sumDuration(0.0), sumPossiblyCreditAdjPayoffs(0.0);
 						int    numCapitalInstances(0), numStrPosInstances(0), numPosInstances(0), numNegInstances(0), numParInstances(0);
@@ -5436,6 +5458,7 @@ public:
 						// NOTE: eShortfall (which an average of annRets) will be HIGHER than the AnnRet of a KIP barrier, as shown in barrierprob table, which annualises the averagePayoff
 						// ... due to Jensen's inequality: f(average) != average(f)
 						// ... for example try 2 6y payoffs of 0.1 and 0.6
+						double eBestRet(0.0); 	    for (i = 0; i < numShortfall;     i++) { eBestRet       += allAnnRets[numAnnRets -i -1]; }	if (numShortfall) { eBestRet     /= numShortfall; }
 						double eShortfall(0.0);	    for (i = 0; i < numShortfall;     i++) { eShortfall     += allAnnRets[i]; }	if (numShortfall)     { eShortfall     /= numShortfall; }
 						double eShortfallTest(0.0);	for (i = 0; i < numShortfallTest; i++) { eShortfallTest += allPayoffs[i]; }	if (numShortfallTest) { eShortfallTest /= numShortfallTest; }
 						double esVol     = (1 + averageReturn) > 0.0 && (1 + eShortfall) > 0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
@@ -5607,11 +5630,12 @@ public:
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='", probLoss);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecPar='", numParInstances ? sumParAnnRets / (double)numParInstances : 0.0);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probPar='", (double)numParInstances / (double)numAnnRets);
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='", eShortfall*100.0);
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EShortfallTest='", eShortfallTest*100.0);  // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution)
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='", eShortfallDepo*100.0);
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',cVar95PctLoss='", cVar95PctLoss);
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='", probBelowDepo);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ErightTailReturn='", eBestRet      *100.0);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",       eShortfall    *100.0);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EShortfallTest='",   eShortfallTest*100.0);  // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution)
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='",   eShortfallDepo*100.0);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',cVar95PctLoss='",    cVar95PctLoss);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='",    probBelowDepo);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbShortfall='", benchmarkProbUnderperf);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkCondShortfall='", benchmarkCondUnderperf*100.0);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbOutperf='", benchmarkProbOutperf);
@@ -5722,7 +5746,7 @@ public:
 
 						// text output
 						if (!silent) {
-							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
+							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
 								analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
 								100.0*geomReturn, ":",
 								100.0*earithReturn, ":",
@@ -5757,7 +5781,8 @@ public:
 								100.0*bmRelCAGR, ":",
 								100.0*bmRelOutperfPV, ":",
 								100.0*bmRelUnderperfPV, ":",
-								100.0*bmRelAverage
+								100.0*bmRelAverage, ":",
+								100.0*eBestRet
 							);
 							std::cout << charBuffer << std::endl;
 						} // !silent

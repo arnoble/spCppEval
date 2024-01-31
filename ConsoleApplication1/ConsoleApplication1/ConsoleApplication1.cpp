@@ -2480,11 +2480,13 @@ int _tmain(int argc, WCHAR* argv[])
 					continue;
 				}
 
-
+				/*
+				*  Newton-Raphson root finding of some product parameter
+				*/
 				if (solveFor){
-					// Newton-Raphson		
+					// Newton-Raphson settings
 					int maxit    = 100;
-					double xacc  = 0.0001;      // 10bp accuracy
+					double xacc  = 0.0001;     // 10bp accuracy
 					double x1    =  0.5;       // lower bound guess
 					double x2    =  2.0;       // upper bound guess
 					double solverStep = 0.03;
