@@ -5464,6 +5464,24 @@ public:
 						double esVol     = (1 + averageReturn) > 0.0 && (1 + eShortfall) > 0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 						double priipsImpliedCost, priipsVaR, priipsDuration;
 						double cVar95PctLoss = -100.0*(1.0 - eShortfallTest / midPrice); // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution) so this is the %moneyLoss at that percentile
+						// downsideVol
+						double downsideVol(0.0);
+						if (numNegInstances > 0) {
+							std::vector<double> tmp(numAnnRets);
+							double dummy1, dummy2;
+
+							size_t n = 0;
+							for (int i = 0; i < numNegInstances; i++) {
+								tmp[n++] = allAnnRets[i];
+							}
+							// set non-loss returns to zero
+							for (int i = numNegInstances; i < numAnnRets; i++) {
+								tmp[n++] = 0.0;
+							}
+							MeanAndStdev(tmp, dummy1, downsideVol, dummy2);
+							downsideVol *= sqrt(duration);
+						}
+						
 						if (doPriips) {
 							PriipsStruct &thisPriip(priipsInstances[(unsigned int)floor((double)priipsInstances.size()*0.025)]);
 							priipsVaR          = thisPriip.pvReturn;
@@ -5631,6 +5649,7 @@ public:
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecPar='", numParInstances ? sumParAnnRets / (double)numParInstances : 0.0);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probPar='", (double)numParInstances / (double)numAnnRets);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ErightTailReturn='", eBestRet      *100.0);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',DownsideVol='",      downsideVol   *100.0);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",       eShortfall    *100.0);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EShortfallTest='",   eShortfallTest*100.0);  // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution)
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='",   eShortfallDepo*100.0);
@@ -5782,7 +5801,8 @@ public:
 								100.0*bmRelOutperfPV, ":",
 								100.0*bmRelUnderperfPV, ":",
 								100.0*bmRelAverage, ":",
-								100.0*eBestRet
+								100.0*eBestRet, ":",
+								100.0*downsideVol
 							);
 							std::cout << charBuffer << std::endl;
 						} // !silent
