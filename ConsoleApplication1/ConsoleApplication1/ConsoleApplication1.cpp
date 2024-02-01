@@ -1063,9 +1063,14 @@ int _tmain(int argc, WCHAR* argv[])
 			retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			// cerr << "baseCurve:" << lineBuffer << endl;
 			vector<SomeCurve> baseCurve;
+			const double targetReturnSpread(0.05);   // targetReturn will be the spread at/before targetReturnTenor +targetReturnSpread
+			double targetReturn(0.0), targetReturnTenor(5.0);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				anyCurve.tenor  = atof(szAllPrices[0]);
 				anyCurve.spread = atof(szAllPrices[1]);
+				if (anyCurve.tenor <= targetReturnTenor) {
+					targetReturn = anyCurve.spread + targetReturnSpread;
+				}
 				baseCurve.push_back(anyCurve);
 				retcode = mydb.fetch(false,"");
 			}
@@ -1974,7 +1979,7 @@ int _tmain(int argc, WCHAR* argv[])
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, saveOptimisationPaths, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, updateProduct, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,
-				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift);
+				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift, targetReturn);
 			numBarriers = 0;
 
 			// get barriers from DB

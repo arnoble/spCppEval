@@ -2995,7 +2995,7 @@ private:
 	const bool                      extendingPrices;
 	const bool                      issuerCallable;
 	const bool                      multiIssuer;
-
+	const double                    targetReturn;
 public:
 	SProduct(
 		const bool                      extendingPrices,
@@ -3060,7 +3060,8 @@ public:
 		const double                    gmmMinClusterFraction,
 		const bool                      multiIssuer,
 		std::vector<double>             &cdsVols,
-		const double                    volShift
+		const double                    volShift,
+		const double                    targetReturn
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -3073,7 +3074,7 @@ public:
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
-		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer),cdsVols(cdsVols),volShift(volShift){
+		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer),cdsVols(cdsVols),volShift(volShift), targetReturn(targetReturn){
 	
 		for (int i=0; i < (int)baseCurve.size(); i++) { baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 	};
@@ -5467,19 +5468,43 @@ public:
 						double priipsImpliedCost, priipsVaR, priipsDuration;
 						double cVar95PctLoss = -100.0*(1.0 - eShortfallTest / midPrice); // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution) so this is the %moneyLoss at that percentile
 						// downsideVol
+						// targetReturn shortfalls
 						double downsideVolZeroed(0.0), downsideVol(0.0);
 						if (numNegInstances > 1) {
 							std::vector<double> tmpZeroed(numAnnRets), tmp(numNegInstances);  // size: numNegInstances or numAnnRets (non-loss returns will use initialized zeroes)
-							double dummy1, dummy2;
-							// std::cerr << "DownsideVol:" << numAnnRets << " DownsideVol1:" << numNegInstances << std::endl;
-							size_t n = 0,n1 = 0;
+							double thisMean,thisMean1,dummy1, dummy2;
 							for (int i = 0; i < numNegInstances; i++) {
 								double thisRet = allAnnRets[i];
-								tmpZeroed[ n++  ] = thisRet;
-								tmp      [ n1++ ] = thisRet;
+								tmpZeroed[ i ] = thisRet;
+								tmp      [ i ] = thisRet;
 							}
-							MeanAndStdev(tmpZeroed,  dummy1, downsideVolZeroed,  dummy2);
-							MeanAndStdev(tmp,        dummy1, downsideVol,        dummy2);
+							MeanAndStdev(tmpZeroed,  thisMean,  downsideVolZeroed,  dummy2);
+							MeanAndStdev(tmp,        thisMean1, downsideVol,        dummy2);
+							// std::cerr << "DownsideVolZeroed:" << numAnnRets << " mean:" << thisMean << " vol:" << downsideVolZeroed << " DownsideVol:" << numNegInstances << " mean:" << thisMean1 << " vol:" << downsideVol << std::endl;
+
+							// possibly better, using targetReturn shortfalls
+							std::vector<double> shortfallsZeroed(numAnnRets);
+							size_t n = 0;
+							bool done(false);
+							for (int i = 0; !done && i < numAnnRets; i++) {
+								double thisRet = allAnnRets[i] - targetReturn;
+								if (thisRet < 0.0) {
+									shortfallsZeroed[n++] = thisRet;
+								}
+								else {
+									done = true;
+								}
+							}
+							MeanAndStdev(shortfallsZeroed, thisMean, downsideVolZeroed, dummy2);
+							std::vector<double> shortfalls(n);
+							for (int i = 0; i < n; i++) {
+								shortfalls[i] = shortfallsZeroed[i];								
+							}
+							MeanAndStdev(shortfalls, thisMean1, downsideVol, dummy2);
+							// std::cerr << "NEWER: " << "DownsideVolZeroed:" << numAnnRets << " mean:" << thisMean << " vol:" << downsideVolZeroed << " DownsideVol:" << n << " mean:" << thisMean1 << " vol:" << downsideVol << std::endl;
+
+							// END: possibly better
+
 							downsideVolZeroed  *= sqrt(duration);
 							downsideVol        *= sqrt(duration);
 						}
@@ -5806,7 +5831,7 @@ public:
 								100.0*bmRelUnderperfPV, ":",
 								100.0*bmRelAverage, ":",
 								100.0*eBestRet, ":",
-								100.0*downsideVol
+								100.0*downsideVolZeroed
 							);
 							std::cout << charBuffer << std::endl;
 						} // !silent
