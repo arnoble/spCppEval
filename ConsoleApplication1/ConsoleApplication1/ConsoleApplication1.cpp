@@ -27,7 +27,7 @@ int _tmain(int argc, WCHAR* argv[])
 	try{
 		// initialise
 		map<string, string> argWords;
-		argWords["doFAR"          ]         = "";      
+		argWords["doFAR"]         = "";
 		argWords["bumpOnlyALL"    ]         = "";
 		argWords["slidingTheta"]            = "";
 		argWords["doTesting"]               = "";
@@ -80,6 +80,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["possibleIssuerIds"]       = "<comma-sep list of issuerIds>";
 		argWords["UKSPA"]                   = "Bear|Neutral|Bull";
 		argWords["Issuer"]                  = "partName";
+		argWords["targetPremium"]           = "x.x (percent)";
 		argWords["useThisVol"]              = "x.x (percent)";
 		argWords["useThisVolShift"]         = "x.x (percent)";
 		argWords["fundingFractionFactor"]   = "x.x";
@@ -128,7 +129,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		int              debugLevel(0),corrUidx(0), corrOtherUidx(0), corrOtherIndex(0), doUseMyEqEqCorr(-1), doUseMyEqFxCorr(-1);
 		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
-		bool             doUseThisVol(false), doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
+		bool             doUseTargetPremium(false),doUseThisVol(false), doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), saveOptimisationPaths(false), initOptimisation(false), silent(false), updateProduct(false),verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
 		bool             bumpOnlyALL(false),doFvEndDate(false),updateCashflows(true),ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
@@ -155,7 +156,7 @@ int _tmain(int argc, WCHAR* argv[])
 		char             useProto[6]              = "";
 		char             priipsStartDatePhrase[100];
 		double           fundingFractionFactor    = MIN_FUNDING_FRACTION_FACTOR, forceEqFxCorrelation(0.0), forceEqEqCorrelation(0.0);
-		double           useThisVol,gmmMinClusterFraction(0.001),useThisVolShift,rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue;
+		double           targetPremium,useThisVol,gmmMinClusterFraction(0.001),useThisVolShift,rescaleFraction,useThisBarrierBend,useThisOIS,targetFairValue,useThisPrice,thisFairValue;
 		double           deltaBumpAmount(0.05), deltaBumpStart(0.0), deltaBumpStep(0.0), vegaBumpStart(0.0), vegaBumpStep(0.0);
 		int              thetaBumpStart(0), thetaBumpStep(0);
 		double           rhoBumpStart(0.0), rhoBumpStep(0.0), creditBumpStart(0.0), creditBumpStep(0.0), corrBumpStart(0.0), corrBumpStep(0.0), barrierBendEndFraction(0.0), barrierBendDays(90.0);
@@ -564,6 +565,7 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "useThisOIS:%s",            lineBuffer)){ useThisOIS            = atof(lineBuffer);         doUseThisOIS         = true; }
 			else if (sscanf(thisArg, "useThisBarrierBend:%s",    lineBuffer)){ useThisBarrierBend    = atof(lineBuffer);         doUseThisBarrierBend = true; }
 			else if (sscanf(thisArg, "useThisVol:%s",            lineBuffer)){ useThisVol            = atof(lineBuffer) / 100.0; doUseThisVol         = true; }
+			else if (sscanf(thisArg, "targetPremium:%s",         lineBuffer)){ targetPremium         = atof(lineBuffer) / 100.0; doUseTargetPremium   = true; }
 			else if (sscanf(thisArg, "useThisVolShift:%s",       lineBuffer)){ useThisVolShift       = atof(lineBuffer) / 100.0; doUseThisVolShift    = true; }
 			else if (sscanf(thisArg, "useMyEqEqCorr:%s",         lineBuffer)){ doUseMyEqEqCorr       = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "useMyEqFxCorr:%s",         lineBuffer)){ doUseMyEqFxCorr       = atoi(lineBuffer); }
@@ -1063,7 +1065,7 @@ int _tmain(int argc, WCHAR* argv[])
 			retcode = mydb.fetch(false, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			// cerr << "baseCurve:" << lineBuffer << endl;
 			vector<SomeCurve> baseCurve;
-			const double targetReturnSpread(0.05);   // targetReturn will be the spread at/before targetReturnTenor +targetReturnSpread
+			const double targetReturnSpread(doUseTargetPremium ? targetPremium : 0.05);   // targetReturn will be the spread at/before targetReturnTenor +targetReturnSpread
 			double targetReturn(0.0), targetReturnTenor(5.0);
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 				anyCurve.tenor  = atof(szAllPrices[0]);
