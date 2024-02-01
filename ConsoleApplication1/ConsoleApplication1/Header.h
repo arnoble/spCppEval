@@ -5019,9 +5019,11 @@ public:
 									double thisRecoveryRate;
 									thisRecoveryRate = /*((double)rand() / RAND_MAX)*/ ArtsRan() < thisProbDefault ? actualRecoveryRate : 1.0;
 									thisAmount      *= thisRecoveryRate;
-									if (thisAmount > midPrice) { eStrPosPayoff  += thisAmount; numStrPosInstances++; }
-									if (thisAmount >= midPrice) { ePosPayoff     += thisAmount; numPosInstances++; }
-									else { eNegPayoff     += thisAmount; numNegInstances++; }
+									if (b.capitalOrIncome && b.yearsToBarrier >= 0.0) {
+										if (thisAmount > midPrice)  { eStrPosPayoff  += thisAmount; numStrPosInstances++; }
+										if (thisAmount >= midPrice) { ePosPayoff     += thisAmount; numPosInstances++; }
+										else { eNegPayoff     += thisAmount; numNegInstances++; }
+									}
 								}
 								thisBarrierCouponValues.push_back(b.couponValues[i]);
 								thisBarrierPayoffs.push_back(thisAmount);
@@ -5465,22 +5467,23 @@ public:
 						double priipsImpliedCost, priipsVaR, priipsDuration;
 						double cVar95PctLoss = -100.0*(1.0 - eShortfallTest / midPrice); // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution) so this is the %moneyLoss at that percentile
 						// downsideVol
-						double downsideVol(0.0), downsideVol1(0.0);
-						if (numNegInstances > 0) {
-							std::vector<double> tmp(numAnnRets), tmp1(numNegInstances);  // size: numNegInstances or numAnnRets (non-loss returns will use initialized zeroes)
+						double downsideVolZeroed(0.0), downsideVol(0.0);
+						if (numNegInstances > 1) {
+							std::vector<double> tmpZeroed(numAnnRets), tmp(numNegInstances);  // size: numNegInstances or numAnnRets (non-loss returns will use initialized zeroes)
 							double dummy1, dummy2;
-
+							// std::cerr << "DownsideVol:" << numAnnRets << " DownsideVol1:" << numNegInstances << std::endl;
 							size_t n = 0,n1 = 0;
 							for (int i = 0; i < numNegInstances; i++) {
 								double thisRet = allAnnRets[i];
-								tmp[ n++  ] = thisRet;
-								tmp1[n1++ ] = thisRet;
+								tmpZeroed[ n++  ] = thisRet;
+								tmp      [ n1++ ] = thisRet;
 							}
-							MeanAndStdev(tmp,  dummy1, downsideVol,  dummy2);
-							MeanAndStdev(tmp1, dummy1, downsideVol1, dummy2);
-							downsideVol  *= sqrt(duration);
-							downsideVol1 *= sqrt(duration);
+							MeanAndStdev(tmpZeroed,  dummy1, downsideVolZeroed,  dummy2);
+							MeanAndStdev(tmp,        dummy1, downsideVol,        dummy2);
+							downsideVolZeroed  *= sqrt(duration);
+							downsideVol        *= sqrt(duration);
 						}
+					    // std::cerr << "DownsideVol:" << downsideVol << " DownsideVol1:" << downsideVol1 << std::endl;
 						
 						if (doPriips) {
 							PriipsStruct &thisPriip(priipsInstances[(unsigned int)floor((double)priipsInstances.size()*0.025)]);
@@ -5648,11 +5651,12 @@ public:
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probLoss='", probLoss);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ecPar='", numParInstances ? sumParAnnRets / (double)numParInstances : 0.0);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',probPar='", (double)numParInstances / (double)numAnnRets);
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ErightTailReturn='", eBestRet      *100.0);
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',DownsideVol='",      downsideVol1  *100.0);
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",       eShortfall    *100.0);
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EShortfallTest='",   eShortfallTest*100.0);  // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution)
-									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='",   eShortfallDepo*100.0);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ErightTailReturn='", eBestRet            *100.0);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',DownsideVol='",      downsideVol         *100.0);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',DownsideVolZeroed='",downsideVolZeroed   *100.0);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfall='",       eShortfall          *100.0);
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',EShortfallTest='",   eShortfallTest      *100.0);  // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution)
+									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',eShortfallDepo='",   eShortfallDepo      *100.0);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',cVar95PctLoss='",    cVar95PctLoss);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',ProbBelowDepo='",    probBelowDepo);
 									sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',BenchmarkProbShortfall='", benchmarkProbUnderperf);
@@ -5802,7 +5806,7 @@ public:
 								100.0*bmRelUnderperfPV, ":",
 								100.0*bmRelAverage, ":",
 								100.0*eBestRet, ":",
-								100.0*downsideVol1
+								100.0*downsideVol
 							);
 							std::cout << charBuffer << std::endl;
 						} // !silent
