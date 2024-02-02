@@ -1523,7 +1523,7 @@ enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, 
 	autocallPutPayoff, autocallCallPayoff, lockinCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
-enum { solveForCoupon, solveForPutBarrier,solveForLastCap };
+enum { solveForCoupon, solveForPutBarrier,solveForLastCallCap };
 
 
 
@@ -3237,13 +3237,13 @@ public:
 				}
 			}
 			break;
-		case solveForLastCap:
+		case solveForLastCallCap:
 			// set lastCap
 			for (int j=numBarriers - 1; !lastCapFound && j >= 0; j--) {
 				SpBarrier& b(barrier.at(j));
-				if (b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
+				if (b.payoffTypeId == callPayoff && b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
 					lastCapFound = true;
-					b.cap = paramValue;
+					b.cap        = paramValue;
 				}
 			}
 			break;
@@ -3279,11 +3279,11 @@ public:
 				}
 			}
 			break;
-		case solveForLastCap:
+		case solveForLastCallCap:
 			// set lastCap
 			for (int j=numBarriers - 1; !lastCapFound && j >= 0; j--) {
 				SpBarrier& b(barrier.at(j));
-				if (b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
+				if (b.payoffTypeId == callPayoff && b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
 					lastCapFound = true;
 					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Cap='", b.cap, "'");
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
