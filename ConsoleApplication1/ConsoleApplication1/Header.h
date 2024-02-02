@@ -5471,6 +5471,10 @@ public:
 						// targetReturn shortfalls
 						double downsideVolZeroed(0.0), downsideVol(0.0);
 						if (numNegInstances > 1) {
+							bool done(false);
+							size_t n = 0;
+							/* OLD STUFF
+							
 							std::vector<double> tmpZeroed(numAnnRets), tmp(numNegInstances);  // size: numNegInstances or numAnnRets (non-loss returns will use initialized zeroes)
 							double thisMean,thisMean1,dummy1, dummy2;
 							for (int i = 0; i < numNegInstances; i++) {
@@ -5484,8 +5488,7 @@ public:
 
 							// possibly better, using targetReturn shortfalls
 							std::vector<double> shortfallsZeroed(numAnnRets);
-							size_t n = 0;
-							bool done(false);
+							done = false ;
 							for (int i = 0; !done && i < numAnnRets; i++) {
 								double thisRet = allAnnRets[i] - targetReturn;
 								if (thisRet < 0.0) {
@@ -5505,6 +5508,24 @@ public:
 
 							// END: possibly better
 
+							// EVEN better: TargetDownsideDeviation = sqrt( average((annRet - targetReturn)^2) )
+							*/
+							
+							double downsideDeviation(0.0);
+							n    = 0;
+							done = false;
+							for (int i = 0; !done && i < numAnnRets; i++) {
+								double thisRet = allAnnRets[i] - targetReturn;
+								if (thisRet < 0.0) {
+									downsideDeviation += thisRet*thisRet;
+									n++;
+								}
+								else {
+									done = true;
+								}
+							}
+							downsideVolZeroed   = sqrt(downsideDeviation / numAnnRets);
+							downsideVol         = sqrt(downsideDeviation / n);
 							downsideVolZeroed  *= sqrt(duration);
 							downsideVol        *= sqrt(duration);
 						}
