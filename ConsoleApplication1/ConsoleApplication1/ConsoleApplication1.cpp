@@ -93,7 +93,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["eqFx"]                    = "eqUid:fxId:x.x   eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
 		argWords["ulLevel"]                 = "name:level       eg UK100:6500";
-		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier and add :commit to save solution";
+		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier|lastCap and add :commit to save solution";
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta|vega|rho|credit|corr~name~name:-0.05:0.05:3 >";
 		argWords["bumpVolPoint"]            = "tenor:strike:bumpAmount(decimal) eg 1.0:0.6:0.01 ";
@@ -487,6 +487,9 @@ int _tmain(int argc, WCHAR* argv[])
 				if (tokens.size() > 2 && tokens[2] == "commit"){ solveForCommit = true; }
 				if (whatToSolveFor == "coupon"){
 					solveForThis = solveForCoupon;
+				}
+				else if (whatToSolveFor == "lastCap") {
+					solveForThis = solveForLastCap;
 				}
 				else if (whatToSolveFor == "putBarrier"){
 					solveForThis = solveForPutBarrier;
@@ -2503,11 +2506,10 @@ int _tmain(int argc, WCHAR* argv[])
 					EvalResult evalResult1(0.0, 0.0,0), evalResult2(0.0, 0.0,0);
 					string adviceString = " - please choose a TargetValue closer to the current FairValue, or modify the product so as to have a FairValue closer to your TargetValue";
 					// check product has some starting data
-					bool couponFound(false);
+					bool couponFound(false), putFound(false), lastCapFound(false);
 					int numIncomeBarriers(0);
 					double coupon(0.0);
-					bool putFound(false);
-					double solveBarrier;
+					double solveBarrier, solveLastCap;
 					double previousBarrierYears(0.0);
 
 					// solve
@@ -2551,6 +2553,21 @@ int _tmain(int argc, WCHAR* argv[])
 							return(105);
 						}
 						solverParam = solveBarrier;
+						break;
+					case solveForLastCap:
+						for (j=numBarriers-1; !lastCapFound && j >= 0; j--) {
+							SpBarrier& b(spr.barrier.at(j));
+							if (b.participation > 0.0 && (int)b.brel.size()>0 && b.cap > 0.0 && b.strike > 0.0) {
+								lastCapFound = true;
+								solveLastCap     = b.cap;
+							}
+						}
+						if (!lastCapFound) {
+							sprintf(lineBuffer, "%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ":no lastCap found");
+							std::cout << lineBuffer << std::endl;
+							return(105);
+						}
+						solverParam = solveLastCap;
 						break;
 					} // switch
 

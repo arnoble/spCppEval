@@ -1523,7 +1523,7 @@ enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, 
 	autocallPutPayoff, autocallCallPayoff, lockinCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
-enum { solveForCoupon, solveForPutBarrier };
+enum { solveForCoupon, solveForPutBarrier,solveForLastCap };
 
 
 
@@ -3223,6 +3223,7 @@ public:
 	// set some product param
 	void solverSet(const int solveForThis,const double paramValue){
 		int numBarriers = (int)barrier.size();
+		bool lastCapFound(false);
 		double previousBarrierYears(0.0);
 		switch (solveForThis){
 		case solveForCoupon:
@@ -3236,13 +3237,23 @@ public:
 				}
 			}
 			break;
+		case solveForLastCap:
+			// set lastCap
+			for (int j=numBarriers - 1; !lastCapFound && j >= 0; j--) {
+				SpBarrier& b(barrier.at(j));
+				if (b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
+					lastCapFound = true;
+					b.cap = paramValue;
+				}
+			}
+			break;
 		case solveForPutBarrier:
 			// set put barrier
-			for (int j=0; j < numBarriers; j++){
+			for (int j=0; j < numBarriers; j++) {
 				SpBarrier& b(barrier.at(j));
 				int numBrels = (int)b.brel.size();
-				if (b.capitalOrIncome && b.participation < 0.0 && numBrels>0){					
-					for (int k=0; k < numBrels; k++){
+				if (b.capitalOrIncome && b.participation < 0.0 && numBrels>0) {
+					for (int k=0; k < numBrels; k++) {
 						b.brel[k].barrier = paramValue;
 					}
 				}
@@ -3255,6 +3266,7 @@ public:
 	void solverCommit(const int solveForThis, const double paramValue){
 		solverSet(solveForThis, paramValue);
 		int numBarriers = (int)barrier.size();
+		bool lastCapFound(false);
 		switch (solveForThis){
 		case solveForCoupon:
 			// set each coupon to an annualised rate
@@ -3262,6 +3274,18 @@ public:
 				SpBarrier& b(barrier.at(j));
 				if (!b.capitalOrIncome || (numIncomeBarriers == 0 && b.payoffTypeId == fixedPayoff && b.brel.size()>0)){
 					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Payoff='", 100.0*b.payoff,"%'");
+					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
+			}
+			break;
+		case solveForLastCap:
+			// set lastCap
+			for (int j=numBarriers - 1; !lastCapFound && j >= 0; j--) {
+				SpBarrier& b(barrier.at(j));
+				if (b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
+					lastCapFound = true;
+					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Cap='", b.cap, "'");
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
