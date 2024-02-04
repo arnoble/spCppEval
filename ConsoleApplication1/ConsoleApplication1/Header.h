@@ -1523,7 +1523,7 @@ enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, 
 	autocallPutPayoff, autocallCallPayoff, lockinCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
-enum { solveForCoupon, solveForPutBarrier,solveForLastCallCap, solveForDigital };
+enum { solveForCoupon, solveForPutBarrier,solveForLastCallCap, solveForDigital, solveForPositiveParticipation};
 
 
 
@@ -2193,7 +2193,7 @@ public:
 	std::vector<double>             a;        // GMM  mix    for each cluster
 	std::vector<double>             muX;      // GMM  muX    for each cluster
 	std::vector<double>             muY;      // GMM  muY    for each cluster
-	std::vector<double>             covXY;    // GMM  covXY  for each cluster
+	std::vector<double>             covXY;    //f GMM  covXY  for each cluster
 	std::vector<double>             covX;     // GMM  covX   for each cluster
 	int                             gmmNumClusters;
 	char                            charBuffer[1000];
@@ -2201,13 +2201,13 @@ public:
 	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
-	const double                    participation, param1,midPrice;
+	const double                    param1,midPrice;
 	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
 	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
-	double                          thisCouponValue, fixedCouponValue,maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
+	double                          thisCouponValue, fixedCouponValue,maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, participation,cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          lsConstant, lsWorstB, lsWorstSquaredB, lsNextWorstB, lsNextWorstSquaredB, proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate, discountFactor;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl);
 	std::vector <finalAssetInfo>    fars; // final asset returns
@@ -3223,7 +3223,7 @@ public:
 	// set some product param
 	void solverSet(const int solveForThis,const double paramValue){
 		int numBarriers = (int)barrier.size();
-		bool lastCapFound(false), digitalFound(false);
+		bool lastCapFound(false), digitalFound(false), positiveParticipationFound(false);
 		double previousBarrierYears(0.0);
 		switch (solveForThis){
 		case solveForCoupon:
@@ -3260,14 +3260,24 @@ public:
 			}
 			break;
 		case solveForDigital:
-				// look for productShape == digital && last payoffType == 'fixed' and hasBrels
-				for (int j=numBarriers - 1; !digitalFound && j >= 0; j--) {
-					SpBarrier& b(barrier.at(j));
-					if (productShape == "Digital" &&  b.payoffTypeId == fixedPayoff && (int)b.brel.size() > 0) {
-						digitalFound = true;
-						b.payoff     = paramValue;
-					}
+			// look for productShape == digital && last payoffType == 'fixed' and hasBrels
+			for (int j=numBarriers - 1; !digitalFound && j >= 0; j--) {
+				SpBarrier& b(barrier.at(j));
+				if (productShape == "Digital" &&  b.payoffTypeId == fixedPayoff && (int)b.brel.size() > 0) {
+					digitalFound = true;
+					b.payoff     = paramValue;
 				}
+			}
+			break;
+		case solveForPositiveParticipation:
+			// look for LAST participation > 0 && payoffType != 'fixed' and hasBrels
+			for (int j=numBarriers - 1; !positiveParticipationFound && j >= 0; j--) {
+				SpBarrier& b(barrier.at(j));
+				if (b.payoffTypeId != fixedPayoff && b.participation > 0.0 && (int)b.brel.size() > 0) {
+					positiveParticipationFound = true;
+					b.participation = paramValue;
+				}
+			}
 			break;
 		} // switch
 	}
@@ -3276,7 +3286,7 @@ public:
 	void solverCommit(const int solveForThis, const double paramValue){
 		solverSet(solveForThis, paramValue);
 		int numBarriers = (int)barrier.size();
-		bool lastCapFound(false), digitalFound(false);
+		bool lastCapFound(false), digitalFound(false), positiveParticipationFound(false);
 		switch (solveForThis){
 		case solveForCoupon:
 			// set each coupon to an annualised rate
@@ -3323,6 +3333,18 @@ public:
 				if (productShape == "Digital" &&  b.payoffTypeId == fixedPayoff && (int)b.brel.size() > 0) {
 					digitalFound = true;
 					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Payoff='", 100.0*b.payoff, "%'");
+					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
+			}
+			break;
+		case solveForPositiveParticipation:
+			// look for LAST participation > 0 && payoffType != 'fixed' and hasBrels
+			for (int j=numBarriers - 1; !positiveParticipationFound && j >= 0; j--) {
+				SpBarrier& b(barrier.at(j));
+				if (b.payoffTypeId != fixedPayoff && b.participation > 0.0 && (int)b.brel.size() > 0) {
+					positiveParticipationFound = true;
+					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Participation='", b.participation, "'");
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
