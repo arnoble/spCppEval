@@ -93,7 +93,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["eqFx"]                    = "eqUid:fxId:x.x   eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
 		argWords["ulLevel"]                 = "name:level       eg UK100:6500";
-		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier|lastCallCap|digital|positiveParticipation and add :commit to save solution";
+		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier|lastCallCap|digital|positiveParticipation|positivePutParticipation and add :commit to save solution";
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta|vega|rho|credit|corr~name~name:-0.05:0.05:3 >";
 		argWords["bumpVolPoint"]            = "tenor:strike:bumpAmount(decimal) eg 1.0:0.6:0.01 ";
@@ -499,6 +499,9 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 				else if (whatToSolveFor == "positiveParticipation") {
 					solveForThis = solveForPositiveParticipation;
+				}
+				else if (whatToSolveFor == "positivePutParticipation") {
+					solveForThis = solveForPositivePutParticipation;
 				}
 				else {
 					cerr << "solveFor: incorrect solveFor" << endl; exit(105);
@@ -2512,10 +2515,10 @@ int _tmain(int argc, WCHAR* argv[])
 					EvalResult evalResult1(0.0, 0.0,0), evalResult2(0.0, 0.0,0);
 					string adviceString = " - please choose a TargetValue closer to the current FairValue, or modify the product so as to have a FairValue closer to your TargetValue";
 					// check product has some starting data
-					bool couponFound(false), putFound(false), lastCapFound(false), digitalFound(false), positiveParticipationFound(false);
+					bool couponFound(false), putFound(false), lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false);
 					int numIncomeBarriers(0);
 					double coupon(0.0);
-					double solveBarrier, solveLastCap, solveDigital, solvePositiveParticipation;
+					double solveBarrier, solveLastCap, solveDigital, solvePositiveParticipation, solvePositivePutParticipation;
 					double previousBarrierYears(0.0);
 
 					// solve
@@ -2606,6 +2609,22 @@ int _tmain(int argc, WCHAR* argv[])
 							return(105);
 						}
 						solverParam = solvePositiveParticipation;
+						break;						
+					case solveForPositivePutParticipation:
+						// look for LAST participation > 0 && payoffType = 'put' and hasBrels
+						for (int j=numBarriers - 1; !positivePutParticipationFound && j >= 0; j--) {
+							SpBarrier& b(spr.barrier.at(j));
+							if (b.payoffTypeId == putPayoff && b.participation > 0.0 && (int)b.brel.size() > 0) {
+								positivePutParticipationFound = true;
+								solvePositivePutParticipation = b.participation;
+							}
+						}
+						if (!positivePutParticipationFound) {
+							sprintf(lineBuffer, "%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ":no positivePutParticipation found");
+							std::cout << lineBuffer << std::endl;
+							return(105);
+						}
+						solverParam = solvePositivePutParticipation;
 						break;
 					} // switch
 
