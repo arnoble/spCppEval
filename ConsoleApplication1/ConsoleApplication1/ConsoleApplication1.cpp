@@ -93,7 +93,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["eqFx"]                    = "eqUid:fxId:x.x   eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
 		argWords["ulLevel"]                 = "name:level       eg UK100:6500";
-		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier|lastCallCap and add :commit to save solution";
+		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier|lastCallCap|digital and add :commit to save solution";
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta|vega|rho|credit|corr~name~name:-0.05:0.05:3 >";
 		argWords["bumpVolPoint"]            = "tenor:strike:bumpAmount(decimal) eg 1.0:0.6:0.01 ";
@@ -493,6 +493,9 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 				else if (whatToSolveFor == "putBarrier"){
 					solveForThis = solveForPutBarrier;
+				}
+				else if (whatToSolveFor == "digital") {
+					solveForThis = solveForDigital;
 				}
 				else {
 					cerr << "solveFor: incorrect solveFor" << endl; exit(105);
@@ -2497,8 +2500,8 @@ int _tmain(int argc, WCHAR* argv[])
 					// Newton-Raphson settings
 					int maxit    = 100;
 					double xacc  = 0.0001;     // 10bp accuracy
-					double x1    =  0.5;       // lower bound guess
-					double x2    =  2.0;       // upper bound guess
+					double x1    =  solveForThis == solveForDigital ? 0.5 : 0.25;       // lower bound guess
+					double x2    =  solveForThis == solveForDigital ? 2.0 : 4.0;       // upper bound guess
 					double solverStep = 0.03;
 					double solverParam(0.0);
 					int  j;
@@ -2506,10 +2509,10 @@ int _tmain(int argc, WCHAR* argv[])
 					EvalResult evalResult1(0.0, 0.0,0), evalResult2(0.0, 0.0,0);
 					string adviceString = " - please choose a TargetValue closer to the current FairValue, or modify the product so as to have a FairValue closer to your TargetValue";
 					// check product has some starting data
-					bool couponFound(false), putFound(false), lastCapFound(false);
+					bool couponFound(false), putFound(false), lastCapFound(false), digitalFound(false);
 					int numIncomeBarriers(0);
 					double coupon(0.0);
-					double solveBarrier, solveLastCap;
+					double solveBarrier, solveLastCap, solveDigital;
 					double previousBarrierYears(0.0);
 
 					// solve
@@ -2569,6 +2572,23 @@ int _tmain(int argc, WCHAR* argv[])
 						}
 						solverParam = solveLastCap;
 						break;
+					case solveForDigital:
+						// look for productShape == digital && last payoffType == 'fixed' and hasBrels
+						for (int j=numBarriers - 1; !digitalFound && j >= 0; j--) {
+							SpBarrier& b(spr.barrier.at(j));
+							if (productShape == "Digital" &&  b.payoffTypeId == fixedPayoff && (int)b.brel.size() > 0) {
+								digitalFound = true;
+								solveDigital  = b.payoff;
+							}
+						}
+						if (!digitalFound) {
+							sprintf(lineBuffer, "%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ":no digital found");
+							std::cout << lineBuffer << std::endl;
+							return(105);
+						}
+						solverParam = solveDigital;
+						break;
+
 					} // switch
 
 					// possibly done already

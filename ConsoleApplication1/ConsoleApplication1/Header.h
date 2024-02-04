@@ -1523,7 +1523,7 @@ enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, 
 	autocallPutPayoff, autocallCallPayoff, lockinCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
-enum { solveForCoupon, solveForPutBarrier,solveForLastCallCap };
+enum { solveForCoupon, solveForPutBarrier,solveForLastCallCap, solveForDigital };
 
 
 
@@ -3223,7 +3223,7 @@ public:
 	// set some product param
 	void solverSet(const int solveForThis,const double paramValue){
 		int numBarriers = (int)barrier.size();
-		bool lastCapFound(false);
+		bool lastCapFound(false), digitalFound(false);
 		double previousBarrierYears(0.0);
 		switch (solveForThis){
 		case solveForCoupon:
@@ -3259,6 +3259,16 @@ public:
 				}
 			}
 			break;
+		case solveForDigital:
+				// look for productShape == digital && last payoffType == 'fixed' and hasBrels
+				for (int j=numBarriers - 1; !digitalFound && j >= 0; j--) {
+					SpBarrier& b(barrier.at(j));
+					if (productShape == "Digital" &&  b.payoffTypeId == fixedPayoff && (int)b.brel.size() > 0) {
+						digitalFound = true;
+						b.payoff     = paramValue;
+					}
+				}
+			break;
 		} // switch
 	}
 
@@ -3266,7 +3276,7 @@ public:
 	void solverCommit(const int solveForThis, const double paramValue){
 		solverSet(solveForThis, paramValue);
 		int numBarriers = (int)barrier.size();
-		bool lastCapFound(false);
+		bool lastCapFound(false), digitalFound(false);
 		switch (solveForThis){
 		case solveForCoupon:
 			// set each coupon to an annualised rate
@@ -3303,6 +3313,18 @@ public:
 						sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where BarrierRelationId='", br.barrierRelationId, "'");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					}
+				}
+			}
+			break;
+		case solveForDigital:
+			// look for productShape == digital && last payoffType == 'fixed' and hasBrels
+			for (int j=numBarriers - 1; !digitalFound && j >= 0; j--) {
+				SpBarrier& b(barrier.at(j));
+				if (productShape == "Digital" &&  b.payoffTypeId == fixedPayoff && (int)b.brel.size() > 0) {
+					digitalFound = true;
+					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Payoff='", 100.0*b.payoff, "%'");
+					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 			}
 			break;
