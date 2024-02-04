@@ -1523,7 +1523,7 @@ enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, 
 	autocallPutPayoff, autocallCallPayoff, lockinCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
-enum { solveForCoupon, solveForPutBarrier,solveForLastCallCap, solveForDigital, solveForPositiveParticipation, solveForPositivePutParticipation};
+enum { solveForCoupon, solveForPutBarrier,solveForLastCallCap, solveForDigital, solveForPositiveParticipation, solveForPositivePutParticipation, solveForShortPutStrike};
 
 
 
@@ -3223,7 +3223,7 @@ public:
 	// set some product param
 	void solverSet(const int solveForThis,const double paramValue){
 		int numBarriers = (int)barrier.size();
-		bool lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false);
+		bool lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false), shortPutStrikeFound(false);
 		double previousBarrierYears(0.0);
 		switch (solveForThis){
 		case solveForCoupon:
@@ -3289,6 +3289,20 @@ public:
 				}
 			}
 			break;
+		case solveForShortPutStrike:
+			// look for LAST participation < 0 && payoffType == 'put' and hasBrels
+			for (int j=numBarriers - 1; !shortPutStrikeFound && j >= 0; j--) {
+				SpBarrier& b(barrier.at(j));
+				int numBrels = (int)b.brel.size();
+				if (b.payoffTypeId == putPayoff && b.participation < 0.0 && numBrels > 0) {
+					shortPutStrikeFound = true;
+					b.strike            = paramValue;
+					for (int k=0; k < numBrels; k++) {
+						b.brel[k].barrier = paramValue;
+					}
+				}
+			}
+			break;
 		} // switch
 	}
 
@@ -3296,7 +3310,7 @@ public:
 	void solverCommit(const int solveForThis, const double paramValue){
 		solverSet(solveForThis, paramValue);
 		int numBarriers = (int)barrier.size();
-		bool lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false);
+		bool lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false), shortPutStrikeFound(false);
 		switch (solveForThis){
 		case solveForCoupon:
 			// set each coupon to an annualised rate
@@ -3369,6 +3383,25 @@ public:
 					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Participation='", b.participation, "'");
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
+			}
+			break;
+		case solveForShortPutStrike:
+			// look for LAST participation < 0 && payoffType == 'put' and hasBrels
+			for (int j=numBarriers - 1; !shortPutStrikeFound && j >= 0; j--) {
+				SpBarrier& b(barrier.at(j));
+				int numBrels = (int)b.brel.size();
+				if (b.payoffTypeId == putPayoff && b.participation < 0.0 && numBrels > 0) {
+					shortPutStrikeFound = true;
+					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Strike='", b.strike, "'");
+					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
+					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					for (int k=0; k < numBrels; k++) {
+						SpBarrierRelation& br(b.brel[k]);
+						sprintf(lineBuffer, "%s%.5lf%s", "update barrierrelation set Barrier='", br.barrier, "'");
+						sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where BarrierRelationId='", br.barrierRelationId, "'");
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
 				}
 			}
 			break;

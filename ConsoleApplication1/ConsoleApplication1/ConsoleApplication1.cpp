@@ -93,7 +93,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["eqFx"]                    = "eqUid:fxId:x.x   eg 3:1:-0.5";
 		argWords["eqEq"]                    = "eqUid:eqUid:x.x  eg 3:1:-0.5";
 		argWords["ulLevel"]                 = "name:level       eg UK100:6500";
-		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier|lastCallCap|digital|positiveParticipation|positivePutParticipation and add :commit to save solution";
+		argWords["solveFor"]                = "targetFairValue:whatToSolveFor[:commit]  eg 98.0:coupon|putBarrier|lastCallCap|digital|positiveParticipation|positivePutParticipation|shortPutStrike and add :commit to save solution";
 		argWords["stickySmile"]             = "";
 		argWords["bump"]                    = "bumpType:startBump:stepSize:numBumps eg delta|vega|rho|credit|corr~name~name:-0.05:0.05:3 >";
 		argWords["bumpVolPoint"]            = "tenor:strike:bumpAmount(decimal) eg 1.0:0.6:0.01 ";
@@ -502,6 +502,9 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 				else if (whatToSolveFor == "positivePutParticipation") {
 					solveForThis = solveForPositivePutParticipation;
+				}
+				else if (whatToSolveFor == "shortPutStrike") {
+					solveForThis = solveForShortPutStrike;
 				}
 				else {
 					cerr << "solveFor: incorrect solveFor" << endl; exit(105);
@@ -2515,10 +2518,9 @@ int _tmain(int argc, WCHAR* argv[])
 					EvalResult evalResult1(0.0, 0.0,0), evalResult2(0.0, 0.0,0);
 					string adviceString = " - please choose a TargetValue closer to the current FairValue, or modify the product so as to have a FairValue closer to your TargetValue";
 					// check product has some starting data
-					bool couponFound(false), putFound(false), lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false);
+					bool couponFound(false), putFound(false), lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false), shortPutStrikeFound(false);
 					int numIncomeBarriers(0);
 					double coupon(0.0);
-					double solveBarrier, solveLastCap, solveDigital, solvePositiveParticipation, solvePositivePutParticipation;
 					double previousBarrierYears(0.0);
 
 					// solve
@@ -2552,8 +2554,8 @@ int _tmain(int argc, WCHAR* argv[])
 						for (j=0; !putFound && j < numBarriers; j++){
 							SpBarrier& b(spr.barrier.at(j));
 							if (b.capitalOrIncome && b.participation < 0.0 && (int)b.brel.size()>0){
-								putFound = true;
-								solveBarrier = b.brel[0].barrier;
+								putFound    = true;
+								solverParam = b.brel[0].barrier;
 							}
 						}
 						if (!putFound){
@@ -2561,14 +2563,13 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						solverParam = solveBarrier;
 						break;
 					case solveForLastCallCap:
 						for (j=numBarriers-1; !lastCapFound && j >= 0; j--) {
 							SpBarrier& b(spr.barrier.at(j));
 							if (b.payoffTypeId == callPayoff && b.participation > 0.0 && (int)b.brel.size()>0 && b.cap > 0.0 && b.strike > 0.0) {
 								lastCapFound = true;
-								solveLastCap  = b.cap;
+								solverParam  = b.cap;
 							}
 						}
 						if (!lastCapFound) {
@@ -2576,7 +2577,6 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						solverParam = solveLastCap;
 						break;
 					case solveForDigital:
 						// look for productShape == digital && last payoffType == 'fixed' and hasBrels
@@ -2584,7 +2584,7 @@ int _tmain(int argc, WCHAR* argv[])
 							SpBarrier& b(spr.barrier.at(j));
 							if (productShape == "Digital" &&  b.payoffTypeId == fixedPayoff && (int)b.brel.size() > 0) {
 								digitalFound = true;
-								solveDigital  = b.payoff;
+								solverParam  = b.payoff;
 							}
 						}
 						if (!digitalFound) {
@@ -2592,7 +2592,6 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						solverParam = solveDigital;
 						break;						
 					case solveForPositiveParticipation:
 						// look for LAST participation > 0 && payoffType != 'fixed' and hasBrels
@@ -2600,7 +2599,7 @@ int _tmain(int argc, WCHAR* argv[])
 							SpBarrier& b(spr.barrier.at(j));
 							if (b.payoffTypeId != fixedPayoff && b.participation > 0.0 && (int)b.brel.size() > 0) {
 								positiveParticipationFound = true;
-								solvePositiveParticipation = b.participation;
+								solverParam = b.participation;
 							}
 						}
 						if (!positiveParticipationFound) {
@@ -2608,7 +2607,6 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						solverParam = solvePositiveParticipation;
 						break;						
 					case solveForPositivePutParticipation:
 						// look for LAST participation > 0 && payoffType = 'put' and hasBrels
@@ -2616,7 +2614,7 @@ int _tmain(int argc, WCHAR* argv[])
 							SpBarrier& b(spr.barrier.at(j));
 							if (b.payoffTypeId == putPayoff && b.participation > 0.0 && (int)b.brel.size() > 0) {
 								positivePutParticipationFound = true;
-								solvePositivePutParticipation = b.participation;
+								solverParam = b.participation;
 							}
 						}
 						if (!positivePutParticipationFound) {
@@ -2624,7 +2622,21 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						solverParam = solvePositivePutParticipation;
+						break;
+					case solveForShortPutStrike:
+						// look for LAST participation < 0 && payoffType == 'put' and hasBrels
+						for (int j=numBarriers - 1; !shortPutStrikeFound && j >= 0; j--) {
+							SpBarrier& b(spr.barrier.at(j));
+							if (b.payoffTypeId == putPayoff && b.participation < 0.0 && (int)b.brel.size() > 0) {
+								shortPutStrikeFound = true;
+								solverParam         = b.strike;
+							}
+						}
+						if (!shortPutStrikeFound) {
+							sprintf(lineBuffer, "%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ":no shortPutStrike found");
+							std::cout << lineBuffer << std::endl;
+							return(105);
+						}
 						break;
 					} // switch
 
