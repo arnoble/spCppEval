@@ -1523,7 +1523,7 @@ enum { fixedPayoff = 1, callPayoff, putPayoff, twinWinPayoff, switchablePayoff, 
 	autocallPutPayoff, autocallCallPayoff, lockinCallPayoff
 };
 enum { uFnLargest = 1, uFnLargestN, uFnSmallest };
-enum { solveForCoupon, solveForPutBarrier,solveForLastCallCap, solveForDigital, solveForPositiveParticipation, solveForPositivePutParticipation, solveForShortPutStrike};
+enum { solveForCoupon, solveForPutBarrier,solveForLastCallCap, solveForDigital, solveForPositiveParticipation, solveForPositivePutParticipation, solveForShortPutStrike, solveForAutocallTrigger};
 
 
 
@@ -3237,6 +3237,18 @@ public:
 				}
 			}
 			break;
+		case solveForAutocallTrigger:
+			// look for ALL capitalOrIncome obs with payoffType == 'fixed' and hasBrels
+			for (int j=0; j < numBarriers; j++) {
+				SpBarrier& b(barrier.at(j));
+				int numBrels = (int)b.brel.size();
+				if (b.capitalOrIncome && b.payoffTypeId == fixedPayoff && numBrels > 0) {
+					for (int k=0; k < numBrels; k++) {
+						b.brel[k].barrier = paramValue;
+					}
+				}
+			}
+			break;
 		case solveForLastCallCap:
 			// set lastCap
 			for (int j=numBarriers - 1; !lastCapFound && j >= 0; j--) {
@@ -3323,6 +3335,21 @@ public:
 					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Payoff='", 100.0*b.payoff,"%'");
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
+				}
+			}
+			break;
+		case solveForAutocallTrigger:
+			// look for ALL capitalOrIncome obs with payoffType == 'fixed' and hasBrels
+			for ( int j=0; j < numBarriers; j++) {
+				SpBarrier& b(barrier.at(j));
+				int numBrels = (int)b.brel.size();
+				if (b.capitalOrIncome && b.payoffTypeId == fixedPayoff && numBrels > 0) {
+					for (int k=0; k < numBrels; k++) {
+						SpBarrierRelation& br(b.brel[k]);
+						sprintf(lineBuffer, "%s%.5lf%s", "update barrierrelation set Barrier='", br.barrier, "'");
+						sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where BarrierRelationId='", br.barrierRelationId, "'");
+						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+					}
 				}
 			}
 			break;
