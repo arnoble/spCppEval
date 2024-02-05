@@ -3291,13 +3291,16 @@ public:
 			break;
 		case solveForShortPutStrike:
 			// look for LAST participation < 0 && payoffType == 'put' and hasBrels
+			// IMPORTANT:  MUST also set brel.strikes
 			for (int j=numBarriers - 1; !shortPutStrikeFound && j >= 0; j--) {
 				SpBarrier& b(barrier.at(j));
 				int numBrels = (int)b.brel.size();
 				if (b.payoffTypeId == putPayoff && b.participation < 0.0 && numBrels > 0) {
 					shortPutStrikeFound = true;
 					b.strike            = paramValue;
+					b.cap               = paramValue;
 					for (int k=0; k < numBrels; k++) {
+						b.brel[k].strike  = paramValue;
 						b.brel[k].barrier = paramValue;
 					}
 				}
@@ -3393,7 +3396,7 @@ public:
 				int numBrels = (int)b.brel.size();
 				if (b.payoffTypeId == putPayoff && b.participation < 0.0 && numBrels > 0) {
 					shortPutStrikeFound = true;
-					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Strike='", b.strike, "'");
+					sprintf(lineBuffer, "%s%.5lf%s%.5lf%s", "update productbarrier set Strike='", b.strike, "',Cap='",b.cap,"'");
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 					for (int k=0; k < numBrels; k++) {

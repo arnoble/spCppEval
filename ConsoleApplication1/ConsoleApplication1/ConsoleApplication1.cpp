@@ -2491,11 +2491,12 @@ int _tmain(int argc, WCHAR* argv[])
 					thisIssuerIndx++) {
 					spr.ArtsRanInit();  // so that multiIssuer analysis always sees the same ran sequence
 					// first-time we set conserveRande=doBumps and consumeRande=false
+					srand((unsigned int)time(0)); // reseed rand
 					evalResult = spr.evaluate(totalNumDays, thisStartPoint, thisLastPoint, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
-						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
+						ovveridePriipsStartDate, thisFairValue, doBumps || solveFor /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 						/* updateCashflows */!doBumps && !solveFor && !doRescale && !useMyEqEqCorr && !useMyEqFxCorr && updateCashflows && thisIssuerIndx == 0,/* issuerIndx */thisIssuerIndx);
 				}
 				if (evalResult.errorCode != 0) {
@@ -2509,8 +2510,8 @@ int _tmain(int argc, WCHAR* argv[])
 					// Newton-Raphson settings
 					int maxit    = 100;
 					double xacc  = 0.0001;     // 10bp accuracy
-					double x1    =  solveForThis == solveForDigital ? 0.5 : 0.25;       // lower bound guess
-					double x2    =  solveForThis == solveForDigital ? 2.0 : 4.0;       // upper bound guess
+					double x1    =  0.5 ;       // lower bound guess
+					double x2    =  2.0 ;       // upper bound guess
 					double solverStep = 0.03;
 					double solverParam(0.0);
 					int  j;
@@ -2549,6 +2550,8 @@ int _tmain(int argc, WCHAR* argv[])
 							coupon = 0.1; // default 10%pa 
 						}
 						solverParam = coupon;
+						x1    =  0.25;
+						x2    =  4.0;
 						break;
 					case solveForPutBarrier:
 						for (j=0; !putFound && j < numBarriers; j++){
@@ -2563,6 +2566,8 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
+						x1    =  0.5;
+						x2    =  1.0 / solverParam;  // max 1.0
 						break;
 					case solveForLastCallCap:
 						for (j=numBarriers-1; !lastCapFound && j >= 0; j--) {
@@ -2577,6 +2582,8 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
+						x1    =  0.5;
+						x2    =  2.0;
 						break;
 					case solveForDigital:
 						// look for productShape == digital && last payoffType == 'fixed' and hasBrels
@@ -2592,7 +2599,9 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						break;						
+						x1    =  0.5;
+						x2    =  2.0;
+						break;
 					case solveForPositiveParticipation:
 						// look for LAST participation > 0 && payoffType != 'fixed' and hasBrels
 						for (int j=numBarriers - 1; !positiveParticipationFound && j >= 0; j--) {
@@ -2607,7 +2616,9 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						break;						
+						x1    =  0.5;
+						x2    =  2.0;
+						break;
 					case solveForPositivePutParticipation:
 						// look for LAST participation > 0 && payoffType = 'put' and hasBrels
 						for (int j=numBarriers - 1; !positivePutParticipationFound && j >= 0; j--) {
@@ -2622,6 +2633,8 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
+						x1    =  0.5;
+						x2    =  2.0;
 						break;
 					case solveForShortPutStrike:
 						// look for LAST participation < 0 && payoffType == 'put' and hasBrels
@@ -2637,6 +2650,8 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
+						x1    =  0.5;
+						x2    =  1.0/solverParam; // max 1.0
 						break;
 					} // switch
 
@@ -2649,28 +2664,14 @@ int _tmain(int argc, WCHAR* argv[])
 
 
 					// initial values at upper/lower bound
-					spr.solverSet(solveForThis,solverParam*x1);
-					cerr << "try:" << solverParam*x1 << endl;
-					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
-						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
-						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
-						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
-						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
-						/* updateCashflows */false,/* issuerIndx */0);
-					fl = evalResult1.value - targetFairValue;
-					if (fl == 0.0) {
-						if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*x1); }
-						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*x1);
-						std::cout << lineBuffer << std::endl;
-						return(0);
-					}
+					// try highBracket
 					spr.solverSet(solveForThis, solverParam*x2);
 					cerr << "try:" << solverParam*x2 << endl;
 					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
-						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 						/* updateCashflows */false,/* issuerIndx */0);
 					fh = evalResult2.value - targetFairValue;
 					if (fh == 0.0) {
@@ -2679,7 +2680,23 @@ int _tmain(int argc, WCHAR* argv[])
 						std::cout << lineBuffer << std::endl;
 						return(0);
 					}
-					
+					// try lowBracket
+					spr.solverSet(solveForThis, solverParam*x1);
+					cerr << "try:" << solverParam * x1 << endl;
+					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
+						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
+						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
+						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
+						/* updateCashflows */false,/* issuerIndx */0);
+					fl = evalResult1.value - targetFairValue;
+					if (fl == 0.0) {
+						if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*x1); }
+						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*x1);
+						std::cout << lineBuffer << std::endl;
+						return(0);
+					}
+
 					// handle when not bracketed
 					if ((fl>0.0 && fh>0.0) || (fl<0.0 && fh<0.0)){
 						sprintf(lineBuffer, "%s%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ":noSolution", adviceString.c_str());
@@ -2699,7 +2716,7 @@ int _tmain(int argc, WCHAR* argv[])
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
-						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 						/* updateCashflows */false,/* issuerIndx */0);
 					f = evalResult1.value - targetFairValue;
 					spr.solverSet(solveForThis, solverParam*(rts + solverStep));
@@ -2707,7 +2724,7 @@ int _tmain(int argc, WCHAR* argv[])
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 						useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
-						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
+						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 						/* updateCashflows */false,/* issuerIndx */0);
 					f2 = evalResult2.value - targetFairValue;
 					df = (f - f2) / solverStep;
@@ -2745,7 +2762,7 @@ int _tmain(int argc, WCHAR* argv[])
 							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 							useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
-							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
+							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 							/* updateCashflows */false,/* issuerIndx */0);
 						f = evalResult1.value - targetFairValue;
 						
@@ -2754,7 +2771,7 @@ int _tmain(int argc, WCHAR* argv[])
 							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
 							useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
-							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, false /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
+							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 							/* updateCashflows */false,/* issuerIndx */0);
 						f2 = evalResult2.value - targetFairValue;
 						df = (f - f2) / solverStep;
