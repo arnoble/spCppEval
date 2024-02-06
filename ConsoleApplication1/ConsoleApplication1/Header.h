@@ -2201,13 +2201,13 @@ public:
 	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
-	const double                    param1,midPrice;
+	const double                    midPrice;
 	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
 	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
 	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
-	double                          thisCouponValue, fixedCouponValue,maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, participation,cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
+	double                          param1, thisCouponValue, fixedCouponValue,maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, participation,cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          lsConstant, lsWorstB, lsWorstSquaredB, lsNextWorstB, lsNextWorstSquaredB, proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate, discountFactor;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl);
 	std::vector <finalAssetInfo>    fars; // final asset returns
@@ -3223,7 +3223,7 @@ public:
 	// set some product param
 	void solverSet(const int solveForThis,const double paramValue){
 		int numBarriers = (int)barrier.size();
-		bool lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false), shortPutStrikeFound(false);
+		bool putBarrierFound(false),lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false), shortPutStrikeFound(false);
 		double previousBarrierYears(0.0);
 		switch (solveForThis){
 		case solveForCoupon:
@@ -3261,12 +3261,21 @@ public:
 			break;
 		case solveForPutBarrier:
 			// set put barrier
-			for (int j=0; j < numBarriers; j++) {
+			for (int j=0; !putBarrierFound && j < numBarriers; j++) {
 				SpBarrier& b(barrier.at(j));
 				int numBrels = (int)b.brel.size();
-				if (b.capitalOrIncome && b.participation < 0.0 && numBrels>0) {
-					for (int k=0; k < numBrels; k++) {
-						b.brel[k].barrier = paramValue;
+				if (b.capitalOrIncome && (b.payoffTypeId == putPayoff || b.payoffTypeId == basketPutPayoff) && b.participation < 0.0 && (int)b.brel.size()>0) {
+					switch (b.payoffTypeId) {
+					case putPayoff:
+						putBarrierFound    = true;
+						for (int k=0; k < numBrels; k++) {
+							b.brel[k].barrier = paramValue;
+						}
+						break;
+					case basketPutPayoff:
+						putBarrierFound    = true;
+						b.param1           = paramValue;;
+						break;
 					}
 				}
 			}
@@ -3325,7 +3334,7 @@ public:
 	void solverCommit(const int solveForThis, const double paramValue){
 		solverSet(solveForThis, paramValue);
 		int numBarriers = (int)barrier.size();
-		bool lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false), shortPutStrikeFound(false);
+		bool putBarrierFound(false),lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false), shortPutStrikeFound(false);
 		switch (solveForThis){
 		case solveForCoupon:
 			// set each coupon to an annualised rate
@@ -3367,15 +3376,26 @@ public:
 			break;
 		case solveForPutBarrier:
 			// set put barrier
-			for (int j=0; j < numBarriers; j++){
+			for (int j=0; !putBarrierFound && j < numBarriers; j++){
 				SpBarrier& b(barrier.at(j));
 				int numBrels = (int)b.brel.size();
-				if (b.capitalOrIncome && b.participation < 0.0 && numBrels>0){
-					for (int k=0; k < numBrels; k++){
-						SpBarrierRelation& br(b.brel[k]);
-						sprintf(lineBuffer, "%s%.5lf%s", "update barrierrelation set Barrier='", br.barrier, "'");
-						sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where BarrierRelationId='", br.barrierRelationId, "'");
+				if (b.capitalOrIncome && (b.payoffTypeId == putPayoff || b.payoffTypeId == basketPutPayoff) && b.participation < 0.0 && (int)b.brel.size()>0) {
+					switch (b.payoffTypeId) {
+					case putPayoff:
+						putBarrierFound    = true;
+						for (int k=0; k < numBrels; k++) {
+							SpBarrierRelation& br(b.brel[k]);
+							sprintf(lineBuffer, "%s%.5lf%s", "update barrierrelation set Barrier='", br.barrier, "'");
+							sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where BarrierRelationId='", br.barrierRelationId, "'");
+							mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						}
+						break;
+					case basketPutPayoff:
+						putBarrierFound    = true;
+						sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Param1='", b.param1, "%'");
+						sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
 						mydb.prepare((SQLCHAR *)lineBuffer, 1);
+						break;
 					}
 				}
 			}

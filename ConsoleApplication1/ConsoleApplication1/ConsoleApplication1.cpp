@@ -2559,9 +2559,17 @@ int _tmain(int argc, WCHAR* argv[])
 					case solveForPutBarrier:
 						for (j=0; !putFound && j < numBarriers; j++){
 							SpBarrier& b(spr.barrier.at(j));
-							if (b.capitalOrIncome && b.participation < 0.0 && (int)b.brel.size()>0){
-								putFound    = true;
-								solverParam = b.brel[0].barrier;
+							if (b.capitalOrIncome && (b.payoffTypeId == putPayoff || b.payoffTypeId == basketPutPayoff) && b.participation < 0.0 && (int)b.brel.size()>0){
+								switch (b.payoffTypeId) {
+									case putPayoff:
+										putFound    = true;
+										solverParam = b.brel[0].barrier;
+										break;
+									case basketPutPayoff:
+										putFound    = true;
+										solverParam = b.param1;
+										break;
+								}
 							}
 						}
 						if (!putFound){
