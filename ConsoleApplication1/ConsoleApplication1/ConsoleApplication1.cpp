@@ -2592,7 +2592,7 @@ int _tmain(int argc, WCHAR* argv[])
 					case solveForLastCallCap:
 						for (j=numBarriers-1; !lastCapFound && j >= 0; j--) {
 							SpBarrier& b(spr.barrier.at(j));
-							if (b.payoffTypeId == callPayoff && b.participation > 0.0 && (int)b.brel.size()>0 && b.cap > 0.0 && b.strike > 0.0) {
+							if ((b.payoffTypeId == callPayoff || b.payoffTypeId == basketCallPayoff) && b.participation > 0.0 && (int)b.brel.size()>0 && b.cap > 0.0 && b.strike > 0.0) {
 								lastCapFound = true;
 								solverParam  = b.cap;
 							}

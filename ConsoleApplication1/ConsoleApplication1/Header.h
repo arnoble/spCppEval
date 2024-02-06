@@ -3253,7 +3253,7 @@ public:
 			// set lastCap
 			for (int j=numBarriers - 1; !lastCapFound && j >= 0; j--) {
 				SpBarrier& b(barrier.at(j));
-				if (b.payoffTypeId == callPayoff && b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
+				if ((b.payoffTypeId == callPayoff || b.payoffTypeId == basketCallPayoff) && b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
 					lastCapFound = true;
 					b.cap        = paramValue;
 				}
@@ -3357,7 +3357,7 @@ public:
 			// set lastCap
 			for (int j=numBarriers - 1; !lastCapFound && j >= 0; j--) {
 				SpBarrier& b(barrier.at(j));
-				if (b.payoffTypeId == callPayoff && b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
+				if ((b.payoffTypeId == callPayoff || b.payoffTypeId == basketCallPayoff) && b.participation > 0.0 && (int)b.brel.size() > 0 && b.cap > 0.0 && b.strike > 0.0) {
 					lastCapFound = true;
 					sprintf(lineBuffer, "%s%.5lf%s", "update productbarrier set Cap='", b.cap, "'");
 					sprintf(lineBuffer, "%s%s%d%s", lineBuffer, " where ProductBarrierId='", b.barrierId, "'");
