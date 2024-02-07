@@ -2512,13 +2512,24 @@ int _tmain(int argc, WCHAR* argv[])
 				if (solveFor){
 					// Newton-Raphson settings
 					int maxit    = 100;
-					double xacc  = 0.0001;     // 10bp accuracy
+					double xacc  = 0.0001;      // 10bp accuracy
 					double x1    =  0.5 ;       // lower bound guess
 					double x2    =  2.0 ;       // upper bound guess
-					double solverStep = 0.03;
+					double solverStep = 0.03;   // each iteration calculates FV multiplying solverParam by  a) currentSolution and b) (currentSolution PLUS solverStep)
+												// ... so solverStep controls how local the slope is calculated ... don't want it too small
 					double solverParam(0.0);
 					int  j;
-					double  dx, dxold, f,f2, df, fh, fl, temp, xh, xl, rts;
+					double  dx, // CURRENT NewtonRaphson step
+						dxold,  // PREVIOUS dx
+						f,      // function value,FV, setting param  = solverParam*rts
+						f2,     // function value,FV, setting param  = solverParam*(rts + solverStep)
+						df, 
+						fh,     // (FV - targetFairValue) at HIGH bracket
+						fl,     // (FV - targetFairValue) at LOW  bracket
+						temp, 
+						xh, 
+						xl, 
+						rts;         // root-temporary-solution
 					EvalResult evalResult1(0.0, 0.0,0), evalResult2(0.0, 0.0,0);
 					string adviceString = " - please choose a TargetValue closer to the current FairValue, or modify the product so as to have a FairValue closer to your TargetValue";
 					// check product has some starting data
@@ -2757,35 +2768,51 @@ int _tmain(int argc, WCHAR* argv[])
 					f2 = evalResult2.value - targetFairValue;
 					df = (f - f2) / solverStep;
 					// iterate
+					bool newtonOutOfRange(false);
+					bool notDecreasingFastEnough(false);
 					for (j=0; j<maxit; j++){
-						if ((((rts - xh)*df - f)*((rts - xl)*df - f) > 0.0) ||  	// bisect if Newton out of range 
-							(abs(f*2.0) > abs(dxold*df))){           // or not decreasing fast enough
-							dxold = dx; dx = 0.5*(xh - xl); rts = xl + dx;
+						// bisect if either:
+						// ... Newton out of range 
+						// ... or not decreasing fast enough
+						newtonOutOfRange        = (  (rts - xh)*df - f  ) * (  (rts - xl)*df - f ) > 0.0;
+						notDecreasingFastEnough = abs(f*2.0) > abs(dxold*df);
+						if (newtonOutOfRange ||  notDecreasingFastEnough){
+							dxold  = dx; 
+							dx     = 0.5*(xh - xl); // NewtonRaphson step 
+							rts    = xl + dx;       // move to halfway between xh and xl
 							if (xl == rts){
+								cerr << "NR bisect zero step:" << dx << endl;
 								if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*rts); }
 								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 								std::cout << lineBuffer << std::endl;
 								return(0);
 							}                       // finish if change in root negligible
+							cerr << "NR bisect by:" << dx << " to:" << rts << endl;
 						}
 						else {                      // Newton step acceptable. Take it
-							dxold=dx; dx=f / df; temp=rts; rts -= dx;
+							dxold  = dx; 
+							dx     = f / df; 
+							temp   = rts; 
+							rts   -= dx;
 							if (temp == rts){
+								cerr << "NR zero step:" << dx << endl;
 								if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*rts); }
 								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 								std::cout << lineBuffer << std::endl;
 								return(0);
 							}                     // finish if change in root negligible
+							cerr << "NR step by:" << dx << " to:" << rts << endl;
 						}
 						if (abs(dx) < xacc){
+							cerr << "NR converged step:" << dx << endl;
 							if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*rts); }
 							sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 							std::cout << lineBuffer << std::endl;
 							return(0);
 						}                 // convergence criterion
-						// initial f and df
+						// calc f and df
 						spr.solverSet(solveForThis, solverParam*rts);
-						cerr << "try:" << solverParam*rts << endl;
+						cerr << "try param (no step):" << solverParam*rts << endl;
 						evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
@@ -2794,6 +2821,7 @@ int _tmain(int argc, WCHAR* argv[])
 							/* updateCashflows */false,/* issuerIndx */0);
 						f = evalResult1.value - targetFairValue;
 						
+						cerr << "try param (stepped):" << solverParam * (rts + solverStep) << endl;
 						spr.solverSet(solveForThis, solverParam*(rts + solverStep));
 						evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
@@ -2802,9 +2830,15 @@ int _tmain(int argc, WCHAR* argv[])
 							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 							/* updateCashflows */false,/* issuerIndx */0);
 						f2 = evalResult2.value - targetFairValue;
-						df = (f - f2) / solverStep;
-						if (f<0.0){ xl=rts; }
-						else { xh=rts; } // maintain the bracket on the root
+						df = (f - f2) / solverStep;    // slope
+
+						// maintain the bracket on the root
+						if (f<0.0){ // FV below target
+							xl=rts; // move LOW bracket
+						}
+						else { 
+							xh=rts; // move HIGH bracket
+						} 
 					}
 					{ //alert("IRR root-finding: iterations exhausted"); 
 						sprintf(lineBuffer, "%s%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ": iterations exhausted", adviceString.c_str());
