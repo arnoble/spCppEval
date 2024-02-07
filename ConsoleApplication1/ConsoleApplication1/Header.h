@@ -2165,8 +2165,9 @@ public:
 			fixedCouponValue = fixedCoupon * (couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
 		}
 
-		isLargestN               = underlyingFunctionId == uFnLargestN && payoffTypeId == fixedPayoff;
-		if (isLargestN){
+		isLargestN = underlyingFunctionId == uFnLargestN && payoffTypeId == fixedPayoff;
+		// FIXED PAYOFFs ONLY: will be hit if the N bestPerforming underlyings are above their respective barriers
+		if (isLargestN){			
 			isHit = &SpBarrier::isHitLargestN;
 		}
 		else if (payoffType.find("basket") != std::string::npos){
@@ -2382,6 +2383,11 @@ public:
 
 
 	// LargestN test if barrier is hit
+	//  e.g barrier is hit if the best 3 underlyings are above their respective barrierLevels
+	//  ... for which param1 should be set to 4
+	//  ... so that, once theseReturns are sorted in DESCENDING order, we set hurdle return nthLargestReturn = theseReturns[3]
+	//  ... and only use (marking them with activeBrels(bool)) those brels whose returns are > nthLargestReturn
+	//
 	// ...set useUlMap to false if you have more thesePrices than numUnderlyings...for example product #217 has barriers with brels keyed to the same underlying
 	//     so that a barrier can have multiple barrierRelations on the same underlying
 	bool isHitLargestN(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl) {
@@ -2438,6 +2444,7 @@ public:
 
 
 	// basket test if barrier is hit
+	// ... to performance-weight basket, use underlyingFunctionId == uFnLargestN
 	bool isHitBasket(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl) {
 		int numBrel = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
 		if (numBrel == 0) return true;
@@ -2446,7 +2453,7 @@ public:
 		bool above  = brel[0].above;
 		double w;
 
-		// ** is basket weighted bestOf?
+		// ** if basket performance-weighted, set performances() and performanceBasedWeights()
 		std::vector<double> performanceBasedWeights;
 		std::vector<double> performances;
 		if (underlyingFunctionId == uFnLargestN){
@@ -2465,9 +2472,11 @@ public:
 		*/
 		double basketReturn = 0.0;
 		for (j = 0; j<numBrel; j++) {
+			// performance-weighted?
 			if ((int)performances.size()>0){
 				basketReturn  += performances[j] * performanceBasedWeights[j];
 			}
+			// static-weighted
 			else{
 				const SpBarrierRelation &thisBrel(brel[j]);
 				thisIndx       = useUlMap ? ulIdNameMap[thisBrel.underlying] : j;
@@ -2477,6 +2486,7 @@ public:
 				basketReturn  += (thesePrices[thisIndx] / thisBrel.refLevel) * w;
 			}
 		}
+		// test weighted return vs param1
 		double diff      = basketReturn - param1;
 		bool   thisTest  = above ? diff > 0 : diff < 0;
 		if (isAnd)  isHit &= thisTest;
@@ -2688,6 +2698,7 @@ public:
 				}
 				break;
 			case uFnLargestN: {
+				// weighted average of best N=param1 optionPayoffs
 				double avgNpayoff(0.0);
 				sort(optionPayoffs.begin(), optionPayoffs.end(), std::greater<double>()); // sort DECENDING
 				for (optionPayoff=0, j=0, len=(int)param1; j<len; j++){
@@ -2705,6 +2716,7 @@ public:
 			callOrPut = 1;
 		case basketPutPayoff:
 		case basketPutQuantoPayoff:
+			// collect each underlying returns
 			basketFinal = 0.0;
 			for (j = 0, len = (int)brel.size(); j < len; j++)	{
 				const SpBarrierRelation &thisBrel(brel[j]);
@@ -2713,14 +2725,17 @@ public:
 				basketPerfs.push_back(thesePrices[n] / thisRefLevel);
 				basketWeights.push_back(thisBrel.weight);
 			}
+			//  maybe sort DECREASING
 			if (productShape == "Rainbow" || underlyingFunctionId == uFnLargestN){
-				sort(basketPerfs.begin(), basketPerfs.end(), std::greater<double>()); // sort DECENDING
+				sort(basketPerfs.begin(),   basketPerfs.end(),   std::greater<double>()); // sort DECENDING
 				sort(basketWeights.begin(), basketWeights.end(), std::greater<double>()); // sort DECENDING
 			}
+			// compute basket weighted return
 			for (j=0, len = (int)brel.size(); j<len; j++) {
 				const SpBarrierRelation &thisBrel(brel[j]);
 				basketFinal   += basketPerfs[j] * basketWeights[j];
 			}
+			// compute payoff vs strike
 		   finalAssetReturn = basketFinal;
 		   optionPayoff     = callOrPut *(basketFinal - strike);
 		   if (optionPayoff > cap){ optionPayoff = cap; }
