@@ -2703,9 +2703,9 @@ int _tmain(int argc, WCHAR* argv[])
 
 
 					// initial values at upper/lower bound
-					// try highBracket
+					// try highBracket x2
 					spr.solverSet(solveForThis, solverParam*x2);
-					cerr << "try:" << solverParam*x2 << endl;
+					cerr << "    try Initial HIGH bracket multiplier:" << x2 << " giving paramValue:" << solverParam*x2 << endl;
 					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
@@ -2713,15 +2713,16 @@ int _tmain(int argc, WCHAR* argv[])
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 						/* updateCashflows */false,/* issuerIndx */0);
 					fh = evalResult2.value - targetFairValue;
-					if (fh == 0.0) {
+					// are we done?
+					if (abs(fh) < xacc) {
 						if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*x2); }
 						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(),":", solverParam*x2);
 						std::cout << lineBuffer << std::endl;
 						return(0);
 					}
-					// try lowBracket
+					// try lowBracket x1
 					spr.solverSet(solveForThis, solverParam*x1);
-					cerr << "try:" << solverParam * x1 << endl;
+					cerr << "    try Initial LOW  bracket multiplier:" << x1 << " giving paramValue:" << solverParam * x1 << endl;
 					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
@@ -2729,7 +2730,8 @@ int _tmain(int argc, WCHAR* argv[])
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 						/* updateCashflows */false,/* issuerIndx */0);
 					fl = evalResult1.value - targetFairValue;
-					if (fl == 0.0) {
+					// are we done?
+					if (abs(fl) < xacc) {
 						if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*x1); }
 						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*x1);
 						std::cout << lineBuffer << std::endl;
@@ -2743,14 +2745,16 @@ int _tmain(int argc, WCHAR* argv[])
 						return(0);
 					}
 					// orient the search so that f(x1)<0
+					//    fl was done using x1
+					//    fh was done using x2
 					if (fl<0.0){ xl=x1; xh=x2; }
-					else      { xh=x1; xl=x2; }
+					else       { xh=x1; xl=x2; }
 					rts   = 0.5*(x1 + x2);      // initial guess for root
 					dxold = abs(x2 - x1);       // stepsize before last
 					dx    = dxold;              // last stepsize
 					// initial f and df
 					spr.solverSet(solveForThis, solverParam*rts);
-					cerr << "try:" << solverParam*rts << endl;
+					cerr << "    try Initial MIDWAY multiplier:" << rts << " giving paramValue:" << solverParam * rts << endl;
 					evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
@@ -2758,6 +2762,7 @@ int _tmain(int argc, WCHAR* argv[])
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 						/* updateCashflows */false,/* issuerIndx */0);
 					f = evalResult1.value - targetFairValue;
+					cerr << "    try Initial MIDWAY multiplier + STEP of " << solverStep << " giving multiplier:" << (rts + solverStep) << " giving paramValue:" << solverParam * (rts + solverStep) << endl;
 					spr.solverSet(solveForThis, solverParam*(rts + solverStep));
 					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
@@ -2781,13 +2786,13 @@ int _tmain(int argc, WCHAR* argv[])
 							dx     = 0.5*(xh - xl); // NewtonRaphson step 
 							rts    = xl + dx;       // move to halfway between xh and xl
 							if (xl == rts){
-								cerr << "NR bisect zero step:" << dx << endl;
+								cerr << "NR bisect has zero step:" << dx << endl;
 								if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*rts); }
 								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 								std::cout << lineBuffer << std::endl;
 								return(0);
 							}                       // finish if change in root negligible
-							cerr << "NR bisect by:" << dx << " to:" << rts << endl;
+							cerr << "    NR bisecting because" << (newtonOutOfRange ? " newtonOutOfRange" : " notDecreasingFastEnough") << "x-h:" << xh << " x-l:" << xl <<" so bisected by:" << dx << " to multiplier:" << rts << endl;
 						}
 						else {                      // Newton step acceptable. Take it
 							dxold  = dx; 
@@ -2795,16 +2800,16 @@ int _tmain(int argc, WCHAR* argv[])
 							temp   = rts; 
 							rts   -= dx;
 							if (temp == rts){
-								cerr << "NR zero step:" << dx << endl;
+								cerr << "NR has zero step:" << dx << endl;
 								if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*rts); }
 								sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 								std::cout << lineBuffer << std::endl;
 								return(0);
 							}                     // finish if change in root negligible
-							cerr << "NR step by:" << dx << " to:" << rts << endl;
+							cerr << "    NR IN-RANGE dx-step:" << -dx << " to multiplier:" << rts << " giving paramValue:" << solverParam * rts  << endl;
 						}
 						if (abs(dx) < xacc){
-							cerr << "NR converged step:" << dx << endl;
+							cerr << "    NR converged stepSize was:" << dx << " multiplier is:" << rts << " giving paramValue:" << solverParam * rts << endl;
 							if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*rts); }
 							sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*rts);
 							std::cout << lineBuffer << std::endl;
@@ -2812,7 +2817,7 @@ int _tmain(int argc, WCHAR* argv[])
 						}                 // convergence criterion
 						// calc f and df
 						spr.solverSet(solveForThis, solverParam*rts);
-						cerr << "try param (no step):" << solverParam*rts << endl;
+						cerr << "    try param (no step):" << " multiplier is:" << rts << " giving paramValue:" << solverParam * rts << endl;
 						evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
@@ -2821,7 +2826,7 @@ int _tmain(int argc, WCHAR* argv[])
 							/* updateCashflows */false,/* issuerIndx */0);
 						f = evalResult1.value - targetFairValue;
 						
-						cerr << "try param (stepped):" << solverParam * (rts + solverStep) << endl;
+						cerr << "    try param (stepped) by:" << solverStep << " multiplier is:" << rts + solverStep << " giving paramValue:" << solverParam * (rts + solverStep) << endl;
 						spr.solverSet(solveForThis, solverParam*(rts + solverStep));
 						evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
@@ -2839,6 +2844,7 @@ int _tmain(int argc, WCHAR* argv[])
 						else { 
 							xh=rts; // move HIGH bracket
 						} 
+						cerr << "    After this iteration BRACKETS HIGH x-h:" << xh << " LOW x-l:" << xl << " multiplier:" << rts << " paramValue:" << solverParam * rts << endl;
 					}
 					{ //alert("IRR root-finding: iterations exhausted"); 
 						sprintf(lineBuffer, "%s%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ": iterations exhausted", adviceString.c_str());
