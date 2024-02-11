@@ -2524,7 +2524,7 @@ int _tmain(int argc, WCHAR* argv[])
 					double solverParam(0.0);
 					int  j;
 					double  dx,  // CURRENT NewtonRaphson step
-						dxold,   // PREVIOUS dx
+						dxold,   // PREVIOUS dx  ... to be compared with dx to see if converging fast enough
 						f,       // function value,(FV - targetFairValue), setting param  = solverParam*currentSolution
 						f2,      // function value,(FV - targetFairValue), setting param  = solverParam*(currentSolution + solverStep)
 						fSlope,  // change in f upon increasing x by solverStep
@@ -2783,20 +2783,34 @@ int _tmain(int argc, WCHAR* argv[])
 					bool newtonOutOfRange(false);
 					bool notDecreasingFastEnough(false);
 					for (j=0; j<maxit; j++){
-						// bisect if either:
-						// ... Newton out of range 
-						newtonOutOfRange  = (  (currentSolution - xHi)*fSlope - f  )      //   A = resulting f if we were to change xHi to currentSolution
+						//
+						// normal NR iterations will REDUCE currentSolution by dx = f/fSlope
+						// ... making f zero if f is linear
+						//
+
+						// BuT 2 possible problems (solved by bisection):
+						// 1. Newton out of range 
+						//     ... recall that last iteration moved either xLo or xHi to currentSolution
+						newtonOutOfRange  = (  (currentSolution - xHi)*fSlope - f  )      //   A = NEGATIVE if 
+																						  //   either: f >= 0.0  ... cos we have just changed xHi to currentSolution: evaluates to -f
+																						  //       or: if (currentSolution - xHi) < next dx (= f/fSlope) 
 											       	        *                             // times
-										    (  (currentSolution - xLo)*fSlope - f )       //   B = resulting f if we were to change xLo to currentSolution
-												        > 0.0;                            // if A and B have same sign, NR step-dx = f/fSlope will change currentSolution	to a value
-														                                  //  ... where f at HIGH and LOW bracket have same sign ie do not bracket the root
-																				          //  ... ie bracket too wide, so we reset currentSolution to halfway between xHi and xLo
-						// ... or not decreasing fast enough
+										    (  (currentSolution - xLo)*fSlope - f )       //   B = NEGATIVE if
+																						  //   either: f <  0.0  ... cos we have just changed xLo to currentSolution: evaluates to -f
+																						  //       or: if (currentSolution - xLo) < next dx (= f/fSlope) 
+														> 0.0;                            // if A and B have same sign, next NR step-dx = f/fSlope will change currentSolution to a value
+														                                  //  ... which is either below xLo or above xHi ie will not bracket the root
+																				          //  ... so we reset currentSolution to halfway between xHi and xLo
+						// or 2. f not decreasing fast enough: the previous dx would only move f by half
 						notDecreasingFastEnough = abs(f*2.0) > abs(dxold*fSlope);
 						if (newtonOutOfRange ||  notDecreasingFastEnough){
+							// bisection works because:
+							// ... Evaluate f at halfway between root-containing bounds xLo and xHi, and examine its sign
+							// ... replace whichever limit xLo or xHi has the same sign
+							// ... After each iteration the bounds containing the root decrease by a factor of two
 							dxold              = dx; 
 							dx                 = 0.5*(xHi - xLo); // NewtonRaphson step 
-							currentSolution    = xLo + dx;        // move to halfway between xHi and xLo
+							currentSolution    = xLo + dx;        // move currentSolution to halfway between xHi and xLo
 							if (xLo == currentSolution){
 								cerr << "NR bisect has zero step:" << dx << endl;
 								if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*currentSolution); }
@@ -2822,14 +2836,16 @@ int _tmain(int argc, WCHAR* argv[])
 							// otherwise change currentSolution by dx
 							cerr << "    NR IN-RANGE dx-step:" << -dx << " to multiplier:" << currentSolution << " giving paramValue:" << solverParam * currentSolution  << endl;
 						}
+						// convergence?
 						if (abs(dx) < xacc){
 							cerr << "    NR converged stepSize was:" << dx << " multiplier is:" << currentSolution << " giving paramValue:" << solverParam * currentSolution << endl;
 							if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*currentSolution); }
 							sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*currentSolution);
 							std::cout << lineBuffer << std::endl;
 							return(0);
-						}                 // convergence criterion
+						}
 						// calc f and fSlope
+						// ... calc f  at currentSolution
 						spr.solverSet(solveForThis, solverParam*currentSolution);
 						cerr << "    try param (no step):" << " multiplier is:" << currentSolution << " giving paramValue:" << solverParam * currentSolution << endl;
 						evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
@@ -2838,10 +2854,8 @@ int _tmain(int argc, WCHAR* argv[])
 							useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 							/* updateCashflows */false,/* issuerIndx */0);
-						f = evalResult1.value - targetFairValue;
-						
-						// move currentSolution by solverStep
-						// ... so as to calculate slope fSlope
+						f = evalResult1.value - targetFairValue;						
+						// ... calc f  at currentSolution PLUS solverStep
 						cerr << "        for SLOPE try param (stepped) by:" << solverStep << " multiplier is:" << currentSolution + solverStep << " giving paramValue:" << solverParam * (currentSolution + solverStep) << endl;
 						spr.solverSet(solveForThis, solverParam*(currentSolution + solverStep));
 						evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
@@ -2851,18 +2865,21 @@ int _tmain(int argc, WCHAR* argv[])
 							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 							/* updateCashflows */false,/* issuerIndx */0);
 						f2 = evalResult2.value - targetFairValue;
+						// ... calculate slope fSlope
 						fSlope = (f2 - f) / solverStep;    // slope
 						cerr << "      SLOPE:" << fSlope << " stepped-f:" << f2 << " f:" << f << endl;
 
 						// maintain the bracket on the root
+						// ... either xLo or xHi will be moved to currentSolution
 						if (f<0.0){ // FV below target
 							xLo = currentSolution; // move LOW bracket UP     to currentSolution (where f is negative)
 						}
-						else { 
+						else {      // FV above target
 							xHi = currentSolution; // move HIGH bracket DOWN  to currentSolution (where f is positive)
 						} 
 						cerr << "    After this iteration BRACKETS HIGH x-h:" << xHi << " LOW x-l:" << xLo << " multiplier:" << currentSolution << " paramValue:" << solverParam * currentSolution << endl;
-					}
+					}  // for iterate
+
 					{ //alert("IRR root-finding: iterations exHiausted"); 
 						sprintf(lineBuffer, "%s%s%s%s", "solveFor:0:", whatToSolveFor.c_str(), ": iterations exhausted", adviceString.c_str());
 						std::cout << lineBuffer << std::endl;
