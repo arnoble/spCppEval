@@ -4320,10 +4320,14 @@ public:
 										// add forwardValue of paidOutCoupons
 										if (couponPaidOut && !doAccruals) {
 											for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++){
-												if (   !barrier[paidOutBarrier].capitalOrIncome 
-													&&  barrierWasHit[paidOutBarrier] 
+												// paidOutBarrier could be in the past, if barrier[paidOutBarrier].isMemory
+												if (   !barrier[paidOutBarrier].capitalOrIncome										// only couponBarriers
+													&&  barrierWasHit[paidOutBarrier]												// ... that were hit (possibly memory-triggered)
 													// &&  !(issuerCallable && barrier[paidOutBarrier].endDays == barrier[thisBarrier].endDays)
-													&& (barrier[paidOutBarrier].endDays >= -settleDays || (barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))){
+													&& (barrier[paidOutBarrier].endDays >= -settleDays                              // exclude paidOut in the past, so already 'gone'
+														|| 
+														(barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))  // ... but include past memory-triggered coupons
+													){
 													SpBarrier &ib(barrier[paidOutBarrier]);
 													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 												}
@@ -4403,7 +4407,10 @@ public:
 													double payoffOther = bOther.payoff;
 													barrierWasHit[k] = true;
 													// if (!couponPaidOut)  ... already know this barrier was not hit, so couponPaidOut not relevant to memory-barriers
-													couponValue += payoffOther;
+													// memory coupons are marked barrierWasHit[k] = true, which get forward-valued if !couponPaidOut
+													if (!couponPaidOut) {
+														couponValue += payoffOther;
+													}
 													
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
