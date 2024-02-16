@@ -3174,6 +3174,8 @@ public:
 	}
 	ArtsRandomNumber artsRandomNumber;
 	double ArtsRan(){
+		static long unsigned int numTimesCalled;
+		// numTimesCalled += 1;
 		static const double normalizer(1.0 / ARTS_MAX_RAND);
 		artsRandomNumber.bucket = artsRandomNumber.bucket * 1664525 + 1013904223;
 		// ReportSomeRandomNumbers(artsRandomNumber.bits[0]);
