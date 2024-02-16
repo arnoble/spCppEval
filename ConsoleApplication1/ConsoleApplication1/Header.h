@@ -5426,35 +5426,7 @@ public:
 							return(evalResult);
 						}
 						double duration  = sumDuration / numAnnRets;
-
-						// maybe save productreturns
-						if (analyseCase == 0 && doDebug  && debugLevel > 2) {
-							sprintf(lineBuffer, "%s%d", "delete from productreturns where ProductId=", productId);
-							mydb.prepare((SQLCHAR *)lineBuffer, 1);
-							bool firstTime;
-							int thisCount;
-							for (thisCount=0; thisCount < numAnnRets; thisCount++) {
-								if (thisCount % optMaxNumToSend == 0) {
-									// send batch
-									if (thisCount != 0) {
-										mydb.prepare((SQLCHAR *)lineBuffer, 1);
-									}
-									// init for next batch							
-									strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet,Duration,Payoff) values ");
-									firstTime = true;
-								}
-								sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s%.4lf%s%.4lf%s", lineBuffer, firstTime ? "(" : ",(", productId, ",", thisCount, ",",
-									allAnnRets[thisCount], ",", allT[thisCount], ",", allPayoffs[thisCount], ")");
-								firstTime  = false;
-							}
-							// send batch
-							if (thisCount != 0) {
-								mydb.prepare((SQLCHAR *)lineBuffer, 1);
-							}
-						}
-
-
-						
+												
 						// winlose ratios for different cutoff returns
 						// ...two ways to do it
 						// ...first recognises the fact that a 6y annuity is worth more than a 1y annuity
@@ -5559,6 +5531,32 @@ public:
 						if (doPriips) {
 							sort(priipsInstances.begin(), priipsInstances.end());
 							sort(priipsAnnRetInstances.begin(), priipsAnnRetInstances.end());
+						}
+
+						// maybe save productreturns
+						if (analyseCase == 0 && doDebug  && debugLevel > 2) {
+							sprintf(lineBuffer, "%s%d", "delete from productreturns where ProductId=", productId);
+							mydb.prepare((SQLCHAR *)lineBuffer, 1);
+							bool firstTime;
+							int thisCount;
+							for (thisCount=0; thisCount < numAnnRets; thisCount++) {
+								if (thisCount % optMaxNumToSend == 0) {
+									// send batch
+									if (thisCount != 0) {
+										mydb.prepare((SQLCHAR *)lineBuffer, 1);
+									}
+									// init for next batch							
+									strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet,Duration,Payoff) values ");
+									firstTime = true;
+								}
+								sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s%.4lf%s%.4lf%s", lineBuffer, firstTime ? "(" : ",(", productId, ",", thisCount, ",",
+									allAnnRets[thisCount], ",", allT[thisCount], ",", allPayoffs[thisCount], ")");
+								firstTime  = false;
+							}
+							// send batch
+							if (thisCount != 0) {
+								mydb.prepare((SQLCHAR *)lineBuffer, 1);
+							}
 						}
 						double averageReturn        = sumAnnRets / numAnnRets;
 						double averageCouponReturn  = sumCouponRets / numAnnRets;
