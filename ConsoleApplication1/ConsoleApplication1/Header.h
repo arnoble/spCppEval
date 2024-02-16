@@ -6012,7 +6012,7 @@ public:
 
 						// text output
 						if (!silent) {
-							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
+							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
 								analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
 								100.0*geomReturn, ":",
 								100.0*earithReturn, ":",
@@ -6050,7 +6050,9 @@ public:
 								100.0*bmRelAverage, ":",
 								100.0*eBestRet, ":",
 								100.0*downsideVolZeroed, ":",
-								ecLoss*probLoss == 0.0 ? 0.0 : ecStrictGain*probStrictGain/(ecLoss*probLoss)
+								ecLoss*probLoss == 0.0 ? 0.0 : ecStrictGain*probStrictGain/(ecLoss*probLoss), ":",
+								eShortfall      == 0.0 ? 0.0 : eBestRet/eShortfall, ":",
+								eBestRet        == 0.0 ? 0.0 : geomReturn/eBestRet
 							);
 							std::cout << charBuffer << std::endl;
 						} // !silent
