@@ -5534,8 +5534,8 @@ public:
 						}
 
 						// maybe save productreturns
-						if (analyseCase == 0 && doDebug  && debugLevel > 2) {
-							sprintf(lineBuffer, "%s%d", "delete from productreturns where ProductId=", productId);
+						if (doDebug  && debugLevel > 2) {
+							sprintf(lineBuffer, "%s%d%s%lf", "delete from productreturns where ProductId=", productId, " and ProjectedReturn=", projectedReturn);
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 							bool firstTime;
 							int thisCount;
@@ -5546,11 +5546,11 @@ public:
 										mydb.prepare((SQLCHAR *)lineBuffer, 1);
 									}
 									// init for next batch							
-									strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet,Duration,Payoff) values ");
+									strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet,Duration,Payoff,ProjectedReturn) values ");
 									firstTime = true;
 								}
-								sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s%.4lf%s%.4lf%s", lineBuffer, firstTime ? "(" : ",(", productId, ",", thisCount, ",",
-									allAnnRets[thisCount], ",", allT[thisCount], ",", allPayoffs[thisCount], ")");
+								sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s%.4lf%s%.4lf%s%.4lf%s", lineBuffer, firstTime ? "(" : ",(", productId, ",", thisCount, ",",
+									allAnnRets[thisCount], ",", allT[thisCount], ",", allPayoffs[thisCount], ",", projectedReturn, ")");
 								firstTime  = false;
 							}
 							// send batch
@@ -5779,6 +5779,8 @@ public:
 						}
 						double thisIrr = exp(irr(c, t)) - 1.0;
 
+						// don't forget #annRets may be less than numMcIterations due to early stopping (use forceIterations on commandLine to run the full numMcIterations)
+						// std::cerr << "#annRets:" << numAnnRets << "#maxIterations:" << numMcIterations << std::endl;
 						// WinLose
 						double sumNegRet(0.0), sumPosRet(0.0), sumBelowDepo(0.0);
 						int    numNegRet(0), numPosRet(0), numBelowDepo(0);
