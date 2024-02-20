@@ -4977,11 +4977,11 @@ public:
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 						}
 						// init for next batch							
-						strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet,Duration,Payoff) values ");
+						strcpy(lineBuffer, "insert into productreturns (ProductId,Iteration,AnnRet,Duration,Payoff,ProjectedReturn) values ");
 						optFirstTime = true;
 					}
-					sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s%.4lf%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", productId, ",", optCount, ",",
-						optimiseProductResult[optCount] * thisNormalisation, ",", optimiseProductDuration[optCount], ",", optimiseProductPayoff[optCount], ")");
+					sprintf(lineBuffer, "%s%s%d%s%d%s%.4lf%s%.4lf%s%.4lf%s%.4lf%s", lineBuffer, optFirstTime ? "(" : ",(", productId, ",", optCount, ",",
+						optimiseProductResult[optCount] * thisNormalisation, ",", optimiseProductDuration[optCount], ",", optimiseProductPayoff[optCount], ",", 1.0, ")");
 					optFirstTime  = false;
 				}
 
@@ -5344,10 +5344,10 @@ public:
 									sumAnnRets += thisAnnRet;
 									sumCouponRets += thisCouponRet;
 
-									if (thisAnnRet > -tol && thisAnnRet < tol) { sumParAnnRets += thisAnnRet; numParInstances++; }
-									if (thisAnnRet > 0.0) { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++;    sumStrPosDurations += thisYears; }
-									if (thisAnnRet > -tol) { sumPosPayoffs    += thisAmount; numPosPayoffs++;       sumPosDurations    += thisYears; }
-									else { sumNegPayoffs    += thisAmount; numNegPayoffs++;       sumNegDurations    += thisYears; }
+									if (thisAnnRet > -tol && thisAnnRet < tol) { sumParAnnRets    += thisAnnRet; numParInstances++; }
+									if (thisAnnRet > 0.0)                      { sumStrPosPayoffs += thisAmount; numStrPosPayoffs++; sumStrPosDurations += thisYears; }
+									if (thisAnnRet > -tol)                     { sumPosPayoffs    += thisAmount; numPosPayoffs++;    sumPosDurations    += thisYears; }
+									else                                       { sumNegPayoffs    += thisAmount; numNegPayoffs++;    sumNegDurations    += thisYears; }
 								}
 							}
 
@@ -5526,8 +5526,8 @@ public:
 						bmRelCAGR       = MyMinAbs(1000.0, bmRelCAGR);
 
 						// ** process overall product results
-						sort(allPayoffs.begin(), allPayoffs.end());
-						sort(allAnnRets.begin(), allAnnRets.end());
+						sort(allPayoffs.begin(),      allPayoffs.end());
+						sort(allAnnRets.begin(),      allAnnRets.end());
 						if (doPriips) {
 							sort(priipsInstances.begin(), priipsInstances.end());
 							sort(priipsAnnRetInstances.begin(), priipsAnnRetInstances.end());
@@ -5662,6 +5662,34 @@ public:
 						double esVol     = (1 + averageReturn) > 0.0 && (1 + eShortfall) > 0.0 ? (log(1 + averageReturn) - log(1 + eShortfall)) / ESnorm(confLevel) : 0.0;
 						double priipsImpliedCost, priipsVaR, priipsDuration;
 						double cVar95PctLoss = -100.0*(1.0 - eShortfallTest / midPrice); // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution) so this is the %moneyLoss at that percentile
+						// RJ additional metrics
+						double stdevStrPosAnnRet, stdevNegAnnRet, stdevWorstAnnRet;
+						std::vector<double> stdevStrPosAnnRets, stdevNegAnnRets, stdevWorstAnnRets;
+						for (i=0; i < numAnnRets;i++) {
+							double thisAnnRet = allAnnRets[i];
+							if (thisAnnRet > 0.0) {
+								stdevStrPosAnnRets.push_back(thisAnnRet);
+							}
+							else if (thisAnnRet < 0.0) {
+								stdevNegAnnRets.push_back(thisAnnRet);
+								if (i < numShortfall) {
+									stdevWorstAnnRets.push_back(thisAnnRet);
+								}
+							}
+						}
+						double rjMean, rjStdev, rjStderr;
+						// ... AverageGainVariation
+						MeanAndStdev(stdevStrPosAnnRets, rjMean, rjStdev, rjStderr);
+						stdevStrPosAnnRet = rjStdev;
+						// ... AverageLossVariation
+						MeanAndStdev(stdevNegAnnRets, rjMean, rjStdev, rjStderr);
+						stdevNegAnnRet    = rjStdev;
+						// ... AverageWorstVariation
+						MeanAndStdev(stdevWorstAnnRets, rjMean, rjStdev, rjStderr);
+						stdevWorstAnnRet  = rjStdev;
+						// END: RJ additional metrics
+
+
 						// downsideVol
 						// targetReturn shortfalls
 						double downsideVolZeroed(0.0), downsideVol(0.0);
@@ -6012,7 +6040,7 @@ public:
 
 						// text output
 						if (!silent) {
-							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
+							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
 								analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
 								100.0*geomReturn, ":",
 								100.0*earithReturn, ":",
@@ -6050,9 +6078,10 @@ public:
 								100.0*bmRelAverage, ":",
 								100.0*eBestRet, ":",
 								100.0*downsideVolZeroed, ":",
-								ecLoss*probLoss == 0.0 ? 0.0 : ecStrictGain*probStrictGain/(ecLoss*probLoss), ":",
-								eShortfall      == 0.0 ? 0.0 : eBestRet/eShortfall, ":",
-								eBestRet        == 0.0 ? 0.0 : geomReturn/eBestRet
+								ecLoss*probLoss == 0.0 ? 0.0 : ecStrictGain*probStrictGain/(ecLoss*probLoss), ":",  // RJ ReturnRatio
+								eShortfall      == 0.0 ? 0.0 : eBestRet/eShortfall, ":",                            // RJ TailRatio
+								eBestRet        == 0.0 ? 0.0 : geomReturn/eBestRet, ":",                            // RJ EfficiencyRatio
+								stdevStrPosAnnRet                                                                   // RJ AverageGainVariation
 							);
 							std::cout << charBuffer << std::endl;
 						} // !silent
