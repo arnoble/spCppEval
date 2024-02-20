@@ -5426,7 +5426,20 @@ public:
 							return(evalResult);
 						}
 						double duration  = sumDuration / numAnnRets;
-												
+						// RJ CAGR risk
+						// ... sqrt of weightedAverage of weightedAnnRetDeviations
+						//
+						double cagrMean, cagrStdev, cagrStderr;
+						MeanAndStdev(allAnnRets, cagrMean, cagrStdev, cagrStderr);
+						double cagrRisk(0.0),sumCagrWeights(0.0);
+						for (i=0; i < numAnnRets;i++) {
+							double thisWeight          = sqrt(allT[i]);
+							double thisAnnRetDeviation = allAnnRets[i] - cagrMean;
+							cagrRisk        += thisAnnRetDeviation * thisAnnRetDeviation * thisWeight;
+							sumCagrWeights  += thisWeight;
+						}
+						cagrRisk = sqrt(cagrRisk / sumCagrWeights);
+
 						// winlose ratios for different cutoff returns
 						// ...two ways to do it
 						// ...first recognises the fact that a 6y annuity is worth more than a 1y annuity
@@ -5677,6 +5690,7 @@ public:
 								}
 							}
 						}
+						
 						double rjMean, rjStdev, rjStderr;
 						// ... AverageGainVariation
 						MeanAndStdev(stdevStrPosAnnRets, rjMean, rjStdev, rjStderr);
@@ -6040,7 +6054,7 @@ public:
 
 						// text output
 						if (!silent) {
-							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
+							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
 								analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
 								100.0*geomReturn, ":",
 								100.0*earithReturn, ":",
@@ -6083,7 +6097,8 @@ public:
 								eBestRet        == 0.0 ? 0.0 : geomReturn/eBestRet, ":",                            // RJ EfficiencyRatio
 								100.0*stdevStrPosAnnRet, ":",                                                       // RJ AverageGainVariation
 								100.0*stdevNegAnnRet, ":",                                                          // RJ AverageLossVariation
-								100.0*stdevWorstAnnRet                                                              // RJ Worst10PctVariation
+								100.0*stdevWorstAnnRet, ":",                                                        // RJ Worst10PctVariation
+								100.0*cagrRisk                                                                      // RJ ExpectedReturnVariation
 							);
 							std::cout << charBuffer << std::endl;
 						} // !silent
