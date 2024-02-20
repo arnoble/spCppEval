@@ -2593,7 +2593,7 @@ int _tmain(int argc, WCHAR* argv[])
 							return(105);
 						}
 						xInitialLo    =  0.5;
-						xInitialHi    =  1.0 / solverParam;  // max 1.0
+						xInitialHi    =  1.5 / solverParam;  // max 1.5
 						break;
 					case solveForAutocallTrigger:
 						// look for FIRST capitalOrIncome obs with payoffType == 'fixed' and hasBrels
@@ -2694,7 +2694,7 @@ int _tmain(int argc, WCHAR* argv[])
 							return(105);
 						}
 						xInitialLo    =  0.5;
-						xInitialHi    =  1.0/solverParam; // max 1.0
+						xInitialHi    =  1.5/solverParam; // max 1.5
 						break;
 					} // switch
 
