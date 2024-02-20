@@ -6040,7 +6040,7 @@ public:
 
 						// text output
 						if (!silent) {
-							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
+							sprintf(charBuffer, "%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf%s%.2lf",
 								analyseCase == 0 ? "MarketRiskResults:" : "MarketAndCreditRiskResults:",
 								100.0*geomReturn, ":",
 								100.0*earithReturn, ":",
@@ -6081,7 +6081,9 @@ public:
 								ecLoss*probLoss == 0.0 ? 0.0 : ecStrictGain*probStrictGain/(ecLoss*probLoss), ":",  // RJ ReturnRatio
 								eShortfall      == 0.0 ? 0.0 : eBestRet/eShortfall, ":",                            // RJ TailRatio
 								eBestRet        == 0.0 ? 0.0 : geomReturn/eBestRet, ":",                            // RJ EfficiencyRatio
-								stdevStrPosAnnRet                                                                   // RJ AverageGainVariation
+								100.0*stdevStrPosAnnRet, ":",                                                       // RJ AverageGainVariation
+								100.0*stdevNegAnnRet, ":",                                                          // RJ AverageLossVariation
+								100.0*stdevWorstAnnRet                                                              // RJ Worst10PctVariation
 							);
 							std::cout << charBuffer << std::endl;
 						} // !silent
