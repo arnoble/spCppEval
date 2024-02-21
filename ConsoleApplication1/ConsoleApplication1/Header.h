@@ -2027,7 +2027,7 @@ public:
 
 class SpBarrier {
 private:
-	const bool                  couponPaidOut,doFinalAssetReturn;
+	const bool                  couponPaidOut,doFinalAssetReturn, doForwardValueCoupons;
 	const bool                  doDebug;
 	const int                   productId, debugLevel;
 	const int                   barrierNum;
@@ -2080,7 +2080,8 @@ public:
 		const bool                  couponPaidOut,
 		const std::vector <double>  baseCurveTenor,
 		const std::vector <double>  baseCurveSpread,
-		const std::string           productShape
+		const std::string           productShape,
+		const bool                  doForwardValueCoupons
 		)
 		: barrierNum(barrierNum), barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
@@ -2091,7 +2092,8 @@ public:
 		barrierCommands(barrierCommands), daysExtant(daysExtant), bProductStartDate(bProductStartDate), doFinalAssetReturn(doFinalAssetReturn), 
 		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2 && avgDays), spots(spots), doDebug(doDebug),
 		debugLevel(debugLevel), annualFundingUnwindCost(annualFundingUnwindCost),productId(productId),mydb(mydb),fixedCoupon(fixedCoupon),
-		couponFrequency(couponFrequency),couponPaidOut(couponPaidOut), baseCurveTenor(baseCurveTenor), baseCurveSpread(baseCurveSpread),productShape(productShape)
+		couponFrequency(couponFrequency),couponPaidOut(couponPaidOut), baseCurveTenor(baseCurveTenor), baseCurveSpread(baseCurveSpread),
+		productShape(productShape), doForwardValueCoupons(doForwardValueCoupons)
 	{
 		init();
 	};
@@ -2162,7 +2164,7 @@ public:
 			double numFixedCoupons = max(0.0, /*floor*/(daysElapsed / couponPeriod)); // allow fractional coupons
 			double periodicRate    = exp(log(forwardRate) * (couponPeriod / 365.25));
 			double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
-			fixedCouponValue = fixedCoupon * (couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
+			fixedCouponValue = fixedCoupon * (couponPaidOut && doForwardValueCoupons ? effectiveNumCoupons : numFixedCoupons);
 		}
 
 		isLargestN = underlyingFunctionId == uFnLargestN && payoffTypeId == fixedPayoff;
@@ -3011,6 +3013,7 @@ private:
 	const bool                      issuerCallable;
 	const bool                      multiIssuer;
 	const double                    targetReturn;
+	const bool                      doForwardValueCoupons;
 public:
 	SProduct(
 		const bool                      extendingPrices,
@@ -3076,7 +3079,8 @@ public:
 		const bool                      multiIssuer,
 		std::vector<double>             &cdsVols,
 		const double                    volShift,
-		const double                    targetReturn
+		const double                    targetReturn,
+		const bool                      doForwardValueCoupons
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -3089,7 +3093,8 @@ public:
 		bmEarithReturn(bmEarithReturn), bmVol(bmVol), cds5y(cds5y), bootstrapStride(bootstrapStride),
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
-		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer),cdsVols(cdsVols),volShift(volShift), targetReturn(targetReturn){
+		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer),cdsVols(cdsVols),volShift(volShift), 
+		targetReturn(targetReturn), doForwardValueCoupons(doForwardValueCoupons){
 	
 		for (int i=0; i < (int)baseCurve.size(); i++) { baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 	};
@@ -4331,7 +4336,8 @@ public:
 														(barrier[paidOutBarrier].isMemory && !barrier[paidOutBarrier].hasBeenHit))  // ... but include past memory-triggered coupons
 													){
 													SpBarrier &ib(barrier[paidOutBarrier]);
-													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
+													double fwdFactor = doForwardValueCoupons ? pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier) : 1.0 ;
+													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*fwdFactor;
 												}
 											}
 										}
@@ -4351,7 +4357,7 @@ public:
 											double numFixedCoupons = max(0.0, /*floor*/(daysElapsed / couponPeriod)); // allow fractional coupons
 											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / 365.25));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
-											couponValue += fixedCoupon*(couponPaidOut ? effectiveNumCoupons : numFixedCoupons);
+											couponValue += fixedCoupon*(couponPaidOut && doForwardValueCoupons ? effectiveNumCoupons : numFixedCoupons);
 										}
 										// add accumulated couponValue, unless b.forfeitCoupons is set
 										if (!b.isForfeitCoupons){ 

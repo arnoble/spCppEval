@@ -44,6 +44,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["ajaxCalling"]             = "";
 		argWords["useMyEqEqCorr"]           = "0|1";
 		argWords["useMyEqFxCorr"]           = "0|1";
+		argWords["forwardValueCoupons"]     = "0|1";
 		argWords["barrierBendAmort"]        = "endFraction:numDays";
 		argWords["silent"]                  = "";
 		argWords["verbose"]                 = "";
@@ -128,7 +129,7 @@ int _tmain(int argc, WCHAR* argv[])
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
 		int              debugLevel(0),corrUidx(0), corrOtherUidx(0), corrOtherIndex(0), doUseMyEqEqCorr(-1), doUseMyEqFxCorr(-1);
-		bool             doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
+		bool             doForwardValueCoupons(true),doTesting(false),doFinalAssetReturn(false), requesterForceIterations(false), doDebug(false), getMarketData(false), notStale(false), hasISIN(false), hasInventory(false), notIllustrative(false), onlyTheseUls(false), forceEqFxCorr(false), forceEqEqCorr(false);
 		bool             doUseTargetPremium(false),doUseThisVol(false), doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), saveOptimisationPaths(false), initOptimisation(false), silent(false), updateProduct(false),verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
@@ -580,6 +581,8 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "userParameters:%s",        lineBuffer)){ userParametersId      = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "historyStep:%s",           lineBuffer)){ historyStep           = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "useThisPrice:%s",          lineBuffer)){ useThisPrice          = atof(lineBuffer);         doUseThisPrice       = true; }
+			else if (sscanf(thisArg, "forwardValueCoupons:%s",   lineBuffer)){ 
+				doForwardValueCoupons = atoi(lineBuffer) == 1;}
 			else if (sscanf(thisArg, "useThisOIS:%s",            lineBuffer)){ useThisOIS            = atof(lineBuffer);         doUseThisOIS         = true; }
 			else if (sscanf(thisArg, "useThisBarrierBend:%s",    lineBuffer)){ useThisBarrierBend    = atof(lineBuffer);         doUseThisBarrierBend = true; }
 			else if (sscanf(thisArg, "useThisVol:%s",            lineBuffer)){ useThisVol            = atof(lineBuffer) / 100.0; doUseThisVol         = true; }
@@ -1999,7 +2002,7 @@ int _tmain(int argc, WCHAR* argv[])
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, saveOptimisationPaths, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, updateProduct, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,
-				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift, targetReturn);
+				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift, targetReturn, doForwardValueCoupons || getMarketData);
 			numBarriers = 0;
 
 			// get barriers from DB
@@ -2084,7 +2087,7 @@ int _tmain(int argc, WCHAR* argv[])
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
 					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice,
 					thisBarrierBend,bendDirection,spots,doDebug,debugLevel,annualFundingUnwindCost,productId,mydb,fixedCoupon,couponFrequency,
-					couponPaidOut,spr.baseCurveTenor,spr.baseCurveSpread,productShape));
+					couponPaidOut,spr.baseCurveTenor,spr.baseCurveSpread,productShape, doForwardValueCoupons || getMarketData));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 	
 				// get barrier relations from DB
