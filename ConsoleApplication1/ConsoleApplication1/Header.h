@@ -5293,7 +5293,7 @@ public:
 										min(LARGE_RETURN, 
 											doForwardValueCoupons ? exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0 
 											: 
-											1.0 + (thisAmount / midPrice - 1.0) / thisYears  // no compounding - for folks that like headline rates
+											(thisAmount / midPrice - 1.0) / thisYears  // no compounding - for folks that like headline rates
 										);
 									if (thisAnnRet < -0.9999) { thisAnnRet = -0.9999; } // avoid later problems with log(1.0+annRets)
 									double thisCouponValue = thisBarrierCouponValues[i];
@@ -5687,7 +5687,7 @@ public:
 						double priipsImpliedCost, priipsVaR, priipsDuration;
 						double cVar95PctLoss = -100.0*(1.0 - eShortfallTest / midPrice); // eShortfallTest is (confLevelTest-percentile of decimal PAYOFF distribution) so this is the %moneyLoss at that percentile
 						// RJ additional metrics
-						double stdevStrPosAnnRet, stdevNegAnnRet, stdevWorstAnnRet;
+						double stdevStrPosAnnRet(0.0), stdevNegAnnRet(0.0), stdevWorstAnnRet(0.0);
 						std::vector<double> stdevStrPosAnnRets, stdevNegAnnRets, stdevWorstAnnRets;
 						for (i=0; i < numAnnRets;i++) {
 							double thisAnnRet = allAnnRets[i];
@@ -5704,14 +5704,20 @@ public:
 						
 						double rjMean, rjStdev, rjStderr;
 						// ... AverageGainVariation
-						MeanAndStdev(stdevStrPosAnnRets, rjMean, rjStdev, rjStderr);
-						stdevStrPosAnnRet = rjStdev;
+						if (stdevStrPosAnnRets.size() > 1) {
+							MeanAndStdev(stdevStrPosAnnRets, rjMean, rjStdev, rjStderr);
+							stdevStrPosAnnRet = rjStdev;
+						}
 						// ... AverageLossVariation
-						MeanAndStdev(stdevNegAnnRets, rjMean, rjStdev, rjStderr);
-						stdevNegAnnRet    = rjStdev;
+						if (stdevNegAnnRets.size() > 1) {
+							MeanAndStdev(stdevNegAnnRets, rjMean, rjStdev, rjStderr);
+							stdevNegAnnRet    = rjStdev;
+						}
 						// ... AverageWorstVariation
-						MeanAndStdev(stdevWorstAnnRets, rjMean, rjStdev, rjStderr);
-						stdevWorstAnnRet  = rjStdev;
+						if (stdevWorstAnnRets.size() > 1) {
+							MeanAndStdev(stdevWorstAnnRets, rjMean, rjStdev, rjStderr);
+							stdevWorstAnnRet  = rjStdev;
+						}
 						// END: RJ additional metrics
 
 
