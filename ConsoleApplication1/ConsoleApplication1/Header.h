@@ -5773,11 +5773,15 @@ public:
 								}
 							}
 							downsideVolZeroed   = sqrt(downsideDeviation / numAnnRets);
-							downsideVol         = sqrt(downsideDeviation / n);
-							downsideVolZeroed  *= sqrt(duration);
-							downsideVol        *= sqrt(duration);
+							if (n > 0) {
+								downsideVol         = sqrt(downsideDeviation / n);
+							}
+							if (duration > 0.0) {
+								downsideVolZeroed  *= sqrt(duration);
+								downsideVol        *= sqrt(duration);
+							}
+							
 						}
-					    // std::cerr << "DownsideVol:" << downsideVol << " DownsideVol1:" << downsideVol1 << std::endl;
 						
 						if (doPriips) {
 							PriipsStruct &thisPriip(priipsInstances[(unsigned int)floor((double)priipsInstances.size()*0.025)]);
