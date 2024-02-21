@@ -6093,7 +6093,7 @@ public:
 								100.0*eBestRet, ":",
 								100.0*downsideVolZeroed, ":",
 								ecLoss*probLoss == 0.0 ? 0.0 : ecStrictGain*probStrictGain/(ecLoss*probLoss), ":",  // RJ ReturnRatio
-								eShortfall      == 0.0 ? 0.0 : eBestRet/eShortfall, ":",                            // RJ TailRatio
+								eShortfall      == 0.0 ? 0.0 : fabs(eBestRet/eShortfall), ":",                      // RJ TailRatio
 								eBestRet        == 0.0 ? 0.0 : geomReturn/eBestRet, ":",                            // RJ EfficiencyRatio
 								100.0*stdevStrPosAnnRet, ":",                                                       // RJ AverageGainVariation
 								100.0*stdevNegAnnRet, ":",                                                          // RJ AverageLossVariation
