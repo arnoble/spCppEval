@@ -5289,7 +5289,12 @@ public:
 								// MeanAndStdev(thisBarrierCouponValues, avgBarrierCoupon, anyDouble, anyDouble1);
 								for (i = 0; i < (int)b.hit.size(); i++) {
 									double thisAmount      = thisBarrierPayoffs[i];
-									double thisAnnRet      = thisYears <= 0.0 ? 0.0 : min(LARGE_RETURN, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
+									double thisAnnRet      = thisYears <= 0.0 ? 0.0 : 	// assume once investor has lost 90% it is unwound...									
+										min(LARGE_RETURN, 
+											doForwardValueCoupons ? exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0 
+											: 
+											1.0 + (thisAmount / midPrice - 1.0) / thisYears  // no compounding - for folks that like headline rates
+										);
 									if (thisAnnRet < -0.9999) { thisAnnRet = -0.9999; } // avoid later problems with log(1.0+annRets)
 									double thisCouponValue = thisBarrierCouponValues[i];
 									double thisCouponRet   = thisYears <= 0.0 || ((int)couponFrequency.size() == 0 && numIncomeBarriers == 0) ? 0.0 : (thisCouponValue < -1.0 ? -1.0 : exp(log((1.0 + thisCouponValue) / midPrice) / thisYears) - 1.0);
