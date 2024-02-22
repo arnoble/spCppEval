@@ -5308,7 +5308,10 @@ public:
 									double thisAmount      = thisBarrierPayoffs[i];
 									double thisAnnRet      = thisYears <= 0.0 ? 0.0 : 	// assume once investor has lost 90% it is unwound...									
 										min(LARGE_RETURN, 
-											exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0 											
+											!getMarketData && !doForwardValueCoupons && daysExtant <= 0 && b.payoffType == "fixed" ?
+											(thisAmount / midPrice - 1.0) / thisYears  // no compounding - for folks that like headline rates
+											:
+											exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0
 										);
 									if (thisAnnRet < -0.9999) { thisAnnRet = -0.9999; } // avoid later problems with log(1.0+annRets)
 									double thisCouponValue = thisBarrierCouponValues[i];
