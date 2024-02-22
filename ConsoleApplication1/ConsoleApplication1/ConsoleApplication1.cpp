@@ -2632,10 +2632,10 @@ int _tmain(int argc, WCHAR* argv[])
 						xInitialHi    =  2.0;
 						break;
 					case solveForDigital:
-						// look for productShape == digital && last payoffType == 'fixed' and hasBrels
+						// look for [productShape == digital &&] last payoffType == 'fixed' and hasBrels
 						for (int j=numBarriers - 1; !digitalFound && j >= 0; j--) {
 							SpBarrier& b(spr.barrier.at(j));
-							if (productShape == "Digital" &&  b.payoffTypeId == fixedPayoff && (int)b.brel.size() > 0) {
+							if (/* productShape == "Digital" &&  */ b.payoffTypeId == fixedPayoff && (int)b.brel.size() > 0) {
 								digitalFound = true;
 								solverParam  = b.payoff;
 							}
