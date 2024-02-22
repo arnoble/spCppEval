@@ -617,7 +617,6 @@ int _tmain(int argc, WCHAR* argv[])
 			exit(106);
 		}
 
-
 		// get list of productIds
 		// ... but first deal with any optimisation demands
 		//     ... first element of allProductIds is special ProductId=1 which has chosen underlyings to simulate: ONLY products with these underlyings can be optimised
@@ -1415,6 +1414,7 @@ int _tmain(int argc, WCHAR* argv[])
 			totalNumReturns      = totalNumDays - 1;
 			boost::gregorian::date  bLastDataDate(boost::gregorian::from_simple_string(lastDataDateString));
 			int daysExtant = (bLastDataDate - bProductStartDate).days();
+			double daysPerYear(getMarketData || doForwardValueCoupons || daysExtant > 0 ? DAYS_PER_YEAR : 364.0);   // for annualised returns (without forwardValuedCoupons) headline returns like 
 			// change to BID/ASK for post/pre-strike; to use MID do: (bidPrice + askPrice) / (2.0*issuePrice)
 			bool ignoreBidAsk    = ((bidAskDateString != lastDataDateString) || stalePrice);
 			bool validFairValue  = (fairValueDateString == lastDataDateString) && (daysExtant > 14) && fairValuePrice>0.0;
@@ -1482,7 +1482,7 @@ int _tmain(int argc, WCHAR* argv[])
 
 			double forwardStartT(0.0);
 			if (daysExtant < 0){
-				if (!doUKSPA && !doPriips){ forwardStartT = daysExtant / DAYS_PER_YEAR; }
+				if (!doUKSPA && !doPriips){ forwardStartT = daysExtant / daysPerYear; }
 				daysExtant = 0; 
 			}
 
@@ -2002,7 +2002,7 @@ int _tmain(int argc, WCHAR* argv[])
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, saveOptimisationPaths, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, updateProduct, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,
-				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift, targetReturn, doForwardValueCoupons || getMarketData);
+				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift, targetReturn, doForwardValueCoupons || getMarketData, daysPerYear);
 			numBarriers = 0;
 
 			// get barriers from DB
@@ -2087,7 +2087,7 @@ int _tmain(int argc, WCHAR* argv[])
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
 					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice,
 					thisBarrierBend,bendDirection,spots,doDebug,debugLevel,annualFundingUnwindCost,productId,mydb,fixedCoupon,couponFrequency,
-					couponPaidOut,spr.baseCurveTenor,spr.baseCurveSpread,productShape, doForwardValueCoupons || getMarketData));
+					couponPaidOut,spr.baseCurveTenor,spr.baseCurveSpread,productShape, doForwardValueCoupons || getMarketData, daysPerYear,getMarketData));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 	
 				// get barrier relations from DB
@@ -2140,7 +2140,7 @@ int _tmain(int argc, WCHAR* argv[])
 						thisBarrier.brel.push_back(SpBarrierRelation(barrierRelationId,uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
 							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), 
 							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString,isContinuousALL,
-							thisBarrier.isStrikeReset, thisBarrier.isStopLoss, thisBarrierBend, bendDirection));
+							thisBarrier.isStrikeReset, thisBarrier.isStopLoss, thisBarrierBend, bendDirection, getMarketData, doForwardValueCoupons));
 					}
 					// next barrierRelation record
 					retcode = mydb1.fetch(false,"");
@@ -2218,11 +2218,11 @@ int _tmain(int argc, WCHAR* argv[])
 									if (find(monDateIndx.begin(), monDateIndx.end(), j) == monDateIndx.end()) {
 										monDateIndx.push_back(j);
 										barrierMonDateIndx.push_back(j);
-										// don't think these should have divided by DAYS_PER_YEAR ... so leaving monDateT as #days
+										// don't think these should have divided by daysPerYear ... so leaving monDateT as #days
 										monDateT.push_back((double)j);
 										barrierMonDateT.push_back((double)j);
-										//  monDateT.push_back((double)j / DAYS_PER_YEAR);
-										//  barrierMonDateT.push_back((double)j / DAYS_PER_YEAR);
+										//  monDateT.push_back((double)j / daysPerYear);
+										//  barrierMonDateT.push_back((double)j / daysPerYear);
 									}
 								}
 							}
@@ -2249,7 +2249,7 @@ int _tmain(int argc, WCHAR* argv[])
 					int counterpartyId = theseIssuerIds[possibleIssuerIndx];
 					double cdsVol(0.01);    // default  1%pa vol
 					sprintf(lineBuffer, "%s%lf%s%d%s%lf%s%lf%s"
-						, "select std(Spread)*sqrt(",DAYS_PER_YEAR,"/7)/10000 vol from cdsspreadarchive where InstitutionId="
+						, "select std(Spread)*sqrt(", daysPerYear,"/7)/10000 vol from cdsspreadarchive where InstitutionId="
 						, counterpartyId
 						, " and Maturity >= "
 						, (maxBarrierDays - 365) / 365
@@ -2270,7 +2270,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if ((getMarketData || useUserParams)){
 				int  maxObsDays = monDateIndx.size() > 0 ? monDateIndx[monDateIndx.size() - 1] : 1000000;
 				for (i = 0; i < ulVolsTenor[0].size(); i++) {
-					double thisT  = DAYS_PER_YEAR*ulVolsTenor[0][i];
+					double thisT  = daysPerYear*ulVolsTenor[0][i];
 					int theseDays = (int)floor(thisT);
 					if (maxObsDays >= theseDays && find(monDateIndx.begin(), monDateIndx.end(), theseDays) == monDateIndx.end()) {
 						monDateIndx.push_back((int)theseDays);
@@ -2358,7 +2358,7 @@ int _tmain(int argc, WCHAR* argv[])
 			double oncurveVol(0.1); // default 10%pa vol
 			if (issuerCallable && thisNumIterations > 1) {
 				sprintf(lineBuffer, "%s%lf%s%s%s%lf%s%lf%s"
-					, "select std(Rate)*sqrt(",DAYS_PER_YEAR,"/7)/100 from oncurvearchive where ccy='"
+					, "select std(Rate)*sqrt(", daysPerYear,"/7)/100 from oncurvearchive where ccy='"
 					, productCcy.c_str()
 					, "' and Tenor >= "
 					, (maxBarrierDays - 366) / 365
@@ -2412,11 +2412,11 @@ int _tmain(int argc, WCHAR* argv[])
 						}
 					}
 					double sliceMean, sliceStdev, sliceStderr;
-					const double volScalingFactor(sqrt(253.0 / DAYS_PER_YEAR));
+					const double volScalingFactor(sqrt(253.0 / daysPerYear));
 					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
 					calendarDailyVariance.push_back(sliceStdev*sliceStdev * volScalingFactor);
 					double thisDailyDriftCorrection = exp(-0.5*calendarDailyVariance[i]);
-					double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i] * DAYS_PER_YEAR);
+					double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i] * daysPerYear);
 					// change underlyings' drift rate
 					for (j = 0; j < (int)ulReturns[i].size(); j++) {
 						ulReturns[i][j] *= thisDailyDriftCorrection;
@@ -3320,7 +3320,7 @@ int _tmain(int argc, WCHAR* argv[])
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
 					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
 					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr + thisDivYield) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
-					double annualisedCorrection       = pow(priipsDailyDriftCorrection, DAYS_PER_YEAR);
+					double annualisedCorrection       = pow(priipsDailyDriftCorrection, daysPerYear);
 
 
 					// change underlyings' drift rate
