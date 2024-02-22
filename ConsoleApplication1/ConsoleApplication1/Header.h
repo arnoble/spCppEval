@@ -19,6 +19,7 @@
 #include <chrono>
 #include <iomanip>
 
+#define DAYS_PER_YEAR                      365.0    // DAYS_PER_YEAR causes annualised returns to not equal the headline rate for a product ... hopefully immaterial for other purposes
 #define MAX_ULS                            100
 #define MAX_ISSUERS                        10
 #define MAX_SP_BUF                         500000
@@ -2129,16 +2130,16 @@ public:
 	void bumpSomeDays(const int someDays){
 		endDays          +=  someDays;
 		startDays        +=  someDays;
-		yearsToBarrier    = endDays / 365.25;
-		totalBarrierYears = (endDays + daysExtant) / 365.25;
+		yearsToBarrier    = endDays / DAYS_PER_YEAR;
+		totalBarrierYears = (endDays + daysExtant) / DAYS_PER_YEAR;
 	}
 	void init(){
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
 		endDays                  = (bEndDate - bProductStartDate).days() - daysExtant;
 		startDays                = endDays;
-		yearsToBarrier           = endDays / 365.25;
-		totalBarrierYears        = (endDays + daysExtant)/ 365.25;
+		yearsToBarrier           = endDays / DAYS_PER_YEAR;
+		totalBarrierYears        = (endDays + daysExtant)/ DAYS_PER_YEAR;
 		sumPayoffs               = 0.0;
 		variableCoupon           = 0.0;
 		isExtremum               = false;
@@ -2155,14 +2156,14 @@ public:
 			std::string freqNumber = couponFrequency.substr(0, freqLen - 1);
 			sprintf(charBuffer, "%s", freqNumber.c_str());
 			double couponEvery  = atof(charBuffer);
-			double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 365.25;
+			double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : DAYS_PER_YEAR;
 			double daysElapsed  = (bEndDate - bProductStartDate).days();
 			double couponPeriod = daysPerEvery * couponEvery;
 			if (couponPaidOut) {
 				daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod; // floor() so as to include accrued stub
 			}
 			double numFixedCoupons = max(0.0, /*floor*/(daysElapsed / couponPeriod)); // allow fractional coupons
-			double periodicRate    = exp(log(forwardRate) * (couponPeriod / 365.25));
+			double periodicRate    = exp(log(forwardRate) * (couponPeriod / DAYS_PER_YEAR));
 			double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
 			fixedCouponValue = fixedCoupon * (couponPaidOut && doForwardValueCoupons ? effectiveNumCoupons : numFixedCoupons);
 		}
@@ -2284,7 +2285,7 @@ public:
 		// check for early exercise
 		double thisPayoff = payoff + fixedCouponValue + thisCouponValue;
 		bool   isCalled(false);
-		double thisFundingUnwindCost = annualFundingUnwindCost * (maxYears - (daysExtant + endDays) / 365.25);
+		double thisFundingUnwindCost = annualFundingUnwindCost * (maxYears - (daysExtant + endDays) / DAYS_PER_YEAR);
 		if (conditionalExpectation > (thisPayoff + thisFundingUnwindCost)){
 			isCalled = true;
 		}
@@ -3739,7 +3740,7 @@ public:
 			}
 
 			// set up forwardVols for the period to each obsDate
-			double oneDay  = 1.0 / 365.25;
+			double oneDay  = 1.0 / DAYS_PER_YEAR;
 			for (i=0; i<numMonDates; i++) {
 				ObsDatesT[i] = monDateT[i] * oneDay;
 			}
@@ -3848,7 +3849,7 @@ public:
 						
 
 						// what is the time now
-						thatT   = monDateT[thisMonIndx]/365.25;
+						thatT   = monDateT[thisMonIndx]/DAYS_PER_YEAR;
 						/*
 						* get market data for each underlying, on this date
 						*/
@@ -3884,7 +3885,7 @@ public:
 						/*
 						*  now generate underlying shocks until this obsDate
 						*/
-						double dt      = productNeedsFullPriceRecord ? (1.0 / 365.25) : (thatT - thisT);
+						double dt      = productNeedsFullPriceRecord ? (1.0 / DAYS_PER_YEAR) : (thatT - thisT);
 						double rootDt  = sqrt(dt);
 						for (int thisDay = productNeedsFullPriceRecord ? thisNumDays : thatNumDays; thisDay <= thatNumDays; thisDay++){
 							if (thisDay > 0){  // some barriers will end on exactly the as-at date
@@ -4348,14 +4349,14 @@ public:
 											std::string freqNumber = couponFrequency.substr(0, freqLen - 1);
 											sprintf(charBuffer, "%s", freqNumber.c_str());
 											double couponEvery  = atof(charBuffer);
-											double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 365.25;
+											double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : DAYS_PER_YEAR;
 											double daysElapsed  = (bFixedCouponsDate - bStartDate).days() + daysExtant;
 											double couponPeriod = daysPerEvery*couponEvery;
 											if (couponPaidOut){
 												daysElapsed  -= floor(daysExtant / couponPeriod)*couponPeriod; // floor() so as to include accrued stub
 											}
 											double numFixedCoupons = max(0.0, /*floor*/(daysElapsed / couponPeriod)); // allow fractional coupons
-											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / 365.25));
+											double periodicRate    = exp(log(b.forwardRate) * (couponPeriod / DAYS_PER_YEAR));
 											double effectiveNumCoupons = (pow(periodicRate, numFixedCoupons) - 1) / (periodicRate - 1);
 											couponValue += fixedCoupon*(couponPaidOut && doForwardValueCoupons ? effectiveNumCoupons : numFixedCoupons);
 										}
@@ -4379,7 +4380,7 @@ public:
 									if (forOptimisation && productIndx != 0){
 										thisAmount        = b.proportionHits*thisPayoff*baseCcyReturn;
 										double thisYears  = b.yearsToBarrier;
-										int    dayMatured = (int)floor(b.yearsToBarrier*365.25);
+										int    dayMatured = (int)floor(b.yearsToBarrier*DAYS_PER_YEAR);
 										double thisAnnRet = thisYears <= 0.0 ? 0.0 : min(0.4, exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0); // assume once investor has lost 90% it is unwound...
 										// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
 										double thisDiscountRate   = b.forwardRate + fundingFraction*interpCurve(cdsTenors[issuerIndx], cdsSpreads[issuerIndx], b.yearsToBarrier);
@@ -4822,7 +4823,7 @@ public:
 													sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId, " and barrierid=", thatBarrier);
 													mydb.prepare((SQLCHAR *)charBuffer, 1);
 												}
-												double thisFundingUnwindCost = thatB.annualFundingUnwindCost * (maxProductDays - daysExtant - thatB.endDays) / 365.25;
+												double thisFundingUnwindCost = thatB.annualFundingUnwindCost * (maxProductDays - daysExtant - thatB.endDays) / DAYS_PER_YEAR;
 												bool   hasNonFixedCoupons    = thatB.couponValues.size() > 0;
 												for (int j=0; j < numBurnInIterations; j++) {
 													double thisPayoff            = thatB.payoff + thatB.fixedCouponValue + (hasNonFixedCoupons ? thatB.couponValues[j] : 0.0);
@@ -5043,7 +5044,7 @@ public:
 					std::string freqNumber = couponFrequency.substr(0, freqLen - 1);
 					sprintf(charBuffer, "%s", freqNumber.c_str());
 					double couponEvery  = atof(charBuffer);
-					double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : 365.25;
+					double daysPerEvery = freqChar == 'D' ? 1 : freqChar == 'M' ? 30 : DAYS_PER_YEAR;
 					double couponPeriod = daysPerEvery*couponEvery;
 
 					// create array of each coupon 
@@ -6009,7 +6010,7 @@ public:
 									if (std::find(reportableMonDateIndx.begin(), reportableMonDateIndx.end(), thisMonValue) != reportableMonDateIndx.end()) {
 										int thisMonPoint = startPoint + thisMonValue;
 										thisDateString = allDates.at(thisMonPoint);
-										double yearsToBarrier     = monDateIndx[thisMonIndx] / 365.25;
+										double yearsToBarrier     = monDateIndx[thisMonIndx] / DAYS_PER_YEAR;
 										double rootYearsToBarrier = pow(yearsToBarrier,0.5);
 										sprintf(charBuffer, "%s%s%s%.2lf", "Fwds(stdev)[%ofSpot][%vol] and discountFactor on: ", thisDateString.c_str(), " T:", yearsToBarrier);
 										for (i = 0; i < numUl; i++) {

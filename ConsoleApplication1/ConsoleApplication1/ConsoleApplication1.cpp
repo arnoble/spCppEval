@@ -1482,7 +1482,7 @@ int _tmain(int argc, WCHAR* argv[])
 
 			double forwardStartT(0.0);
 			if (daysExtant < 0){
-				if (!doUKSPA && !doPriips){ forwardStartT = daysExtant / 365.25; }
+				if (!doUKSPA && !doPriips){ forwardStartT = daysExtant / DAYS_PER_YEAR; }
 				daysExtant = 0; 
 			}
 
@@ -2218,11 +2218,11 @@ int _tmain(int argc, WCHAR* argv[])
 									if (find(monDateIndx.begin(), monDateIndx.end(), j) == monDateIndx.end()) {
 										monDateIndx.push_back(j);
 										barrierMonDateIndx.push_back(j);
-										// don't think these should have divided by 365.25 ... so leaving monDateT as #days
+										// don't think these should have divided by DAYS_PER_YEAR ... so leaving monDateT as #days
 										monDateT.push_back((double)j);
 										barrierMonDateT.push_back((double)j);
-										//  monDateT.push_back((double)j / 365.25);
-										//  barrierMonDateT.push_back((double)j / 365.25);
+										//  monDateT.push_back((double)j / DAYS_PER_YEAR);
+										//  barrierMonDateT.push_back((double)j / DAYS_PER_YEAR);
 									}
 								}
 							}
@@ -2248,8 +2248,8 @@ int _tmain(int argc, WCHAR* argv[])
 				for (int possibleIssuerIndx=0; possibleIssuerIndx < (int)theseIssuerIds.size(); possibleIssuerIndx++) {
 					int counterpartyId = theseIssuerIds[possibleIssuerIndx];
 					double cdsVol(0.01);    // default  1%pa vol
-					sprintf(lineBuffer, "%s%d%s%lf%s%lf%s"
-						, "select std(Spread)*sqrt(365.25/7)/10000 vol from cdsspreadarchive where InstitutionId="
+					sprintf(lineBuffer, "%s%lf%s%d%s%lf%s%lf%s"
+						, "select std(Spread)*sqrt(",DAYS_PER_YEAR,"/7)/10000 vol from cdsspreadarchive where InstitutionId="
 						, counterpartyId
 						, " and Maturity >= "
 						, (maxBarrierDays - 365) / 365
@@ -2270,7 +2270,7 @@ int _tmain(int argc, WCHAR* argv[])
 			if ((getMarketData || useUserParams)){
 				int  maxObsDays = monDateIndx.size() > 0 ? monDateIndx[monDateIndx.size() - 1] : 1000000;
 				for (i = 0; i < ulVolsTenor[0].size(); i++) {
-					double thisT  = 365.25*ulVolsTenor[0][i];
+					double thisT  = DAYS_PER_YEAR*ulVolsTenor[0][i];
 					int theseDays = (int)floor(thisT);
 					if (maxObsDays >= theseDays && find(monDateIndx.begin(), monDateIndx.end(), theseDays) == monDateIndx.end()) {
 						monDateIndx.push_back((int)theseDays);
@@ -2357,8 +2357,8 @@ int _tmain(int argc, WCHAR* argv[])
 						// calculate oncurve vol
 			double oncurveVol(0.1); // default 10%pa vol
 			if (issuerCallable && thisNumIterations > 1) {
-				sprintf(lineBuffer, "%s%s%s%lf%s%lf%s"
-					, "select std(Rate)*sqrt(365.25/7)/100 from oncurvearchive where ccy='"
+				sprintf(lineBuffer, "%s%lf%s%s%s%lf%s%lf%s"
+					, "select std(Rate)*sqrt(",DAYS_PER_YEAR,"/7)/100 from oncurvearchive where ccy='"
 					, productCcy.c_str()
 					, "' and Tenor >= "
 					, (maxBarrierDays - 366) / 365
@@ -2412,11 +2412,11 @@ int _tmain(int argc, WCHAR* argv[])
 						}
 					}
 					double sliceMean, sliceStdev, sliceStderr;
-					const double volScalingFactor(sqrt(253.0 / 365.25));
+					const double volScalingFactor(sqrt(253.0 / DAYS_PER_YEAR));
 					MeanAndStdev(thisSlice, sliceMean, sliceStdev, sliceStderr);
 					calendarDailyVariance.push_back(sliceStdev*sliceStdev * volScalingFactor);
 					double thisDailyDriftCorrection = exp(-0.5*calendarDailyVariance[i]);
-					double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i] * 365.25);
+					double thisAnnualDriftCorrection = exp(-0.5*calendarDailyVariance[i] * DAYS_PER_YEAR);
 					// change underlyings' drift rate
 					for (j = 0; j < (int)ulReturns[i].size(); j++) {
 						ulReturns[i][j] *= thisDailyDriftCorrection;
@@ -3320,7 +3320,7 @@ int _tmain(int argc, WCHAR* argv[])
 					double dailyDriftContRate         = log(ulOriginalPrices.at(i).price.at(totalNumDays - 1) / ulOriginalPrices.at(i).price.at(0)) / (totalNumDays);
 					double dailyQuantoAdj             = quantoCrossRateVols[i] * thisDailyVol * quantoCorrelations[i];
 					double priipsDailyDriftCorrection = exp(log(1 + spr.priipsRfr + thisDivYield) / 365.0 - dailyDriftContRate - dailyQuantoAdj);
-					double annualisedCorrection       = pow(priipsDailyDriftCorrection, 365.25);
+					double annualisedCorrection       = pow(priipsDailyDriftCorrection, DAYS_PER_YEAR);
 
 
 					// change underlyings' drift rate
