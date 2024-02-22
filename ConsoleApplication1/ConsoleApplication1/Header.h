@@ -2235,8 +2235,9 @@ public:
 	std::vector <SpPayoff>          hit;
 	std::vector <SpPayoffAndDate>   hitWithDate;
 	std::vector <double>            couponValues;
+	std::vector <bool>              payoffContainsVariableCoupons;
 	const int numLRMrhs             = (int)spots.size() > 1 ? 5 : 3;
-
+	const bool aimForHeadlineAnnRet = !getMarketData && !doForwardValueCoupons;
 	// number of days until barrier end date
 	int getEndDays() const { return endDays; }
 
@@ -2848,7 +2849,8 @@ public:
 		return(thisPayoff);
 	}
 	void storePayoff(const std::string thisDateString, const double amount, const double couponValue, const double proportion, 
-		const double finalAssetReturn, const int finalAssetIndx, const int barrierIndx, const bool doFinalAssetReturn, const double benchmarkReturn, const bool storeBenchmarkReturn, const bool doAccruals){
+		const double finalAssetReturn, const int finalAssetIndx, const int barrierIndx, const bool doFinalAssetReturn, const double benchmarkReturn, 
+		const bool storeBenchmarkReturn, const bool doAccruals, const bool containsVariableCoupons){
 		
 		sumPayoffs     += amount;
 		if (amount >  midPrice){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
@@ -2860,6 +2862,9 @@ public:
 		}
 		else {            
 			hit.push_back( SpPayoff(thisDateString, amount) );
+			if (aimForHeadlineAnnRet) {
+				payoffContainsVariableCoupons.push_back(containsVariableCoupons);
+			}
 		}
 		couponValues.push_back(couponValue);
 		if (doFinalAssetReturn){ fars.push_back(finalAssetInfo(finalAssetReturn,finalAssetIndx,barrierIndx)); }
@@ -3244,6 +3249,7 @@ public:
 			// clear un-accrued hits ... where we call evaluate() several times eg PRIIPs and PRIIPsStresstest, or doing bumps
 			if (!b.hasBeenHit){
 				b.hit.clear();
+				b.payoffContainsVariableCoupons.clear();
 				b.couponValues.clear();
 				b.fars.clear();
 				b.bmrs.clear();
@@ -4266,6 +4272,8 @@ public:
 									b.hasBeenHit= true; 
 								}  
 								double thisOptionPayoff;
+								bool   barrierPayoffContainsVariableCoupons(false);
+
 								thisPayoff = b.getPayoff(startLevels, lookbackLevel, thesePrices, AMC, productShape, doFinalAssetReturn, 
 									finalAssetReturn, thisOptionPayoff, finalAssetIndx, ulIds, useUl,thisPoint,ulPrices,lockedIn);
 								if (hasCompoIntoCcy){
@@ -4354,6 +4362,9 @@ public:
 													){
 													SpBarrier &ib(barrier[paidOutBarrier]);
 													double fwdFactor = doForwardValueCoupons ? pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier) : 1.0 ;
+													if (ib.variableCoupon != 0.0) { 
+														barrierPayoffContainsVariableCoupons = true; 
+													}
 													couponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*fwdFactor;
 												}
 											}
@@ -4440,7 +4451,7 @@ public:
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
 													bOther.storePayoff(thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, 
-														finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false, doAccruals);
+														finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false, doAccruals,false);
 													//}
 												}
 											}
@@ -4890,7 +4901,8 @@ public:
 								// FINALLY, store this payoff
 								else {
 									b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
-										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, doAccruals);
+										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, 
+										doAccruals, barrierPayoffContainsVariableCoupons);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								}
 
@@ -5308,7 +5320,7 @@ public:
 									double thisAmount      = thisBarrierPayoffs[i];
 									double thisAnnRet      = thisYears <= 0.0 ? 0.0 : 	// assume once investor has lost 90% it is unwound...									
 										min(LARGE_RETURN, 
-											!getMarketData && !doForwardValueCoupons && daysExtant <= 0 && b.payoffType == "fixed" ?
+											b.aimForHeadlineAnnRet && daysExtant <= 0 && b.payoffType == "fixed" && !b.payoffContainsVariableCoupons[i] ?
 											(thisAmount / midPrice - 1.0) / thisYears  // no compounding - for folks that like headline rates
 											:
 											exp(log((thisAmount < unwindPayoff ? unwindPayoff : thisAmount) / midPrice) / thisYears) - 1.0
