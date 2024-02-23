@@ -3138,6 +3138,9 @@ public:
 	std::vector<int>                    &optimiseUlIdNameMap;
 	std::vector<int>                reportableMonDateIndx;
 	
+	//
+	// ******* SProduct.GenerateCorrelatedNormal()
+	//
 	void GenerateCorrelatedNormal(const int numUnderlyings,
 		std::vector<double>                    &correlatedRandom,
 		const std::vector<std::vector<double>> &cholMatrix,
@@ -3179,10 +3182,16 @@ public:
 			correlatedRandom[j] = anyDouble;
 		}
 	}
+	//
+	// ******* END: SProduct.GenerateCorrelatedNormal()
+	//
 
-	/*
-	*   for occasional use, seeing what random numbers are actua;;y being generated
-	*/
+
+
+	// ************
+	// ******* randomNumber stuff
+	// ************
+	// ... for occasional use, seeing what random numbers are actually being generated
 	std::vector<unsigned int> randomNumbers;
 	unsigned int reportSomeRandomNumbersCounter = 0;
 	bool         reportSomeRandomNumbersDone    = false;
@@ -3199,6 +3208,9 @@ public:
 			}
 		}
 	}
+	// 
+	// ******* SProduct.ArtsRan()
+	//
 	ArtsRandomNumber artsRandomNumber;
 	double ArtsRan(){
 		static long unsigned int numTimesCalled;
@@ -3210,7 +3222,14 @@ public:
 	}
 	void ArtsRanInit() { artsRandomNumber.bucket = 0; }
 
-	// init
+
+
+
+
+
+	// 
+	// ******* SProduct.init()
+	//
 	void init(const double maxYears){
 		// ...prebuild all dates outside loop
 		int numAllDates = (int)allDates.size();	allBdates.reserve(numAllDates);
@@ -3238,7 +3257,9 @@ public:
 		}
 	}
 
-	// re-initialise barriers
+	// 
+	// ******* SProduct.initBarriers()  ... re-initialise barriers
+	// 
 	void initBarriers(){
 		numIncomeBarriers = 0;
 		int numBarriers = (int)barrier.size();
@@ -3265,7 +3286,10 @@ public:
 			}
 		}
 	}
-	// set some product param
+
+	// 
+	// ******* SProduct.solverSet()  ... set some product param
+	// 
 	void solverSet(const int solveForThis,const double paramValue){
 		int numBarriers = (int)barrier.size();
 		bool putBarrierFound(false),lastCapFound(false), digitalFound(false), positiveParticipationFound(false), positivePutParticipationFound(false), shortPutStrikeFound(false);
@@ -3375,7 +3399,9 @@ public:
 		} // switch
 	}
 
-	// commit solver solution to DB
+	// 
+	// ******* SProduct.solverCommit()  ... commit solver solution to DB
+	// 
 	void solverCommit(const int solveForThis, const double paramValue){
 		solverSet(solveForThis, paramValue);
 		int numBarriers = (int)barrier.size();
@@ -3503,12 +3529,20 @@ public:
 		} // switch
 	}
 
-	// log an error
+	// 
+	// ******* SProduct.logAnError()  ... log an error
+	// 
 	int  logAnError(const std::string errorString){
 		sprintf(lineBuffer, "%s%s%s%s%s", "insert into errors(Date,CommandString,ErrorString) values (now(),'", thisCommandLine.c_str(),"','", errorString.c_str(), "')");
 		mydb.prepare((SQLCHAR *)lineBuffer, 1);
 		return(0);
 	}
+
+
+
+
+
+
 
 	// ***********************
 	// evaluate product at this point in time
@@ -6199,9 +6233,18 @@ public:
 		} // not forOptimisation
 		return(evalResult);
 	}  // evaluate()
-
 }; // class SProduct
 
+
+
+
+
+
+
+
+// ***********************
+// ******* sundry funcs
+// ***********************
 
 //
 // get index of needle in vec
