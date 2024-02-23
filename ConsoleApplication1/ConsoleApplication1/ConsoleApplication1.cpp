@@ -27,7 +27,8 @@ int _tmain(int argc, WCHAR* argv[])
 	try{
 		// initialise
 		map<string, string> argWords;
-		argWords["doFAR"]         = "";
+		argWords["doFAR"]                   = "";
+		argWords["doTurkey"]                = "";
 		argWords["bumpOnlyALL"    ]         = "";
 		argWords["slidingTheta"]            = "";
 		argWords["doTesting"]               = "";
@@ -133,7 +134,7 @@ int _tmain(int argc, WCHAR* argv[])
 		bool             doUseTargetPremium(false),doUseThisVol(false), doUseThisVolShift(false), doUseThisBarrierBend(false), doUseThisOIS(false), doUseThisPrice(false), showMatured(false), doBumps(false), doDeltas(false), doPriips(false), ovveridePriipsStartDate(false), doUKSPA(false), doAnyIdTable(false);
 		bool             doRescale(false), doRescaleSpots(false), doBarrierBendAmort(true) /* lets try it */, doStickySmile(false), useProductFundingFractionFactor(false), forOptimisation(false), saveOptimisationPaths(false), initOptimisation(false), silent(false), updateProduct(false),verbose(false), doIncomeProducts(false), doCapitalProducts(false), solveFor(false), solveForCommit(false);
 		bool             bsPricer(false),forceLocalVol(false),localVol(true), stochasticDrift(false), ignoreBenchmark(false), done, forceFullPriceRecord(false), fullyProtected, firstTime, forceUlLevels(false),corrsAreEqEq(true);
-		bool             bumpOnlyALL(false),doFvEndDate(false),updateCashflows(true),ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
+		bool             doTurkey(false),bumpOnlyALL(false),doFvEndDate(false),updateCashflows(true),ajaxCalling(false),slidingTheta(false),cmdLineBarrierBend(false);
 		
 		bool             bumpEachUnderlying(false);
 		char             lineBuffer[MAX_SP_BUF], charBuffer[10000];
@@ -299,6 +300,7 @@ int _tmain(int argc, WCHAR* argv[])
 			// else if (strstr(thisArg, "proto"             )){ strcpy(useProto,"proto"); }
 			else if (strstr(thisArg, "stochasticDrift"   )){ stochasticDrift    = true; }
 			else if (strstr(thisArg, "doFAR"             )){ doFinalAssetReturn = true; }
+			else if (strstr(thisArg, "doTurkey"          )){ doTurkey           = true; }
 			else if (strstr(thisArg, "bumpOnlyALL"       )){ bumpOnlyALL        = true; bumpEachUnderlying = false; }
 			else if (strstr(thisArg, "slidingTheta"      )){ slidingTheta       = true; }
 			else if (strstr(thisArg, "doTesting"         )){ doTesting          = true; }
@@ -642,6 +644,7 @@ int _tmain(int argc, WCHAR* argv[])
 		// ******** END: process commandLine
 		//
 
+
 		//
 		// ******** inits based on commandLine
 		//
@@ -659,6 +662,10 @@ int _tmain(int argc, WCHAR* argv[])
 		}
 		if (getMarketData && userParametersId>0){
 			cout << "getMarketData analysis cannot be run with userParameters" << endl;
+			exit(106);
+		}
+		if (doTurkey && (!getMarketData || doUKSPA)) { 
+			cout << "blendedSimulations need getMarketData with no UKSPA" << endl;
 			exit(106);
 		}
 		//
@@ -2108,7 +2115,8 @@ int _tmain(int argc, WCHAR* argv[])
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, saveOptimisationPaths, productIndx,
 				bmSwapRate, bmEarithReturn, bmVol, cds5y, bootstrapStride, settleDays, silent, updateProduct, verbose, doBumps, stochasticDrift, localVol, ulFixedDivs, compoIntoCcyStrikePrice,
-				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift, targetReturn, doForwardValueCoupons || getMarketData, daysPerYear);
+				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift, targetReturn, 
+				doForwardValueCoupons || getMarketData, daysPerYear,doTurkey);
 			numBarriers = 0;
 
 

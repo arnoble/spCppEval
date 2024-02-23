@@ -3078,7 +3078,7 @@ private:
 	const int                       bootstrapStride, daysExtant, productIndx;
 	const double                    daysPerYear,volShift,gmmMinClusterFraction,compoIntoCcyStrikePrice, benchmarkStrike, fixedCoupon, AMC, midPrice, askPrice, fairValue, baseCcyReturn;
 	const std::string               productShape;
-	const bool                      hasCompoIntoCcy, localVol, doBumps, silent, updateProduct, verbose, doBootstrapStride, forOptimisation, saveOptimisationPaths, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
+	const bool                      doTurkey,hasCompoIntoCcy, localVol, doBumps, silent, updateProduct, verbose, doBootstrapStride, forOptimisation, saveOptimisationPaths, fullyProtected, validFairValue, depositGteed, collateralised, couponPaidOut, showMatured, forceIterations;
 	const std::vector<SomeCurve>    baseCurve;
 	postStrikeState                 thisPostStrikeState;
 	const bool                      extendingPrices;
@@ -3153,7 +3153,8 @@ public:
 		const double                    volShift,
 		const double                    targetReturn,
 		const bool                      doForwardValueCoupons,
-		const double                    daysPerYear
+		const double                    daysPerYear,
+		const bool                      doTurkey
 		)
 		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
@@ -3167,7 +3168,7 @@ public:
 		settleDays(settleDays), doBootstrapStride(bootstrapStride != 0), silent(silent), updateProduct(updateProduct), verbose(verbose), doBumps(doBumps), stochasticDrift(stochasticDrift),
 		localVol(localVol), ulFixedDivs(ulFixedDivs), compoIntoCcyStrikePrice(compoIntoCcyStrikePrice), hasCompoIntoCcy(hasCompoIntoCcy), issuerCallable(issuerCallable), 
 		spots(spots), strikeDateLevels(strikeDateLevels), gmmMinClusterFraction(gmmMinClusterFraction), multiIssuer(multiIssuer),cdsVols(cdsVols),volShift(volShift), 
-		targetReturn(targetReturn), doForwardValueCoupons(doForwardValueCoupons), daysPerYear(daysPerYear){
+		targetReturn(targetReturn), doForwardValueCoupons(doForwardValueCoupons), daysPerYear(daysPerYear), doTurkey(doTurkey){
 	
 		for (int i=0; i < (int)baseCurve.size(); i++) { baseCurveTenor.push_back(baseCurve[i].tenor); baseCurveSpread.push_back(baseCurve[i].spread); }
 	};
@@ -3630,7 +3631,7 @@ public:
 		const std::vector<double> simPercentiles,
 		const bool                doPriipsStress,
 		const char                *useProto,
-		const bool                getMarketData, 
+		bool                      getMarketData, 
 		const bool                useUserParams,
 		const MarketData          &md,
 		const std::vector<std::vector<double>> &cdsTenors,
@@ -3654,6 +3655,7 @@ public:
 		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
 		const int                numBurnInIterations = (int)(issuerCallable ? numMcIterations * CALLABLE_REGRESSION_FRACTION : 0);
 		const int                numLRMrhs = numUls > 1 ? 5 : 3;
+		const int                halfNumMcIterations(numMcIterations / 2);  // C++ discards any remaider
 		bool                     optFirstTime;
 		bool	                 optOptimiseAnnualisedReturn(!getMarketData); 
 		bool                     matured(false);
@@ -3959,10 +3961,16 @@ public:
 		int numDisables(0);
 		int randnosStoreSize = (int)randnosStore.size();
 		double lognormalAdj  = useUserParams ? 0.0 : 0.5;
+		ArtsRanInit();            // so that doTurkey sees the same ran sequence
 		for (thisIteration = 0; thisIteration < numMcIterations &&
 			(!consumeRands || randnoIndx<=randnosStoreSize)     && 
 			(forceIterations || fabs(stdevRatioPctChange)>accuracyTol); thisIteration++) {
 
+			// if it looks like a turkey it IS a turkey
+			if (doTurkey && thisIteration >= halfNumMcIterations) {
+				getMarketData = false;
+				ArtsRanInit();            // so that doTurkey sees the same ran sequence
+			}
 			// create new random sample for next iteration
 			if (numMcIterations > 1){
 
@@ -5347,6 +5355,7 @@ public:
 						else if (ukspaCase == "Bull"        ) { projectedReturn = 0.3; }
 						if (getMarketData && ukspaCase == "") { projectedReturn = 0.4; }
 						if (useUserParams                   ) { projectedReturn = 0.5; }
+						if (doTurkey                        ) { projectedReturn = (applyCredit ? 0.2 : 0.1 ); }   // ARROW has no current interest in the UKSPA analysis
 						if (applyCredit) { ArtsRanInit(); }  // so multiIssuer analysis always sees the same ran sequence
 						bool     foundEarliest = false;
 						double   probEarly(0.0), probEarliest(0.0);
