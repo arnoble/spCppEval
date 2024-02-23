@@ -204,7 +204,10 @@ int _tmain(int argc, WCHAR* argv[])
 		}
 		MyDB  mydb(thisCommandLine, (char **)szAllPrices, dbServer), mydb1(thisCommandLine,(char **)szAllPrices, dbServer);
 
-		// some inits from db
+		//
+		// ******* get general info from db:  payoffType,productType, productShape, protectionLevel,barrierType
+		//
+		// ...payoffType
 		vector<string>   payoffType;  payoffType.push_back("");
 		sprintf(lineBuffer, "%s", "select name from payofftype order by PayoffTypeId");
 		mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -213,6 +216,37 @@ int _tmain(int argc, WCHAR* argv[])
 			payoffType.push_back(szAllPrices[0]);
 			retcode = mydb.fetch(false, "");
 		}
+		// ...productType
+		map<int, string> productTypeMap;
+		sprintf(lineBuffer, "%s", "select * from producttype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
+		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+			productTypeMap[atoi(szAllPrices[0])] = szAllPrices[1];
+			retcode = mydb.fetch(false, "");
+		}
+		// ...productShape
+		map<int, string> productShapeMap;
+		sprintf(lineBuffer, "%s", "select * from productshape"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
+		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+			productShapeMap[atoi(szAllPrices[0])] = szAllPrices[1];
+			retcode = mydb.fetch(false, "");
+		}
+		// ...protectionLevel
+		map<int, string> protectionLevelMap;
+		sprintf(lineBuffer, "%s", "select * from protectionLevel"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
+		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+			protectionLevelMap[atoi(szAllPrices[0])] = szAllPrices[1];
+			retcode = mydb.fetch(false, "");
+		}
+		// ...barrierType
+		map<int, string> barrierTypeMap;
+		sprintf(lineBuffer, "%s", "select * from barriertype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
+		while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+			barrierTypeMap[atoi(szAllPrices[0])] = szAllPrices[1];
+			retcode = mydb.fetch(false, "");
+		}
+		//
+		// *********** END: get general info from db:  payoffType,productType, productShape, protectionLevel,barrierType
+		//
 
 
 
@@ -222,8 +256,6 @@ int _tmain(int argc, WCHAR* argv[])
 			stopProductId  = argc > 2 ? _ttoi(argv[2]) : 363;
 		}
 		// check for non-existent/mis-typed args 
-		// ... DOME
-				
 		for (int i=4 - commaSepList; i < argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			strcpy(charBuffer,thisArg);
@@ -233,7 +265,9 @@ int _tmain(int argc, WCHAR* argv[])
 				exit(101);
 			}
 		}
-		
+
+
+		//
 		// process optional argumants
 		// parse range strings, of the form <name>:<number or number-number>
 		// commandLineName: sql to select corresponding quantity from cashflows table
@@ -250,7 +284,10 @@ int _tmain(int argc, WCHAR* argv[])
 			: "if((BidAskDate   != LastDataDate) or StalePrice,if(FairValueDate != LastDataDate,IssuePrice,FairValue),Ask))");
 		rangeVerbs["CAGRtoCVAR95loss"] = charBuffer;
 		rangeVerbs["couponReturn"] = "100*couponReturn";
-
+		//
+		//
+		// ******** process commandLine
+		//
 		for (int i=4 - commaSepList; i<argc; i++){
 			char *thisArg  = WcharToChar(argv[i], &numChars);
 			if (strstr(thisArg, "forceIterations")){ requesterForceIterations = true; }
@@ -600,6 +637,14 @@ int _tmain(int argc, WCHAR* argv[])
 			if (doFvEndDate || sscanf(thisArg, "arcCurveDate:%s", endDate)) { strcpy(arcCurveDate, endDate); sprintf(arcCurveDateString, "%s%s%s", " and LastDataDate='", arcCurveDate, "' "); }
 			if (doFvEndDate || sscanf(thisArg, "arcCdsDate:%s", endDate)) { strcpy(arcCdsDate, endDate); sprintf(arcCdsDateString, "%s%s%s", " and LastDataDate='", arcCdsDate, "' "); }
 		}
+		//
+		//
+		// ******** END: process commandLine
+		//
+
+		//
+		// ******** inits based on commandLine
+		//
 		updateCashflows  = doFvEndDate && !userParametersId ? false : true;   // allow userParameters to update its own cashflows
 		if (doPriips){
 			if (strlen(startDate)){
@@ -616,8 +661,13 @@ int _tmain(int argc, WCHAR* argv[])
 			cout << "getMarketData analysis cannot be run with userParameters" << endl;
 			exit(106);
 		}
+		//
+		// ********  END inits based on commandLine
+		//
 
-		// get list of productIds
+		//
+		// ******** get list of productIds
+		//
 		// ... but first deal with any optimisation demands
 		//     ... first element of allProductIds is special ProductId=1 which has chosen underlyings to simulate: ONLY products with these underlyings can be optimised
 		if (forOptimisation){
@@ -678,11 +728,15 @@ int _tmain(int argc, WCHAR* argv[])
 		}
 		int  numProducts = (int)allProductIds.size();
 		bool multiIssuer = (int)possibleIssuerIds.size() > 0;
-
 		// cerr << "Doing:" << allProductIds.size() << " products " << lineBuffer << endl;
 
+		//
+		// ******** END: get list of productIds
+		//
+
+
 		/*
-		* getBenchmarkPerf
+		* ******** getBenchmarkPerf
 		*/
 		double bmSwapRate(0.0);
 		sprintf(lineBuffer, "%s", "SELECT avg(Rate)/100.0 sixYSwaps from curve where ccy='GBP' and Tenor in (5,7)");
@@ -701,8 +755,9 @@ int _tmain(int argc, WCHAR* argv[])
 		}
 	
 		
-
-		// deal with any optimisation demands
+		//
+		// ******** deal with any optimisation demands
+		//
 		//    ProductId=1                     contains all the underlyings that will be simulated ... typically just those we can FV
 		//    productreturns table            will be populated with each product's simulated returns, payoffs
 		//    simulatedunderlyings table      will be populated with the simulated levels for each underlying
@@ -775,10 +830,14 @@ int _tmain(int argc, WCHAR* argv[])
 				mydb.prepare((SQLCHAR *)lineBuffer, 1);
 			}
 		}
+		//
+		// ******** END: deal with any optimisation demands
+		//
 
 
-		
-		// loop through each product
+		//
+		// ******** loop through each product
+		//
 		std::vector<int> optimiseUlIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
 		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(optimiseNumUls, std::vector<std::vector<double>>(optimiseNumDays));
 		if (numProducts>1){ doUseThisPrice = false; }
@@ -801,38 +860,7 @@ int _tmain(int argc, WCHAR* argv[])
 			productId      = allProductIds.at(productIndx);
 			cds5y          = 0.0; // used to calc product excessReturn
 
-			// get general info:  productType, productShape, barrierType
-			// ...productType
-			map<int, string> productTypeMap;
-			sprintf(lineBuffer, "%s", "select * from producttype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true,lineBuffer);
-			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				productTypeMap[atoi(szAllPrices[0])] = szAllPrices[1];
-				retcode = mydb.fetch(false,"");
-			}
-			// ...productShape
-			map<int, string> productShapeMap;
-			sprintf(lineBuffer, "%s", "select * from productshape"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true,lineBuffer);
-			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				productShapeMap[atoi(szAllPrices[0])] = szAllPrices[1];
-				retcode = mydb.fetch(false,"");
-			}
-			// ...protectionLevel
-			map<int, string> protectionLevelMap;
-			sprintf(lineBuffer, "%s", "select * from protectionLevel"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true, lineBuffer);
-			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				protectionLevelMap[atoi(szAllPrices[0])] = szAllPrices[1];
-				retcode = mydb.fetch(false, "");
-			}
-
-
-			// ...barrierType
-			map<int, string> barrierTypeMap;
-			sprintf(lineBuffer, "%s", "select * from barriertype"); 	mydb.prepare((SQLCHAR *)lineBuffer, 2); 	retcode = mydb.fetch(true,lineBuffer);
-			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				barrierTypeMap[atoi(szAllPrices[0])] = szAllPrices[1];
-				retcode = mydb.fetch(false,"");
-			}
-
+			
 			// get product table data
 			enum {
 				colProductCounterpartyId = 2, colProtectionLevelId, colProductStrikeDate = 6, colProductCcy = 14, colProductUserId = 26, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
@@ -3416,7 +3444,11 @@ int _tmain(int argc, WCHAR* argv[])
 
 			}
 
-		} // for each product
+		}
+		//
+		// ******** END: loop through each product
+		//
+		
 		std::cout << "timeTaken:" << difftime(time(0), startTime) << "secs" << endl;
 		std::cout << "clytemnestra";
 	} // try
