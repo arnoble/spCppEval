@@ -835,9 +835,9 @@ int _tmain(int argc, WCHAR* argv[])
 		//
 
 
-		//
+		// **********************************
 		// ******** loop through each product
-		//
+		// **********************************
 		std::vector<int> optimiseUlIdNameMap(1000);  // underlyingId -> arrayIndex, so ulIdNameMap[uid] gives the index into ulPrices vector
 		std::vector<std::vector<std::vector<double>>> optimiseMcLevels(optimiseNumUls, std::vector<std::vector<double>>(optimiseNumDays));
 		if (numProducts>1){ doUseThisPrice = false; }
@@ -860,8 +860,9 @@ int _tmain(int argc, WCHAR* argv[])
 			productId      = allProductIds.at(productIndx);
 			cds5y          = 0.0; // used to calc product excessReturn
 
-			
-			// get product table data
+			//
+			// ******** get product table data
+			//
 			enum {
 				colProductCounterpartyId = 2, colProtectionLevelId, colProductStrikeDate = 6, colProductCcy = 14, colProductUserId = 26, colProductFixedCoupon = 28, colProductFrequency, colProductBid, colProductAsk, colProductBidAskDate,
 				colProductAMC = 43, colProductShapeId,colProductMaxIterations=55, colProductDepositGtee, colProductDealCheckerId, colProductAssetTypeId, colProductIssuePrice, 
@@ -1014,6 +1015,12 @@ int _tmain(int argc, WCHAR* argv[])
 			if (productStartDateString == ""){ cerr << productId << "ProductStartDateString is empty... skipping this product" << endl; continue; }
 			cout << endl << productIndx << " of " << numProducts << "\nIterations:" << thisNumIterations << " ProductId:" << productId << " " << analysisTypes[thisProjectedReturn].c_str() << " " << (doBumps ? "bumps" : "") << endl;
 			// cout << "Press a key to continue...";  getline(cin, word);  // KEEP in case you want to attach debugger
+
+			//
+			// END: ******** get product table data
+			//
+
+
 
 			// see if product has levelsCall payoffs ... in which case we do not do a lognormalShift of the underlyings
 			bool doPriceShift(true);
@@ -1185,7 +1192,9 @@ int _tmain(int argc, WCHAR* argv[])
 				bootstrapStride = 2;	
 			}
 
-			//** currencyStruck deals will have nonZero values for $crossRateUids
+			//
+			// ****** currencyStruck deals will have nonZero values for $crossRateUids
+			//
 			vector<int> crossRateUids ; for (i=0; i<numUl; i++) { crossRateUids.push_back(0); }
 			//** quanto deals will have nonZero values for $quantoCrossRateUids
 			vector<int>    quantoCrossRateUids; 
@@ -1251,6 +1260,9 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 				}
 			}
+			//
+			// ****** END: currencyStruck deals will have nonZero values for $crossRateUids
+			//
 
 
 			// calc baseCcyReturn: this caters for products like #1093 where GBP invests in USD and is quoted in GBP, so has to reflect the USDGBP return since StrikeDate
@@ -1273,7 +1285,10 @@ int _tmain(int argc, WCHAR* argv[])
 			int  addCompoIntoCcy = hasCompoIntoCcy ? 1 : 0;
 
 
-			// read underlying prices
+
+			//
+			// ******* read underlying prices
+			//
 			vector<double>   ulReturns[maxUls], originalUlReturns[maxUls];
 			for (i = 0; i < numUl + addCompoIntoCcy; i++) {
 				ulReturns[i].reserve(10000); 
@@ -1282,10 +1297,12 @@ int _tmain(int argc, WCHAR* argv[])
 				ulOriginalPrices[i].nonTradingDay.reserve(10000);
 			}
 			char ulSql[10000],holdUlSql[10000]; // enough for around 100 underlyings...
-			char crossRateBuffer[100];
-			
+			char crossRateBuffer[100];			
 
+			
+			//
 			// ...form sql joins
+			//
 			sprintf(ulSql, "%s", "select p0.Date Date");
 			for (i = 0; i<numUl; i++) { 
 				if (crossRateUids[i]){ sprintf(crossRateBuffer, "%s%d%s", "*p", (numUl + numUl + i), ".price"); }
@@ -1326,7 +1343,13 @@ int _tmain(int argc, WCHAR* argv[])
 			if (strlen(endDate))   { sprintf(ulSql, "%s%s%s%s", ulSql, " and Date <='", endDate,   "'"); }
 			strcat(ulSql, " order by Date");
 			// cerr << ulSql << endl;
-			// ...call DB
+			//
+			// ******* END: form sql joins
+			//
+
+			//
+			// ******* call DB with SQL for underlyings prices
+			//
 			mydb.prepare((SQLCHAR *)ulSql, numUl + 1 + addCompoIntoCcy);
 			firstTime = true;
 			vector<double> previousPrice(numUl + addCompoIntoCcy), lastRealPrice(numUl + addCompoIntoCcy);
@@ -1409,8 +1432,13 @@ int _tmain(int argc, WCHAR* argv[])
 				cerr << "Not enough data: prices start on:" << ulOriginalPrices.at(0).date[0] << " but product strike is:" << productStartDateString << endl;
 				continue;
 			}
+			//
+			// ******* END: call DB with SQL for underlyings prices
+			//
 
+			//
 			// shift prices if necessary - crude attempt to do shifted-lognormal analysis, where for example rates are negative
+			//
 			if (doPriceShift){
 				for (i=0; i<numUl; i++) {
 					if (minPrices[i] <= 0.0){
@@ -1464,7 +1492,9 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 			}
 			if (doUseThisPrice){ midPrice = useThisPrice / issuePrice; }
+			//
 			// spotsDate ... change last price to those for some date
+			//
 			if (strlen(spotsDate))   {
 				int numPrices = (int)ulOriginalPrices[0].price.size();
 				sprintf(lineBuffer, "%s%s%s%s", holdUlSql, " and Date ='", spotsDate, "'");
@@ -1482,8 +1512,14 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			ulPrices             = ulOriginalPrices; // copy constructor called
 			cout << "NumPrices: " << totalNumDays << "  FirstDataDate: " << ulOriginalPrices.at(0).date[0] << " LastDataDate: " << lastDataDateString << "  MidPriceUsed: " << midPrice << endl;
-			
+			//
+			// ******* END: read underlying prices
+			//
 
+
+			//
+			// compoIntoCcy
+			//
 			if (hasCompoIntoCcy){
 				// get compoIntoCcy return-to-date
 				if (daysExtant > 0){
@@ -1526,8 +1562,9 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 			*/
 			
-
+			//
 			// market data
+			//
 			vector< vector<double> >          ulVolsTenor(numUl);
 			vector< vector<double> >          ulFwdsAtVolTenor(numUl);
 			vector< vector<vector<double>> >  ulVolsStrike(numUl);
@@ -1545,7 +1582,9 @@ int _tmain(int argc, WCHAR* argv[])
 			vector<vector<int>>               fxcorrsOtherId(numUl);
 			vector<vector<double>>            fxcorrsCorrelation(numUl);
 
-			// get divs for a number of analysis cases
+			//
+			// **** get divs for a number of analysis cases
+			//
 			if (doPriips || getMarketData || useUserParams){
 				//  divYields
 				sprintf(ulSql, "%s%s%s%s%s%s%s%d", "select d.underlyingid,",
@@ -1624,7 +1663,13 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 				
 			}
-			// get vols
+			//
+			// ******* END: get divs for a number of analysis cases
+			//
+
+			//
+			// ******* get vols
+			//
 			if (getMarketData || useUserParams){
 				int    thisUidx;
 				double thisFwdVol, thisTenor, previousVol, previousTenor;
@@ -1749,7 +1794,11 @@ int _tmain(int argc, WCHAR* argv[])
 						ulVolsStrike[thisUidx].push_back(someStrikes);
 					}
 				} // END vols
-				//  OIS rates
+		
+				//  
+				// *******  get OIS rates
+				//
+
 				//  ... 2022 saw a lot of ois tickers disappear, so we now use corresponding swap tickers ... hence need to convert to continuous compounding
 				//  ... the impDivYield Excel calcs assume USD compounding is semi-annual
 				sprintf(ulSql, "%s%s%s%s", "select ccy,Tenor,Rate from oncurve",
@@ -1789,8 +1838,13 @@ int _tmain(int argc, WCHAR* argv[])
 						oisRatesRate[i].push_back(0.0);
 					}
 				}
+				//  
+				// ******* END: get OIS rates
+				//
 
-				//  eq-eq corr
+				//
+				// ******* eq-eq corr
+				//
 				if (ukspaCase != "" && totalNumReturns > 2){
 					// calc corrs - 1y window, 3day returns
 					int periodicity = 3;
@@ -1828,6 +1882,7 @@ int _tmain(int argc, WCHAR* argv[])
 						}
 					}
 				}
+				// normal eq-eq correlation ie not UKSPA
 				else {
 					sprintf(ulSql, "%s%s%s%d", "select UnderlyingId,OtherId,Correlation from correlation",
 						strlen(arcCorDate) ? "archive" : "",
@@ -1870,7 +1925,13 @@ int _tmain(int argc, WCHAR* argv[])
 						retcode = mydb.fetch(false, "");
 					}
 				}
-				//  eq-fx corr
+				//
+				// ******* END: eq-eq corr
+				//
+
+				//
+				//  ******* eq-fx corr
+				//
 				sprintf(ulSql, "%s%d", "select UnderlyingId,OtherId,Correlation from correlation c join currencies y on (y.CcyId=c.OtherId) where OtherIdIsCcy=1 and UnderlyingId in (", ulIds[0]);
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
@@ -1899,7 +1960,13 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 					retcode = mydb.fetch(false, "");
 				}
+				//
+				//  ******* END: eq-fx corr
+				//
+
+				//
 				// initialise any correlation bumps
+				//
 				if (corrNames.size()>0){
 					corrUidx       = ulIdNameMap.at(corrIds[0]);
 					if (corrsAreEqEq){
@@ -1914,7 +1981,9 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 				}
 				
+				//
 				// check we have data for all underlyings
+				//
 				for (i = 0; i < numUl; i++) {
 					if ((int)ulVolsTenor[i].size() == 0){
 						cerr << "No volatilities found for " << ulNames[i] << endl; 
@@ -1926,8 +1995,12 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 				}
 			}
+			//
+			// ******* END: get market data
+			//
+
 			/*
-			*  collect all market data
+			*  ******* collect all market data
 			*/
 			MarketData  thisMarketData(ulVolsTenor,
 			ulVolsStrike,
@@ -2015,16 +2088,21 @@ int _tmain(int argc, WCHAR* argv[])
 			const double  holdCorr = corrNames.size()>0 ? corrBumpVector[corrOtherIndex] : 0.0;
 			std::string  corrString(""); for (int i=0; i < corrNames.size(); i++){ corrString = corrString + corrNames[i] + " "; } 
 
-			// create product
-			if (AMC != 0.0){
+			
+
+			// **********************************
+			// ******** create product
+			// **********************************
+			if (AMC != 0.0) {
 				cerr << endl << "******NOTE******* product has an AMC:" << AMC << endl;
 			}
-			if (issuerCallable && getMarketData && thisNumIterations > 1 && !doDebug && (thisNumIterations < MIN_CALLABLE_ITERATIONS || thisNumIterations > MAX_CALLABLE_ITERATIONS)){
+			if (issuerCallable && getMarketData && thisNumIterations > 1 && !doDebug && (thisNumIterations < MIN_CALLABLE_ITERATIONS || thisNumIterations > MAX_CALLABLE_ITERATIONS)) {
 				cerr << endl << "******NOTE******* issuerCallable product needs iterations in the range" << MIN_CALLABLE_ITERATIONS << ":" << MAX_CALLABLE_ITERATIONS << endl;
 				thisNumIterations = MAX_CALLABLE_ITERATIONS;
 			}
 			std::vector<double>  cdsVols;
 			double annualFundingUnwindCost(0.0);  // not getting sensible results for IssuerCallables ... so hold off until we know more what issuers do ...
+
 			SProduct spr(extendingPrices,thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
@@ -2033,7 +2111,13 @@ int _tmain(int argc, WCHAR* argv[])
 				hasCompoIntoCcy,issuerCallable,spots, strikeDateLevels, gmmMinClusterFraction, multiIssuer,cdsVols,volShift, targetReturn, doForwardValueCoupons || getMarketData, daysPerYear);
 			numBarriers = 0;
 
-			// get barriers from DB
+
+
+
+
+			// **********************************
+			// ******** get barriers from DB
+			// **********************************			
 			enum {
 				colProductBarrierId = 0, colProductId,
 				colCapitalOrIncome, colNature, colPayoff, colTriggered, colSettlementDate, colDescription, colPayoffId, colParticipation,
@@ -2270,8 +2354,13 @@ int _tmain(int argc, WCHAR* argv[])
 				numBarriers += 1;
 				retcode = mydb.fetch(false,"");
 			}
+			// **********************************
+			// ******** END: get barriers from DB
+			// **********************************			
 
+			//
 			// calculate cds vols
+			//
 			if (issuerCallable && thisNumIterations > 1) {
 				for (int possibleIssuerIndx=0; possibleIssuerIndx < (int)theseIssuerIds.size(); possibleIssuerIndx++) {
 					int counterpartyId = theseIssuerIds[possibleIssuerIndx];
@@ -2293,7 +2382,9 @@ int _tmain(int argc, WCHAR* argv[])
 				}
 			}
 
+			//
 			//	add vol tenors to MonDates
+			//
 			spr.reportableMonDateIndx = monDateIndx;
 			if ((getMarketData || useUserParams)){
 				int  maxObsDays = monDateIndx.size() > 0 ? monDateIndx[monDateIndx.size() - 1] : 1000000;
@@ -2312,7 +2403,9 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 
 
+			//
 			// possibly pad future ulPrices for resampling into if there is not enough history
+			//
 			int daysPadding = (int)max(maxBarrierDays, maxBarrierDays + daysExtant - totalNumDays + 1);
 			boost::gregorian::date  bTempDate = bLastDataDate;
 			while (daysPadding>0){
@@ -2331,7 +2424,17 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 
 
+
+
+
+
+			//
+			// ******* timepoint stuff
+			//
+
+			//
 			// remove any timepointDays 
+			//
 			vector<int> timepointDays;
 			if (doTimepoints){
 				for (i=0; i<(int)tempTimepointDays.size(); i++){
@@ -2375,14 +2478,18 @@ int _tmain(int argc, WCHAR* argv[])
 				*/
 				
 			}
+			//
+			// ******* END: timepoint stuff
+			//
 
 
 
 
 
-
-			// further initialisation, given product info
-						// calculate oncurve vol
+			//
+			// ******* further initialisation, given product info
+			//
+			// calculate oncurve vol
 			double oncurveVol(0.1); // default 10%pa vol
 			if (issuerCallable && thisNumIterations > 1) {
 				sprintf(lineBuffer, "%s%lf%s%s%s%lf%s%lf%s"
@@ -2422,8 +2529,9 @@ int _tmain(int argc, WCHAR* argv[])
 
 			// possibly impose user-defined view of expectedReturn: only need to bump ulReturns
 
-
-			// make convexity drift adjustment, from vol from daily continuous returns
+			// 
+			// PRIIPS only: make convexity drift adjustment, from vol from daily continuous returns
+			//
 			// ... this will mimic a lognormal price process for underlyings, which is the PRIIPs approach
 			// ... on the other hand, an empirical distribution of returns simply says each return is equally likely on any given day
 			// so omit for non-PRIIPs analysis
@@ -2452,7 +2560,9 @@ int _tmain(int argc, WCHAR* argv[])
 				}				
 			} // doPriips
 			
+			//
 			// issuerCallable ... turn off non-terminal Capital barriers
+			//
 			if (issuerCallable){
 				// find max(b.endDays)
 				int maxEndDays(0);
@@ -2474,13 +2584,21 @@ int _tmain(int argc, WCHAR* argv[])
 					}
 				}
 			}
-			// get accrued coupons
-			double accruedCoupon(0.0);
-			bool   productHasMatured(false);
+			//
+			// ******* END: further initialisation, given product info
+			//
+
+
+
+
+			//
+			// ******* get accrued coupons, and check for matured
+			//
+			double     accruedCoupon(0.0);
+			bool       productHasMatured(false);
 			EvalResult accrualEvalResult(0.0, 0.0, 0);
 			
-			
-			// issuerCallable: since cannot control when Issuer might call, look for stale price 
+			// if issuerCallable: since cannot control when Issuer might call, look for stale price 
 			if (issuerCallable && stalePrice && daysToFirstCapitalBarrier <0){
 				productHasMatured = true;
 				// update DB with last MID
@@ -2497,6 +2615,13 @@ int _tmain(int argc, WCHAR* argv[])
 			// ...check product not matured
 			numMonPoints = (int)monDateIndx.size();
 			if (productHasMatured || !numMonPoints || (numMonPoints == 1 && monDateIndx[0] == 0)){ continue; }
+			//
+			// ******* END: get accrued coupons, and check for matured
+			//
+
+
+
+
 
 
 			//
@@ -2510,8 +2635,15 @@ int _tmain(int argc, WCHAR* argv[])
 			}
 
 
-			
-			// finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
+
+
+
+			// ************************************
+			// ******* finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
+			//         ... and solverFor
+			//         ... and bumps
+			// ************************************
+			//
 			// *** this call to evaluate() establishes baseCase "thisFairValue" for subsequent bumps
 			spr.productDays    = *max_element(monDateIndx.begin(), monDateIndx.end());
 			int thisStartPoint =  thisNumIterations == 1 ? daysExtant : totalNumDays - 1;
@@ -2537,9 +2669,9 @@ int _tmain(int argc, WCHAR* argv[])
 					continue;
 				}
 
-				/*
-				*  Newton-Raphson root finding of some product parameter "solverParam" that gives FV = targetFairValue
-				*/
+				// *******************
+				// ******* solveFor:   Newton-Raphson root finding of some product parameter "solverParam" that gives FV = targetFairValue
+				// *******************
 				if (solveFor){
 					// Newton-Raphson settings
 					// ... f is (FV - targetFairValue) for some value "currentSolution" of x
@@ -2916,11 +3048,16 @@ int _tmain(int argc, WCHAR* argv[])
 						std::cout << lineBuffer << std::endl;
 						return(0);
 					}
-				}  // END solveFor
+				}
+				// *******************
+				// ******* END: solveFor:   Newton-Raphson root finding of some product parameter "solverParam" that gives FV = targetFairValue
+				// *******************
 
 
 				
-				
+				//
+				// ******* bumps
+				//
 				double deltaBumpAmount(0.0), vegaBumpAmount(0.0), rhoBumpAmount(0.0), creditBumpAmount(0.0), corrBumpAmount(0.0),bumpedFairValue(0.0);
 				int    thetaBumpAmount(0);				
 				if (doBumps && (deltaBumps || vegaBumps || thetaBumps || rhoBumps || creditBumps || bumpPointTenor > 0.0)  /* && daysExtant>0 */){
@@ -3321,9 +3458,23 @@ int _tmain(int argc, WCHAR* argv[])
 					} // for (int thetaBump=0; thetaBump < thetaBumps; thetaBump++){
 										
 				}
+				//
+				// ******* END: bumps
+				//
 			}
+			//
+			// ******* END: finally evaluate the product...1000 iterations of a 60barrier product (eg monthly) = 60000
+			//         ... and solverFor
+			//		   ... and bumps
+			//
 
-			// PRIIPs
+
+
+
+
+			//
+			// ******* PRIIPs
+			//
 			if (doPriips){
 				// real-world drifts
 				EvalResult evalResultPriips(0.0, 0.0, 0);
@@ -3443,7 +3594,9 @@ int _tmain(int argc, WCHAR* argv[])
 					ovveridePriipsStartDate, thisFairValue, false, false, productHasMatured, /* priipsUsingRNdrifts */ true,/* updateCashflows */true,/* issuerIndx */0);
 
 			}
-
+			//
+			// ******* END: PRIIPs
+			//
 		}
 		//
 		// ******** END: loop through each product
