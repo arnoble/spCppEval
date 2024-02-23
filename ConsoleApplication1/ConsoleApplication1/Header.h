@@ -3509,7 +3509,10 @@ public:
 		mydb.prepare((SQLCHAR *)lineBuffer, 1);
 		return(0);
 	}
+
+	// ***********************
 	// evaluate product at this point in time
+	// ***********************
 	EvalResult evaluate(const int totalNumDays,
 		const int                 startPoint,
 		const int                 lastPoint,
@@ -3608,7 +3611,10 @@ public:
 		}
 		int                      numIncomeBarriers(0);
 		
-		// init
+
+		// ***************
+		// ******* init
+		// ***************
 		// form totalVariance surfaces, for use in thisSig InterpolateMatrix ... give a more correct time-interpolation of volSurfaces
 		std::vector< std::vector<  std::vector<double>> >  totalVariance;
 		if ((getMarketData || useUserParams) && (numMcIterations > 1)) {
@@ -3705,6 +3711,13 @@ public:
 				thisBrel.endDaysDiff  = b.endDays - thisBrel.endDays;
 			}
 		}
+		// ***************
+		// ******* END: init
+		// ***************
+
+
+
+
 
 
 
@@ -3713,10 +3726,8 @@ public:
 		// *****************
 		int numMonDates = (int)monDateIndx.size();
 		double accuracyTol(0.1);
-		// market risk variables and initc
-		bool   calledByPricer = true;
-		bool   doQuantoDriftAdj = calledByPricer && notUKSPA;
-		bool useAntithetic = true;
+		bool   doQuantoDriftAdj  = notUKSPA;
+		bool   useAntithetic     = true;
 		double thisT,thatT,thisPrice;
 		std::vector<std::vector<double> > simulatedShocks(numUl);
 		std::vector<std::vector<double> > cholMatrix(numUl, std::vector<double>(numUl)), rnCorr(numUl, std::vector<double>(numUl)),
@@ -3726,6 +3737,10 @@ public:
 		// set up forwardVols for the period to each obsDate
 		std::vector< std::vector< std::vector<double>> >  ObsDateVols(numUl); // numUl x numObsDates x strike
 		std::vector<double>                               ObsDatesT(numMonDates);
+		
+		// 
+		// ******** init GBM correlation matrix, forward vols
+		//
 		if (getMarketData || useUserParams){
 			// debug only: init antitheticRandom and force its use below using 'true' for 'useAntithetic' in the call to GenerateCorrelatedNormal()			
 			for (i=0; i < (int)antitheticRandom.size(); i++){
@@ -3733,9 +3748,9 @@ public:
 					antitheticRandom[i][j] = -1.0;
 				}
 			}
-			
-			
-			// init correlation matrix
+			//	
+			// ******* init correlation matrix rnCorr
+			//
 			// ... initialise to unit diagonal
 			for (i=0; i<numUl; i++) {        	    
 				for (j=0; j<numUl; j++) {
@@ -3755,13 +3770,15 @@ public:
 					rnCorr[otherId][i]  = thisCorr;
 				}
 			}
-			// finally decompose this correlation matrix
+			// ... finally Cholesky-decompose this rnCorr correlation matrix into cholMatrix
 			evalResult = CHOL(rnCorr, cholMatrix);
 			if (evalResult.errorCode != 0){
 				return(evalResult);
 			}
 
-			// set up forwardVols for the period to each obsDate
+			//
+			// ******* set up forwardVols for the period to each obsDate
+			//
 			double oneDay  = 1.0 / daysPerYear;
 			for (i=0; i<numMonDates; i++) {
 				ObsDatesT[i] = monDateT[i] * oneDay;
@@ -3774,11 +3791,11 @@ public:
 				std::vector<std::vector<double>>  someVolSurface(numMonDates,std::vector<double>(numStrikes));
 				double latestObsVol = -1.0;
 				for (j=0; j<numStrikes; j++) {
-					int thisDateIndx        = 0;
-					int k                   = 0;
+					int thisDateIndx           = 0;
+					int k                      = 0;
 					double cumulativeVariance  = 0.0;
 					double cumulativeT         = 0.0;
-					thatT               = 0.0;
+					thatT                      = 0.0;
 					while (thisDateIndx < numMonDates && k < numTenors) {
 						//
 						// accumulate vol to the next ObsDate
@@ -3821,11 +3838,18 @@ public:
 				}
 				ObsDateVols[i] = someVolSurface;
 			}
+			//
+			// ******* END: set up forwardVols for the period to each obsDate
+			//
 		}
+		// 
+		// ******** END: init GBM correlation matrix, forward vols
+		//
+
+		//  stopping-rule accuracies
 		if (     !getMarketData && numMcIterations <= 25000){ accuracyTol = 2.0; }
 		else if (!getMarketData && numMcIterations <= 50000){ accuracyTol = 1.0; }
 		else if ( getMarketData || numMcIterations > 200000){ accuracyTol = 0.01; }
-
 
 		/*
 		* debug
@@ -3836,8 +3860,15 @@ public:
 				std::cerr << "SPOT" << i << ":" << spots[i] << std::endl;
 			}
 		}
+
+
+
+
+
+
+
 		// ***********************
-		// START LOOP McIterations
+		// ******* START LOOP McIterations
 		// ***********************
 		std::vector<double> debugCorrelatedRandNos;
 		int numDisables(0);
@@ -4958,13 +4989,22 @@ public:
 				if (verbose) { std::cout << std::endl << " MeanPayoff:" << thisMean << " StdevRatio:" << thisStdevRatio << " StdevRatioChange:" << stdevRatioPctChange; }
 				stdevRatio = thisStdevRatio;
 			}
-		} // END LOOP McIterations
+		}
+		// ***********************
+		// ******* END: START LOOP McIterations
+		// ***********************
 
 		
+
+
+
+
 		// *****************
-		// ** handle results
+		// ******* handle results
 		// *****************
-		// save optimisation data	
+		//
+		// ... save optimisation data	
+		//
 		if (forOptimisation && !doAccruals){
 			if (productIndx == 0){
 				// save underlying values for each iteration
@@ -5039,13 +5079,11 @@ public:
 				}
 			}
 		}  // forOptimisation
+		//
+		// NORMAL processing ... NOT forOptimisation
+		//
 		else {
 			// if we are doing accruals
-
-
-
-
-
 			if (doAccruals){
 				accruedCoupon = couponValue;  // store accrued coupon
 				/*
@@ -5105,7 +5143,9 @@ public:
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);
 				}
 			} // END doAccruals
+			//
 			// not doing accruals
+			//
 			else {
 				if (0 && (int)debugCorrelatedRandNos.size() > 2) {
 					double thisMean, thisStd, thisStderr;
@@ -5360,7 +5400,7 @@ public:
 
 
 									// pv payoffs
-									if (getMarketData && calledByPricer) {
+									if (getMarketData) {
 										pvInstances.push_back((thisAmount)*thisDiscountFactor);
 									}
 									if (doPriips  && analyseCase == 0) {
