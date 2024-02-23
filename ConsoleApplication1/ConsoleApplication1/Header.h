@@ -2034,6 +2034,9 @@ public:
 	}
 
 };
+// END class SpBarrierRelation
+
+
 
 class SpBarrier {
 private:
@@ -2110,7 +2113,9 @@ public:
 		init();
 	};
 
-
+	//
+	// ******* SpBarrier.gmmConditionalExpectation()
+	//
 	double gmmConditionalExpectation(const double x) {
 		// priors - the relative probs of obtaining this x under each cluster marginal
 		Vec_IO_DP wts(gmmNumClusters);
@@ -2137,13 +2142,18 @@ public:
 		return(thisExpectation);
 	}
 	
-	// bump this barrier by someDays
+	//
+	// ******* SpBarrier.bumpSomeDays() ... bump this barrier by someDays
+	//
 	void bumpSomeDays(const int someDays){
 		endDays          +=  someDays;
 		startDays        +=  someDays;
 		yearsToBarrier    = endDays / daysPerYear;
 		totalBarrierYears = (endDays + daysExtant) / daysPerYear;
 	}
+	//
+	// ******* SpBarrier.init()
+	//
 	void init(){
 		using namespace boost::gregorian;
 		date bEndDate(from_simple_string(settlementDate));
@@ -2243,7 +2253,9 @@ public:
 
 	
 
-	// isNeverHit  ... issuerCallable needs to turn off non-terminal Capital barriers
+	//
+	// ******* SpBarrier.isNeverHit()  ... issuerCallable needs to turn off non-terminal Capital barriers
+	// 
 	bool isNeverHit(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl
 	) {
 		int j;
@@ -2265,7 +2277,9 @@ public:
 		return(false);
 	}
 	
-	// isCallableHit
+	//
+	// ******* SpBarrier.isCallableHit()  
+	// 
 	bool isCallableHit(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl
 	) {
 		double conditionalExpectation(0.0);
@@ -2319,15 +2333,24 @@ public:
 		return (isCalled);
 	}
 	
+	//
+	// ******* SpBarrier.setIsNeverHit()
+	// 
 	void setIsNeverHit(){
 		worstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
 		nextWorstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
 		isHit = &SpBarrier::isNeverHit;
 	}
+	//
+	// ******* SpBarrier.setIsCallableHit()
+	// 
 	void setIsCallableHit(){
 		isHit = &SpBarrier::isCallableHit;
 	}
 
+	//
+	// ******* SpBarrier.isHitVanilla()
+	// 
 	// VANILLA test if barrier is hit
 	// ...set useUlMap to false if you have more thesePrices than numUnderlyings...for example product #217 has barriers with brels keyed to the same underlying
 	//     so that a barrier can have multiple barrierRelations on the same underlying
@@ -2361,6 +2384,9 @@ public:
 	};
 
 
+	//
+	// ******* SpBarrier.isHitAutocallHimalaya()
+	// 
 	// AutocallHimalaya test if barrier is hit
 	// ... underlyings that hit barrier are Memoried
 	bool isHitAutocallHimalaya(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl) {
@@ -2401,6 +2427,9 @@ public:
 	};
 
 
+	//
+	// ******* SpBarrier.isHitLargestN()
+	// 
 	// LargestN test if barrier is hit
 	//  e.g barrier is hit if the best 3 underlyings are above their respective barrierLevels
 	//  ... for which param1 should be set to 4
@@ -2462,6 +2491,9 @@ public:
 	};
 
 
+	//
+	// ******* SpBarrier.isHitBasket()
+	// 
 	// basket test if barrier is hit
 	// ... to performance-weight basket, use underlyingFunctionId == uFnLargestN
 	bool isHitBasket(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl) {
@@ -2515,7 +2547,9 @@ public:
 	};
 
 
-
+	//
+	// ******* SpBarrier.isHitOutperf()
+	// 
 	// outperf test if barrier is hit
 	bool isHitOutperf(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl
 	) {
@@ -2609,6 +2643,9 @@ public:
 	};
 
 	
+	//
+	// ******* SpBarrier.getPayoff()
+	// 
 	// get payoff
 	double getPayoff(const std::vector<double> &startLevels,
 		std::vector<double>                    &lookbackLevel,
@@ -2848,6 +2885,10 @@ public:
 
 		return(thisPayoff);
 	}
+
+	//
+	// ******* SpBarrier.storePayoff()
+	// 
 	void storePayoff(const std::string thisDateString, const double amount, const double couponValue, const double proportion, 
 		const double finalAssetReturn, const int finalAssetIndx, const int barrierIndx, const bool doFinalAssetReturn, const double benchmarkReturn, 
 		const bool storeBenchmarkReturn, const bool doAccruals, const bool containsVariableCoupons){
@@ -2876,6 +2917,10 @@ public:
 		}
 	}
 
+
+	//
+	// ******* SpBarrier.doAveraging()
+	// 
 	// do any averaging
 	void doAveraging(const std::vector<double> &startLevels, std::vector<double> &thesePrices, std::vector<double> &lookbackLevel, const std::vector<UlTimeseries> &ulPrices,
 		const int thisPoint, const int thisMonPoint, const int numUls, std::vector<bool> &useUl
@@ -2969,11 +3014,14 @@ public:
 		}
 	}
 };
+// END class SpBarrier
 
 
 
 
-// math functions
+// 
+// public: PayoffMean - calculate average Capital payoff, across all barriers
+//
 double PayoffMean(const std::vector<SpBarrier> &barrier){
 	int                 numInstances(0);
 	double              sumPayoffs(0.0);
@@ -2989,6 +3037,9 @@ double PayoffMean(const std::vector<SpBarrier> &barrier){
 	return (sumPayoffs / numInstances);
 }
 
+// 
+// public: PayoffStdev - calculate standard deviation of all Capital payoffs, across all barriers
+//
 double PayoffStdev(const std::vector<SpBarrier> &barrier, const double mean){
 	int                 numInstances(0);
 	double              sumVariance(0.0);
@@ -4533,7 +4584,7 @@ public:
 								*  MAYBE: Re-estimate for those burn-in iterations, then continue with the remaining iterations
 								*
 								*/
-								if (issuerCallable /* && getMarketData */ &&  b.capitalOrIncome && numMcIterations>1 && thisIteration < numBurnInIterations){
+								if (issuerCallable  &&  b.capitalOrIncome && numMcIterations>1 && thisIteration < numBurnInIterations){
 									//  store burn-in terminal cashflows, for use in GMM/LS regression
 									callableCashflows.push_back(thisAmount);
 									// once burned-in, estimate the GMM/LS regressions
@@ -4962,7 +5013,7 @@ public:
 										}
 										if (verbose){ std::cerr << "IssuerCallable: regressions finished ... continue remaining mcIterations " << std::endl; }
 									} // if (thisIteration == (numBurnInIterations - 1)
-								} // if (issuerCallable && getMarketData &&  ...
+								} // if (issuerCallable &&  ...
 								// FINALLY, store this payoff
 								else {
 									b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
@@ -5002,7 +5053,10 @@ public:
 			if (!matured && !doAccruals){
 				int j = 1;
 			}
-			// end-this-iteration convergence test
+
+			//
+			// ******* convergence test ... small changes in stdev/mean of payoffs
+			//
 			if (verbose && ((thisIteration + 1) % 1000) == 0){
 				std::cout << ".";
 			}
@@ -5025,7 +5079,7 @@ public:
 			}
 		}
 		// ***********************
-		// ******* END: START LOOP McIterations
+		// ******* END: LOOP McIterations
 		// ***********************
 
 		
@@ -5265,11 +5319,11 @@ public:
 						bool     applyCredit = analyseCase == 1;
 						std::map<int, double> cashflowMap;
 						double   projectedReturn = (numMcIterations == 1 ? (applyCredit ? 0.05 : 0.0) : (doPriips ? 0.08 : (applyCredit ? 0.02 : 1.0)));
-						if      (ukspaCase == "Bear"   ) { projectedReturn = 0.1; }
-						else if (ukspaCase == "Neutral") { projectedReturn = 0.2; }
-						else if (ukspaCase == "Bull"   ) { projectedReturn = 0.3; }
+						if      (ukspaCase == "Bear"        ) { projectedReturn = 0.1; }
+						else if (ukspaCase == "Neutral"     ) { projectedReturn = 0.2; }
+						else if (ukspaCase == "Bull"        ) { projectedReturn = 0.3; }
 						if (getMarketData && ukspaCase == "") { projectedReturn = 0.4; }
-						if (useUserParams) { projectedReturn = 0.5; }
+						if (useUserParams                   ) { projectedReturn = 0.5; }
 						if (applyCredit) { ArtsRanInit(); }  // so multiIssuer analysis always sees the same ran sequence
 						bool     foundEarliest = false;
 						double   probEarly(0.0), probEarliest(0.0);
@@ -5555,7 +5609,9 @@ public:
 						}
 						cagrRisk = sqrt(cagrRisk / sumCagrWeights);
 
-						// winlose ratios for different cutoff returns
+						//
+						// ******* winlose ratios for different cutoff returns
+						//
 						// ...two ways to do it
 						// ...first recognises the fact that a 6y annuity is worth more than a 1y annuity
 						// ...second assumes annualised returns have equal duration
@@ -5590,9 +5646,14 @@ public:
 							}
 
 						}
+						//
+						// ******* END: winlose ratios for different cutoff returns
+						//
 
 
+						//
 						// possibly track timepoints
+						//
 						if (doTimepoints && analyseCase == 0 && !usingProto && !getMarketData && !doPriips) {
 							for (i=0; i < numTimepoints; i++) {
 								int thisTpDays   = timepointDays[i];
@@ -5617,7 +5678,10 @@ public:
 							}
 						}
 
+
+						//
 						// benchmark underperformance   NOT STRICT
+						//
 						// NOTE: these are ARITHMETIC averages, whereas ecGain and ecLoss are essentially CAGRs
 						double benchmarkProbUnderperf(0.0), benchmarkCondUnderperf(0.0), benchmarkProbOutperf(0.0), benchmarkCondOutperf(0.0);
 						double bmRelUnderperfPV(0.0), bmRelOutperfPV(0.0), bmRelCAGR(0.0), cumUnderperfPV(0.0), cumOutperfPV(0.0);
@@ -5653,7 +5717,10 @@ public:
 						bmRelCAGR       = sumYearsToBarrier > 0.0 ? exp(bmRelCAGR / sumYearsToBarrier) - 1.0 : 0.0;
 						bmRelCAGR       = MyMinAbs(1000.0, bmRelCAGR);
 
-						// ** process overall product results
+
+						// *******************
+						// ******* process overall product results
+						// *******************
 						sort(allPayoffs.begin(),      allPayoffs.end());
 						sort(allAnnRets.begin(),      allAnnRets.end());
 						if (doPriips) {
@@ -6230,10 +6297,11 @@ public:
 					} // for analyseCase
 				} // for thisIssuerIndx
 			}  // not doAccruals
-		} // not forOptimisation
+		} // handleResults
 		return(evalResult);
 	}  // evaluate()
-}; // class SProduct
+};
+// END class SProduct
 
 
 
