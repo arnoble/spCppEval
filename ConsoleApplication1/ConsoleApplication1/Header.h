@@ -3966,6 +3966,9 @@ public:
 			// create new random sample for next iteration
 			if (numMcIterations > 1){
 
+				// **************
+				// ******* generate price paths - Geometric Brownian Motion - change/populate future ulPrices[someUlIndx].price[someFuturePoint]
+				// **************
 				if (getMarketData || useUserParams){
 					// init
 					useAntithetic = !useAntithetic;
@@ -4042,6 +4045,9 @@ public:
 									for (i = 0; i < numUl; i++) {
 										int id = ulIds[i];
 										int ix = optimiseUlIdNameMap[id];
+										//
+										// create path point
+										//
 										ulPrices[i].price[thatPricePoint] = optimiseMcLevels[ix][thisDay-1][thisIteration];
 									}
 								}
@@ -4078,6 +4084,9 @@ public:
 									if (currentLevels[i] < 0.0){ currentLevels[i]  = 0.1; }  // some fixed divs could do this eg UKXFD, tiny positive avoids varianceCalcs blowing up
 									currentQuantoLevels[i] = currentQuantoLevels[i] * thisReturn *  (doQuantoDriftAdj ? exp(-thisSig * thisEqFxCorr[i] * 0.15 * dt) : 1.0) - thisFixedDiv;
 									if (currentQuantoLevels[i] < 0.0){ currentQuantoLevels[i]  = 0.0; }  // some fixed divs could do this eg UKXFD
+									//
+									// create path point
+									//
 									ulPrices[i].price[thatPricePoint] = currentQuantoLevels[i];
 
 									// debugCorrelatedRandNos.push_back(currentQuantoLevels[i]/spotLevels[i]);
@@ -4100,8 +4109,10 @@ public:
 						}
 					}
 				}
+				// **************
+				// ******* generate price paths - bootstrap resampling - change/populate future ulPrices[someUlIndx].price[someFuturePoint]
+				// **************
 				else {
-					// bootstrap resampling
 					bool useNewerMethod(true);
 					bool useNewMethod(false);
 					unsigned long int _notionalIx = (unsigned long int)floor( /*((double)rand() / RAND_MAX)*/ ArtsRan()*(npPos - 1));
@@ -4137,6 +4148,9 @@ public:
 							thisReturnIndex = returnsSeq[_notionalIx];
 							for (i = 0; i < numUl + hasCompoIntoCcy; i++) {
 								double thisReturn; thisReturn = ulReturns[i][thisReturnIndex];
+								//
+								// create path point
+								//
 								ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
 							}
 							// wind back one unit
@@ -4152,6 +4166,9 @@ public:
 								int thisIndx = useAntithetic ? totalNumReturns - thisTrace[j - 1] - 1 : thisTrace[j - 1];
 								for (i = 0; i < numUl; i++) {
 									double thisReturn; thisReturn = ulReturns[i][thisIndx];
+									//
+									// create path point
+									//
 									ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
 								}
 							}
@@ -4161,6 +4178,9 @@ public:
 								int thisIndx; thisIndx = (int)floor( /*((double)rand() / RAND_MAX)*/ ArtsRan()*(totalNumReturns - 1));
 								for (i = 0; i < numUl; i++) {
 									double thisReturn; thisReturn = ulReturns[i][thisIndx];
+									//
+									// create path point
+									//
 									ulPrices[i].price[j] = ulPrices[i].price[j - 1] * thisReturn;
 								}
 							}
@@ -4172,6 +4192,9 @@ public:
 					if (doShiftPrices[i]){
 						double thisShift = shiftPrices[i];
 						for (j = startPoint + 1; j <= startPoint + productDays; j++){
+							//
+							// create path point
+							//
 							ulPrices[i].price[j] -= thisShift;
 						}
 					}
