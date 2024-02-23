@@ -852,7 +852,7 @@ int _tmain(int argc, WCHAR* argv[])
 			int              thisNumIterations = requesterNumIterations, numBarriers = 0, thisIteration = 0, compoIntoCcyUid = 0;
 			int              i, j, k, len, len1, anyInt, numUl, numMonPoints,totalNumDays, totalNumReturns, uid, daysToFirstCapitalBarrier = 0;
 			int              productId, anyTypeId, thisPayoffId, productShapeId, protectionLevelId,barrierRelationId;
-			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, strike, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
+			double           anyDouble, cds5y, maxBarrierDays, barrier, uBarrier, payoff, unBentStrike, strike, unBentCap, cap, participation, fixedCoupon, AMC, issuePrice, bidPrice, askPrice, midPrice;
 			double           compoIntoCcyStrikePrice(0.0), baseCcyReturn, benchmarkStrike, thisBarrierBendDays, thisBarrierBendFraction;
 			string           thisProjectedReturn,productShape, protectionLevel, couponFrequency, productStartDateString, productCcy, word, word1, thisPayoffType, startDateString, endDateString, nature, settlementDate,
 				description, avgInAlgebra, productTimepoints, productPercentiles,fairValueDateString,bidAskDateString,lastDataDateString;
@@ -2188,14 +2188,16 @@ int _tmain(int argc, WCHAR* argv[])
 				double bendParticipation = participation > 0.0                            ?  1.0 : participation < 0.0                           ? -1.0 : 0.0;
 				double bendDirection     = bendCallPut * bendParticipation;
 				if (ucPayoffType.find("FIXED") != std::string::npos) { bendDirection  = -1.0; }
-				strike          = max(0.0,          atof(szAllPrices[colStrike]) + thisBarrierBend * bendDirection);
+				unBentStrike    = max(0.0, atof(szAllPrices[colStrike]));
+				strike          = max(0.0, atof(szAllPrices[colStrike]) + thisBarrierBend * bendDirection);
 				// cap changed from barrierBend to thisBarrierBend ... can't think why we treated the cap differently to the strike
 				// ... and changed again to reduce barrierBend by 50%, and 100% if cap < 0.1
 				// ... actually lets reduce the cap barrierBend to zero ... there should be 1 amount of margin, shared by whichever strike is ausing the most gamma
-				cap             = atof(szAllPrices[colCap]);
-				cap             = max(-1.0,max(-1.0,cap - thisBarrierBend * bendDirection * 0.0));   
+				unBentCap       = atof(szAllPrices[colCap]);
+				cap             = max(-1.0,max(-1.0, unBentCap - thisBarrierBend * bendDirection * 0.0));
 				int     underlyingFunctionId = atoi(szAllPrices[colUnderlyingFunctionId]);
-				double  param1 = atof(szAllPrices[colParam1]);
+				double  unBentParam1 = atof(szAllPrices[colParam1]);
+				double  param1       = atof(szAllPrices[colParam1]);
 				if (ucPayoffType.find("BASKET") != std::string::npos){
 					param1 = max(0.0, param1 + thisBarrierBend*bendDirection);
 				}
@@ -2207,7 +2209,8 @@ int _tmain(int argc, WCHAR* argv[])
 					thisPayoffType, thisPayoffId, strike, cap, underlyingFunctionId, param1, participation, ulIdNameMap, avgDays, avgType,
 					avgFreq, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, barrierCommands, daysExtant, bProductStartDate, doFinalAssetReturn, midPrice,
 					thisBarrierBend,bendDirection,spots,doDebug,debugLevel,annualFundingUnwindCost,productId,mydb,fixedCoupon,couponFrequency,
-					couponPaidOut,spr.baseCurveTenor,spr.baseCurveSpread,productShape, doForwardValueCoupons || getMarketData, daysPerYear,getMarketData));
+					couponPaidOut,spr.baseCurveTenor,spr.baseCurveSpread,productShape, doForwardValueCoupons || getMarketData, daysPerYear,getMarketData,
+					unBentStrike,unBentCap,unBentParam1));
 				SpBarrier &thisBarrier(spr.barrier.at(numBarriers));
 	
 				// get barrier relations from DB
@@ -2260,7 +2263,8 @@ int _tmain(int argc, WCHAR* argv[])
 						thisBarrier.brel.push_back(SpBarrierRelation(barrierRelationId,uid, barrier, uBarrier, isAbsolute, startDateString, endDateString,
 							above, at, weight, daysExtant, strikeOverride != 0.0 ? strikeOverride : thisBarrier.strike, ulPrices.at(ulIdNameMap[uid]), 
 							avgType, avgDays, avgFreq, avgInDays, avgInFreq, avgInAlgebra,productStartDateString,isContinuousALL,
-							thisBarrier.isStrikeReset, thisBarrier.isStopLoss, thisBarrierBend, bendDirection, getMarketData, doForwardValueCoupons));
+							thisBarrier.isStrikeReset, thisBarrier.isStopLoss, thisBarrierBend, bendDirection, getMarketData, doForwardValueCoupons,
+							strikeOverride != 0.0 ? strikeOverride : thisBarrier.unBentStrike));
 					}
 					// next barrierRelation record
 					retcode = mydb1.fetch(false,"");

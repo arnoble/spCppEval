@@ -1881,12 +1881,13 @@ public:
 		const double        thisBarrierBend,
 		const double        bendDirection,
 		const bool          getMarketData, 
-		const bool          doForwardValueCoupons)
+		const bool          doForwardValueCoupons,
+		const double        unBentStrike)
 		: barrierRelationId(barrierRelationId), underlying(underlying), originalBarrier(_barrier), originalUbarrier(_uBarrier), isAbsolute(_isAbsolute),
 		startDate(startDate), endDate(endDate), above(above), at(at), weight(weight), daysExtant(daysExtant),
 		originalStrike(unadjStrike), avgType(avgType), avgDays(avgDays), avgFreq(avgFreq), avgInDays(avgInDays), avgInFreq(avgInFreq),
 		avgInAlgebra(avgInAlgebra), isContinuousALL(isContinuousALL), isStrikeReset(isStrikeReset), isStopLoss(isStopLoss), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection),
-		getMarketData(getMarketData),doForwardValueCoupons(doForwardValueCoupons)
+		getMarketData(getMarketData),doForwardValueCoupons(doForwardValueCoupons), unBentStrike(unBentStrike)
 	{
 		/*
 		const boost::gregorian::date bStartDate(boost::gregorian::from_simple_string(startDate));
@@ -1965,17 +1966,20 @@ public:
 			moneyness      = 1.0;
 		}
 	};
-	const bool        above, at, isAbsolute, isContinuousALL, isStrikeReset, isStopLoss;
-	const int         barrierRelationId, underlying, avgType, avgDays, avgFreq, daysExtant;
-	const double      originalStrike,originalBarrier, originalUbarrier,weight;
-	const std::string startDate, endDate, avgInAlgebra;
-	int               count, j, k, startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0, endDaysDiff=0;
-	double            avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness, originalMoneyness=1.0;
-	bool              readyForAvgObs;
-	std::vector<double> runningAverage;
-	std::vector<bool>   avgWasHit;
+	// SpBarrierRelation constructor
+
+	// public members
+	const bool             above, at, isAbsolute, isContinuousALL, isStrikeReset, isStopLoss;
+	const int              barrierRelationId, underlying, avgType, avgDays, avgFreq, daysExtant;
+	const double           unBentStrike,originalStrike,originalBarrier, originalUbarrier,weight;
+	const std::string      startDate, endDate, avgInAlgebra;
+	int                    count, j, k, startDays, endDays, runningAvgDays, avgInDays, avgInFreq, numAvgInSofar=0, countAvgInSofar=0, endDaysDiff=0;
+	double                 avgInSofar=0.0, refLevel, barrier, uBarrier, barrierLevel, uBarrierLevel, strike, moneyness, originalMoneyness=1.0;
+	bool                   readyForAvgObs;
+	std::vector<double>    runningAverage;
+	std::vector<bool>      avgWasHit;
 	boost::gregorian::date bStartDate,bEndDate;
-	std::vector<double>  theseAvgPrices;
+	std::vector<double>     theseAvgPrices;
 
 	// calculate moneyness
 	void calcMoneyness(const double thisMoneyness){
@@ -2032,6 +2036,10 @@ public:
 				uBarrierLevel     = uBarrier * refLevel; 
 		}
 	}
+	// straightenBends
+	void straightenBends() {
+		strike = unBentStrike;
+	}
 
 };
 // END class SpBarrierRelation
@@ -2045,7 +2053,7 @@ private:
 	const int                   productId, debugLevel;
 	const int                   barrierNum;
 	const double                daysPerYear,fixedCoupon,thisBarrierBend;
-	const double                bendDirection;
+	const double                unBentCap, unBentParam1,bendDirection;
 	const std::vector <double>  &baseCurveTenor, &baseCurveSpread;
 	const std::string           couponFrequency,productShape;
 	const std::vector <double> &spots;
@@ -2096,7 +2104,10 @@ public:
 		const std::string           productShape,
 		const bool                  doForwardValueCoupons,
 		const double                daysPerYear,
-		const bool                  getMarketData
+		const bool                  getMarketData,
+		const double                unBentStrike, 
+		const double                unBentCap, 
+		const double                unBentParam1
 		)
 		: barrierNum(barrierNum), barrierId(barrierId), capitalOrIncome(capitalOrIncome), nature(nature), payoff(payoff),
 		settlementDate(settlementDate), description(description), payoffType(payoffType),
@@ -2108,7 +2119,8 @@ public:
 		midPrice(midPrice), thisBarrierBend(thisBarrierBend), bendDirection(bendDirection), isCountAvg(avgType == 2 && avgDays), spots(spots), doDebug(doDebug),
 		debugLevel(debugLevel), annualFundingUnwindCost(annualFundingUnwindCost),productId(productId),mydb(mydb),fixedCoupon(fixedCoupon),
 		couponFrequency(couponFrequency),couponPaidOut(couponPaidOut), baseCurveTenor(baseCurveTenor), baseCurveSpread(baseCurveSpread),
-		productShape(productShape), doForwardValueCoupons(doForwardValueCoupons), daysPerYear(daysPerYear),getMarketData(getMarketData)
+		productShape(productShape), doForwardValueCoupons(doForwardValueCoupons), daysPerYear(daysPerYear),getMarketData(getMarketData),
+		unBentStrike(unBentStrike), unBentCap(unBentCap), unBentParam1(unBentParam1)
 	{
 		init();
 	};
@@ -2216,6 +2228,12 @@ public:
 		if (doFinalAssetReturn){ fars.reserve(100000); }
 		hit.reserve(100000);
 	};
+	// straightenBends
+	void straightenBends() {
+		strike = unBentStrike;
+		cap    = unBentCap;
+		param1 = unBentParam1;
+	}
 
 
 	// public members: DOME consider making private, in case we implement their content some other way
@@ -2230,7 +2248,7 @@ public:
 	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
-	const double                    midPrice;
+	const double                    unBentStrike, midPrice;
 	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
 	const boost::gregorian::date    bProductStartDate;
@@ -3655,7 +3673,7 @@ public:
 		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
 		const int                numBurnInIterations = (int)(issuerCallable ? numMcIterations * CALLABLE_REGRESSION_FRACTION : 0);
 		const int                numLRMrhs = numUls > 1 ? 5 : 3;
-		const int                halfNumMcIterations(numMcIterations / 2);  // C++ discards any remaider
+		const int                halfNumMcIterations(doAccruals ? 1 : numMcIterations / 2);  // C++ discards any remaider
 		bool                     optFirstTime;
 		bool	                 optOptimiseAnnualisedReturn(!getMarketData); 
 		bool                     matured(false);
@@ -3970,6 +3988,20 @@ public:
 			if (doTurkey && thisIteration >= halfNumMcIterations) {
 				getMarketData = false;
 				ArtsRanInit();            // so that doTurkey sees the same ran sequence
+				//
+				// unBend things - they are only bent for getMarketData purposes
+				//
+				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++) {
+					SpBarrier& b(barrier.at(thisBarrier));
+					unsigned int numBrel = (unsigned int)b.brel.size();
+					b.straightenBends();
+					for (unsigned int uI = 0; uI < numBrel; uI++) {
+						SpBarrierRelation& thisBrel(b.brel.at(uI));
+						thisBrel.straightenBends();
+					}
+				}
+
+
 			}
 			// create new random sample for next iteration
 			if (numMcIterations > 1){
