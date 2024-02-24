@@ -3985,7 +3985,7 @@ public:
 			(forceIterations || fabs(stdevRatioPctChange)>accuracyTol); thisIteration++) {
 
 			// if it looks like a turkey it IS a turkey
-			if (doTurkey && thisIteration >= halfNumMcIterations) {
+			if (doTurkey && thisIteration == halfNumMcIterations) {
 				getMarketData = false;
 				ArtsRanInit();            // so that doTurkey sees the same ran sequence
 				//
