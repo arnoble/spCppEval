@@ -1936,6 +1936,8 @@ public:
 
 			// ...compute moneyness
 			calcMoneyness(ulTimeseries.price[lastIndx] / ulTimeseries.price[lastIndx - (isStrikeReset && startDays<0 ? -startDays : daysExtant)]);
+			// bumpSpots() can change the spot levels, so as to change barrier 'moneyness'
+			// ... so we use originalMoneyness to remember this initial moneyness
 			originalMoneyness = moneyness;
 
 			// ...compute running averages
@@ -2038,7 +2040,7 @@ public:
 	}
 	// straightenBends
 	void straightenBends() {
-		strike = unBentStrike;
+		strike = unBentStrike/originalMoneyness;
 	}
 
 };
@@ -2053,7 +2055,7 @@ private:
 	const int                   productId, debugLevel;
 	const int                   barrierNum;
 	const double                daysPerYear,fixedCoupon,thisBarrierBend;
-	const double                unBentCap, unBentParam1,bendDirection;
+	const double                bendDirection;
 	const std::vector <double>  &baseCurveTenor, &baseCurveSpread;
 	const std::string           couponFrequency,productShape;
 	const std::vector <double> &spots;
@@ -2228,7 +2230,14 @@ public:
 		if (doFinalAssetReturn){ fars.reserve(100000); }
 		hit.reserve(100000);
 	};
-	// straightenBends
+	//
+	// ******* END: SpBarrier.init()
+	//
+
+	//
+	// SpBerrier.straightenBends()
+	// ... only getMarketData/userParams bends barriers
+	// ... so if we want to switch to non-FV evaluation of barriers, we need to unbend things
 	void straightenBends() {
 		strike = unBentStrike;
 		cap    = unBentCap;
@@ -2248,7 +2257,8 @@ public:
 	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
-	const double                    unBentStrike, midPrice;
+	double                          unBentCap, unBentParam1, unBentStrike;
+	const double                    midPrice;
 	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
 	const boost::gregorian::date    bProductStartDate;

@@ -2230,6 +2230,9 @@ int _tmain(int argc, WCHAR* argv[])
 					bool   isAbsolute       = atoi(szAllPrices[brcolIsAbsolute]) == 1;
 					barrierRelationId       = atoi(szAllPrices[brcolBarrierRelationId]);
 					uid                     = atoi(szAllPrices[brcolUnderlyingId]);
+					// for some reason, we always bend BREL barrier/uBarrier
+					// ... whereas we only bend BARRIER strike/cap/param1 when doing getMarketData analysis
+					// ... DOME: review this sometime
 					barrier                 = max(0.0,atof(szAllPrices[brcolBarrier]) + thisBarrierBend*bendDirection);
 					uBarrier                = atof(szAllPrices[brcolUpperBarrier])   ;
 					if (uBarrier > 999999 && uBarrier < 1000001.0) { uBarrier = NULL; } // using 1000000 as a quasiNULL, since C++ SQLFetch ignores NULL columns
@@ -2248,13 +2251,15 @@ int _tmain(int argc, WCHAR* argv[])
 					double thisStrikeDatePrice = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
 					// ...DOME only works with single underlying, for now...the issue is whether to add FixedStrike fields to each brel
 					if (thisBarrier.isAbsolute)	{ 		// change fixed strike levels to percentages of spot
-						thisBarrier.cap        /= thisStrikeDatePrice;
-						thisBarrier.strike     /= thisStrikeDatePrice;
+						thisBarrier.cap          /= thisStrikeDatePrice;
+						thisBarrier.unBentCap    /= thisStrikeDatePrice;
+						thisBarrier.strike       /= thisStrikeDatePrice;
+						thisBarrier.unBentStrike /= thisStrikeDatePrice;
 					}
 					if (isAbsolute){
 						barrier /= thisStrikeDatePrice;
-						if (uBarrier != NULL) { uBarrier       /= thisStrikeDatePrice; }
-						if (strikeOverride != 0.0)  { strikeOverride /= thisStrikeDatePrice; }
+						if (uBarrier != NULL     ) { uBarrier       /= thisStrikeDatePrice; }
+						if (strikeOverride != 0.0) { strikeOverride /= thisStrikeDatePrice; }
 					}
 					if (strikeOverride != 0.0)  { strikeOverride = max(0.0,strikeOverride + thisBarrierBend*bendDirection); }
 				
@@ -2286,7 +2291,8 @@ int _tmain(int argc, WCHAR* argv[])
 						double refPrice   = ulPrices.at(ulIdNameMap[uid]).price[totalNumDays - 1 - daysExtant];
 						basketFinal   += finalPrice / refPrice * w;
 					}
-					thisBarrier.strike  /= basketFinal / basketRef;
+					thisBarrier.strike        /= basketFinal / basketRef;
+					thisBarrier.unBentStrike  /= basketFinal / basketRef;
 					break;
 				}
 
