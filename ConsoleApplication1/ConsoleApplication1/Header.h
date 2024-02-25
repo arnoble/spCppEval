@@ -2272,7 +2272,7 @@ public:
 	std::vector <SpBarrierRelation> brel;
 	std::vector <SpPayoff>          hit;
 	std::vector <SpPayoffAndDate>   hitWithDate;
-	std::vector <double>            couponValues;
+	std::vector <double>            couponValues;    // storePayoff() does .pushBack()
 	std::vector <bool>              payoffContainsVariableCoupons;
 	const int numLRMrhs             = (int)spots.size() > 1 ? 5 : 3;
 	const bool aimForHeadlineAnnRet = !getMarketData && !doForwardValueCoupons;
@@ -2383,6 +2383,8 @@ public:
 		if ((capitalOrIncome && endDays < maxEndDays && endDays > 0)
 			// || (!b.capitalOrIncome && b.endDays == maxEndDays)
 			) {
+			worstUlRegressionPrices.clear();
+			nextWorstUlRegressionPrices.clear();
 			worstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
 			nextWorstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
 			isHit = &SpBarrier::isNeverHit;
@@ -3701,7 +3703,9 @@ public:
 		std::vector<bool>		 barrierDisabled;
 		const int                optMaxNumToSend = 1000;
 		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
-		const int                numBurnInIterations = (int)(issuerCallable ? numMcIterations * CALLABLE_REGRESSION_FRACTION : 0);
+		const int                numBurnInIterations = (int)(issuerCallable ? numMcIterations * CALLABLE_REGRESSION_FRACTION * (doTurkey ? 0.5 : 0.0): 0);
+		int                      startBurnInIteration(0);
+		int                      stopBurnInIteration(numBurnInIterations);
 		const int                numLRMrhs = numUls > 1 ? 5 : 3;
 		const int                halfNumMcIterations(doAccruals ? 1 : numMcIterations / 2);  // C++ discards any remaider
 		bool                     optFirstTime;
@@ -3719,7 +3723,7 @@ public:
 		std::vector< std::vector<double> > simulatedLogReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedReturnsToMaxYears(numUl);
 		std::vector< std::vector<double> > simulatedLevelsToMaxYears(numUl);
-		std::vector<double>      callableCashflows; if (issuerCallable) { callableCashflows.reserve(numBurnInIterations); }
+		std::vector<double>      callableCashflows; if (issuerCallable) { callableCashflows.reserve(numBurnInIterations); }  // .push_back() in burnIn iterations
 		std::vector<double>      stdevRatioPctChanges;
 		std::vector<double>      optimiseProductResult;   
 		std::vector<double>      optimiseProductPayoff;   
@@ -4023,11 +4027,19 @@ public:
 				//
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++) {
 					SpBarrier& b(barrier.at(thisBarrier));
+					// ... straighten bends
 					unsigned int numBrel = (unsigned int)b.brel.size();
 					b.straightenBends();
 					for (unsigned int uI = 0; uI < numBrel; uI++) {
 						SpBarrierRelation& thisBrel(b.brel.at(uI));
 						thisBrel.straightenBends();
+					}
+					// ... issuerCallable
+					if (issuerCallable) {
+						startBurnInIteration = thisIteration;
+						stopBurnInIteration  = startBurnInIteration + numBurnInIterations;
+						b.setIsNeverHit();
+						callableCashflows.clear();
 					}
 				}
 
@@ -4466,7 +4478,7 @@ public:
 									}
 								}
 								if (thisIteration < numBurnInIterations) {
-									b.couponValues.push_back(thisCouponValue);
+									b.couponValues.push_back(thisCouponValue);   // does what storePayoff() would have done, were we not in burnIn period
 								}
 								else {
 									b.thisCouponValue = thisCouponValue;
@@ -4677,12 +4689,18 @@ public:
 								*  MAYBE: Re-estimate for those burn-in iterations, then continue with the remaining iterations
 								*
 								*/
-								if (issuerCallable  &&  b.capitalOrIncome && numMcIterations>1 && thisIteration < numBurnInIterations){
+								if (issuerCallable  
+									&&  b.capitalOrIncome 
+									&& numMcIterations>1 
+									&& thisIteration >= startBurnInIteration
+									&& thisIteration <  stopBurnInIteration) {
 									//  store burn-in terminal cashflows, for use in GMM/LS regression
 									callableCashflows.push_back(thisAmount);
+									//
 									// once burned-in, estimate the GMM/LS regressions
-									if (thisIteration == (numBurnInIterations - 1)){
-										if (numBurnInIterations != (int)callableCashflows.size()){
+									//
+									if (thisIteration == (stopBurnInIteration - 1)){
+										if (stopBurnInIteration - startBurnInIteration != (int)callableCashflows.size()){
 											std::cerr << " callable: incorrect size of callableCashflows" << std::endl;  exit(1);
 										}
 										double laterDiscountFactor = b.discountFactor;
@@ -5108,6 +5126,7 @@ public:
 									} // if (thisIteration == (numBurnInIterations - 1)
 								} // if (issuerCallable &&  ...
 								// FINALLY, store this payoff
+								//  ... provided not in issuerCallable burnIn period, which does its own 'storage' of payoffs
 								else {
 									b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
 										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, 
@@ -5349,6 +5368,9 @@ public:
 				}
 
 
+				//
+				//  count allEpisodes CAPITAL episodes
+				//
 				int    numAllEpisodes(0);
 				bool hasProportionalAvg(false), hasCountAvg(false);   // no couponHistogram, which only shows coupon-counts
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
@@ -5359,7 +5381,16 @@ public:
 					// hasProportionalAvg = hasProportionalAvg || barrier.at(thisBarrier).proportionalAveraging;
 					// hasCountAvg        = hasCountAvg        || barrier.at(thisBarrier).countAveraging;
 				}
-				if (numMcIterations>1 && ((issuerCallable && (numAllEpisodes + numBurnInIterations != thisIteration)) || (!issuerCallable && numAllEpisodes != thisIteration))){
+				//
+				// log unusual #episodes
+				//
+				if (numMcIterations>1 && 
+					  (
+					    (issuerCallable && (numAllEpisodes + (numBurnInIterations * (doTurkey ? 2.0 : 1.0)) != thisIteration)) 
+						|| 
+						(!issuerCallable && numAllEpisodes != thisIteration)
+					  )
+					){
 					numAllEpisodes = thisIteration;
 					sprintf(lineBuffer, "%s%d%s%d%s", "insert into cpluspluslog (DateTime,ProductId,UserId,Msg) values(now(),", productId, ",", userId, ",' **** BEWARE - STRONGLY SUGGEST YOU INVESTIGATE  ****  seems like Capital events do not cover 100% of possible events')");
 					mydb.prepare((SQLCHAR *)lineBuffer, 1);					
