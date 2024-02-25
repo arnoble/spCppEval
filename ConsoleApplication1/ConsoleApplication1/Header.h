@@ -3703,7 +3703,7 @@ public:
 		std::vector<bool>		 barrierDisabled;
 		const int                optMaxNumToSend = 1000;
 		const double             unwindPayoff    = 0.000000001; // avoid zero as is forces CAGR to -1.0 which is probably unreasonable, except for a naked option strategy
-		const int                numBurnInIterations = (int)(issuerCallable ? numMcIterations * CALLABLE_REGRESSION_FRACTION * (doTurkey ? 0.5 : 0.0): 0);
+		const int                numBurnInIterations = (int)(issuerCallable ? numMcIterations * CALLABLE_REGRESSION_FRACTION * (doTurkey ? 0.5 : 1.0): 0);
 		int                      startBurnInIteration(0);
 		int                      stopBurnInIteration(numBurnInIterations);
 		const int                numLRMrhs = numUls > 1 ? 5 : 3;
