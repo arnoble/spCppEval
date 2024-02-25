@@ -33,7 +33,7 @@
 #define CI_CLOSEDOUBLE					  1.0e-1	    // for tests of equality between 2 doubles
 #define EQ                                ==
 #define NEQ                               !=
-#define USE_GMM_CLUSTERS                  1
+#define USE_GMM_CLUSTERS                  1             // Gaussian Mixture Model for issuerCallable
 #define GMM_INIT_MIX_RANDOMLY             0
 #define	INVERT_USING_LU_DECOMPOSITION     1
 #define MY_SQL_GENERAL_ERROR             -1            // all the SQL codes seem to be non-negative, so this is a way of signalling something general went wrong
@@ -2263,7 +2263,7 @@ public:
 	const std::vector<int>          ulIdNameMap;
 	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
-	int                             startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
+	int                             maxEndDays,startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
 	double                          param1, thisCouponValue, fixedCouponValue,maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, participation,cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          lsConstant, lsWorstB, lsWorstSquaredB, lsNextWorstB, lsNextWorstSquaredB, proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate, discountFactor;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl);
@@ -2282,13 +2282,18 @@ public:
 	
 
 	//
-	// ******* SpBarrier.isNeverHit()  ... issuerCallable needs to turn off non-terminal Capital barriers
+	// ******* SpBarrier.isNeverHit()  
+	//       ... issuerCallable LEARNING_PHASE needs to turn off non-terminal Capital barriers
+	//       ... so, .isHit() initially set to isNeverHit for the burnInIterations
+	//       ... after burinInIterations we set .isHit() to isCallableHit() which does the call-or-continue logic
 	// 
 	bool isNeverHit(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl
 	) {
 		int j;
-		int numBrel = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		int numBrel = (int)brel.size();
+		// ... some products have zero brels eg simple maturity barrier (no attached barrier relations)
 		if (numBrel == 0) return false;
+		// ... otherwise, find the worst_ and nextWorst_ brel returns
 		std::vector<double> tempPrices; 
 		for (j = 0; j < numBrel; j++) {
 			const SpBarrierRelation &thisBrel(brel[j]);
@@ -2306,17 +2311,21 @@ public:
 	}
 	
 	//
-	// ******* SpBarrier.isCallableHit()  
+	// ******* SpBarrier.isCallableHit()
+	//       ... does the call-or-continue logic
+	//       ... after burinInIterations we set .isHit() to isCallableHit()
 	// 
 	bool isCallableHit(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl
 	) {
 		double conditionalExpectation(0.0);
 		double thisWorst, nextWorst;
 		const int numPrices = (int)thesePrices.size();
-		const int numBrel   = (int)brel.size();  // could be zero eg simple maturity barrier (no attached barrier relations)
+		const int numBrel   = (int)brel.size();
+		// some products have zero brels eg simple maturity barrier (no attached barrier relations)
+		if (numBrel == 0) return true;
 		std::vector<double> tempPrices;
 
-		// form x
+		// form dependent variables x
 		for (int j = 0; j < numBrel; j++) {
 			const SpBarrierRelation &thisBrel(brel[j]);
 			tempPrices.push_back(thesePrices[j] / thisBrel.refLevel);    // normalize prices to avoid overflow on matrix inversion
@@ -2330,11 +2339,13 @@ public:
 			thisWorst = tempPrices[0];
 		}
 
+		// calculate expected continuation value
 		if (USE_GMM_CLUSTERS) {
+			// Gaussian Mixture Model ... the conditionalExpectation of y for this x
 			conditionalExpectation  = gmmConditionalExpectation(thisWorst);
 		}
 		else {
-			// calculate expected continuation value
+			// linear y = b.x + c.x^2   + CONSTANT
 			conditionalExpectation = (lsConstant + thisWorst * lsWorstB + thisWorst * thisWorst*lsWorstSquaredB);
 			if (numPrices > 1) {
 				conditionalExpectation  += nextWorst * lsNextWorstB + nextWorst * nextWorst*lsNextWorstSquaredB;
@@ -2344,6 +2355,9 @@ public:
 		double thisPayoff = payoff + fixedCouponValue + thisCouponValue;
 		bool   isCalled(false);
 		double thisFundingUnwindCost = annualFundingUnwindCost * (maxYears - (daysExtant + endDays) / daysPerYear);
+		// Issuer should rationally either:
+		//   a) pay thisPayoff NOW if cheaper than letting it continue at a value of conditionalExpectation 
+		//   b) continue, since conditionalExpectation expected to e cheaper than paying thisPayoff NOW
 		if (conditionalExpectation > (thisPayoff + thisFundingUnwindCost)){
 			isCalled = true;
 		}
@@ -2363,14 +2377,20 @@ public:
 	
 	//
 	// ******* SpBarrier.setIsNeverHit()
+	//        ... IssuerCallable barriers initialise .isHit() to .isNeverHit()
 	// 
 	void setIsNeverHit(){
-		worstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
-		nextWorstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
-		isHit = &SpBarrier::isNeverHit;
+		if ((capitalOrIncome && endDays < maxEndDays && endDays > 0)
+			// || (!b.capitalOrIncome && b.endDays == maxEndDays)
+			) {
+			worstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
+			nextWorstUlRegressionPrices.reserve((int)(MAX_CALLABLE_ITERATIONS*CALLABLE_REGRESSION_FRACTION));
+			isHit = &SpBarrier::isNeverHit;
+		}
 	}
 	//
 	// ******* SpBarrier.setIsCallableHit()
+	//        ... IssuerCallable barriers, after burnInIterations, set .isHit() to .isCallableHit()
 	// 
 	void setIsCallableHit(){
 		isHit = &SpBarrier::isCallableHit;

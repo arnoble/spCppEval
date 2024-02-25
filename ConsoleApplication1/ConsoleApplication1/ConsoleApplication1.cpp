@@ -2595,11 +2595,8 @@ int _tmain(int argc, WCHAR* argv[])
 				// turn off barriers with (b.capitalOrIncome && b.endDays < maxEndDays)
 				for (i=0; i < numBarriers; i++){
 					SpBarrier&    b(spr.barrier.at(i));
-					if ((b.capitalOrIncome && b.endDays < maxEndDays && b.endDays > 0) 
-						// || (!b.capitalOrIncome && b.endDays == maxEndDays)
-						){
-						b.setIsNeverHit();
-					}
+					b.maxEndDays = maxEndDays;
+					b.setIsNeverHit();
 				}
 			}
 			//
