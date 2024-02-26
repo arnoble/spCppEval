@@ -2184,7 +2184,7 @@ public:
 		isExtremum               = false;
 		isContinuous             = false;
 		isContinuousGroup        = false;
-		hasBeenHit               = false;
+		hasBeenHit               = false;   // SProduct.evaluate(...,doAccruals=true,...) will check if this barrier 'hasBeenHit' post-strike
 		proportionHits           = 1.0;
 		sumProportion            = 0.0;
 		fixedCouponValue         = 0.0;
@@ -2285,7 +2285,7 @@ public:
 	// ******* SpBarrier.isNeverHit()  
 	//       ... issuerCallable LEARNING_PHASE needs to turn off non-terminal Capital barriers
 	//       ... so, .isHit() initially set to isNeverHit for the burnInIterations
-	//       ... after burinInIterations we set .isHit() to isCallableHit() which does the call-or-continue logic
+	//       ... after burInIterations we set .isHit() to isCallableHit() which does the call-or-continue logic
 	// 
 	bool isNeverHit(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl
 	) {
@@ -3360,9 +3360,9 @@ public:
 	}
 
 	// 
-	// ******* SProduct.initBarriers()  ... re-initialise barriers
+	// ******* SProduct.resetBarriers()  ... re-initialise barriers
 	// 
-	void initBarriers(){
+	void resetBarriers(){
 		numIncomeBarriers = 0;
 		int numBarriers = (int)barrier.size();
 		for (int j=0; j < numBarriers; j++){
@@ -3774,7 +3774,7 @@ public:
 		}
 
 		if (!doAccruals){
-			initBarriers();
+			resetBarriers();
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				SpBarrier& b(barrier.at(thisBarrier));
 				// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
@@ -4039,11 +4039,14 @@ public:
 						startBurnInIteration = thisIteration;
 						stopBurnInIteration  = startBurnInIteration + numBurnInIterations;
 						b.setIsNeverHit();
-						callableCashflows.clear();
+						b.a.clear();
+						b.muX.clear();
+						b.muY.clear();
+						b.covX.clear();
+						b.covXY.clear();
 					}
 				}
-
-
+				callableCashflows.clear();
 			}
 			// create new random sample for next iteration
 			if (numMcIterations > 1){
@@ -4684,11 +4687,13 @@ public:
 								thisAmount = (b.isCountAvg ? b.participation*min(b.cap, b.proportionHits*thisPayoff) : b.proportionHits*thisPayoff)*baseCcyReturn;
 								
 
-								/*  issuerCallable
-								*
-								*  MAYBE: Re-estimate for those burn-in iterations, then continue with the remaining iterations
-								*
-								*/
+								// ***********************
+								//  ******* issuerCallable
+								// ***********************
+								//   ... initial burnInIterations store 'thisAmount' payoffs
+								//   ... on the final burnInIteration we use these payoffs to estimate a regressionFunction for each earlier capitalBarrier
+								//   ... subsequent iterations then use b.iscallableHit() to exercise-or-continue based on the expected-vcontinuation-value from these regressionFunctions
+								//         ... MAYBE: Re-estimate for those burn-in iterations, then continue with the remaining iterations
 								if (issuerCallable  
 									&&  b.capitalOrIncome 
 									&& numMcIterations>1 
@@ -5003,7 +5008,7 @@ public:
 														conditionalExpectation[j][0] = thatB.gmmConditionalExpectation(x[j]);
 													}
 													// debug info
-													if (doDebug  && debugLevel >= 1) {
+														if (doDebug  && debugLevel >= 1) {
 														for (int i=0; i < numClusters; i++) {
 															sprintf(charBuffer, "%s %d%s %d%s %d%s %lf%s %lf%s %lf%s %lf%s %lf%s %lf%s ", 
 																"insert into gmmcoeff (ProductId,BarrierId,ClusterId,mix,muX,muY,covX,covY,covXY) values (", 
@@ -5113,8 +5118,8 @@ public:
 											}  // if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
 											int jj = 1;
 										} // for (int thatBarrier 
-										// re-initialise barriers
-										initBarriers();
+										// reset barriers
+										if (!doTurkey) { resetBarriers(); }
 										for (j=0; j < numBarriers; j++) {
 											SpBarrier& b(barrier.at(j));
 											// install callableIsHit

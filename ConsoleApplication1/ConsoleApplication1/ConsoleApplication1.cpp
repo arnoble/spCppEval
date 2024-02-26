@@ -2582,7 +2582,10 @@ int _tmain(int argc, WCHAR* argv[])
 			// issuerCallable ... turn off non-terminal Capital barriers
 			//
 			if (issuerCallable){
-				// find max(b.endDays)
+				// find last barrier date = max(b.endDays)
+				// ... so that all earlier barriers can be initially (during burnIn) turned off with b.setIsNeverHit();
+				// ... this way the terminal payoffDistribution (with #burnInIterations elements) can be built frm simulated paths
+				// ... so, after burnIn we can move backwards thrugh each progressively earlier barrier, calculating their expectationFunctions
 				int maxEndDays(0);
 				for (i=0; i < numBarriers; i++){
 					const SpBarrier&    b(spr.barrier.at(i));
