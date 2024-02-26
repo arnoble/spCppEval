@@ -34,6 +34,8 @@
 #define EQ                                ==
 #define NEQ                               !=
 #define USE_GMM_CLUSTERS                  1             // Gaussian Mixture Model for issuerCallable
+#define MAX_GMM_CLUSTERS                  7
+#define MIN_GMM_CLUSTERS                  3
 #define GMM_INIT_MIX_RANDOMLY             0
 #define	INVERT_USING_LU_DECOMPOSITION     1
 #define MY_SQL_GENERAL_ERROR             -1            // all the SQL codes seem to be non-negative, so this is a way of signalling something general went wrong
@@ -2263,7 +2265,7 @@ public:
 	const std::vector<int>          ulIdNameMap;
 	const boost::gregorian::date    bProductStartDate;
 	bool                            hasBeenHit, isExtremum, isContinuous, isContinuousGroup, proportionalAveraging, countAveraging, isLargestN;
-	int                             maxEndDays,startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
+	int                             numHitsAtCheckpoint,maxEndDays,startDays,endDays, numStrPosPayoffs=0, numPosPayoffs=0, numNegPayoffs=0;
 	double                          param1, thisCouponValue, fixedCouponValue,maxYears,annualFundingUnwindCost, payoff, variableCoupon, strike, participation,cap, totalBarrierYears,yearsToBarrier, sumPayoffs, sumStrPosPayoffs=0.0, sumPosPayoffs=0.0, sumNegPayoffs=0.0;
 	double                          lsConstant, lsWorstB, lsWorstSquaredB, lsNextWorstB, lsNextWorstSquaredB, proportionHits, totalNumPossibleHits=0.0, sumProportion, forwardRate, discountFactor;
 	bool                            (SpBarrier::*isHit)(const int thisMonPoint, const std::vector<UlTimeseries> &ulPrices, const std::vector<double> &thesePrices, const bool useUlMap, const std::vector<double> &startLevels, std::vector<bool> &useUl);
@@ -4030,6 +4032,8 @@ public:
 				//
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++) {
 					SpBarrier& b(barrier.at(thisBarrier));
+					// ... keep track of #hits so far
+					b.numHitsAtCheckpoint = (int)b.hit.size();
 					// ... straighten bends
 					unsigned int numBrel = (unsigned int)b.brel.size();
 					b.straightenBends();
@@ -4772,13 +4776,15 @@ public:
 												//  Gaussian Mixture Model  condExp(y|x)  =  sumOverClusters( clusterMix * (muY  + covXY/covXX * (x - muX) )
 												//
 												if (USE_GMM_CLUSTERS) {
-													int         numClusters(7);    // R-based tests show this seems a reasonable max# to start with  
-																			       //   NOTE: this may decrease as we try and simplify the model
-													bool        done(false);       // done once EM shows minimal BIC improvement
-													const int   gmmIterations(20); // R-based tests show this should be enough
+													int          numClusters(MAX_GMM_CLUSTERS);      // R-based tests show this seems a reasonable max# to start with  
+																			          //   NOTE: this may decrease as we try and simplify the model
+													bool         done(false);         // done once EM shows minimal BIC improvement
+													const int    gmmIterations(20);   // R-based tests show this should be enough
 													double       BIC(0.0);
-													Vec_IO_DP    a(numClusters), covX(numClusters), covY(numClusters), covXY(numClusters);
-													Mat_IO_DP    mu(numClusters, 2);
+													Vec_IO_DP    a(numClusters);      // the probability that the (unknown) dataGeneratingFunction selects a cluster's normalDistribution to generate an x,y
+																				      //  ... they should sum to 1.0, although there seems to be rounding errors so 0.999 - 1.001 should be OK
+													Vec_IO_DP    covX(numClusters), covY(numClusters), covXY(numClusters);
+													Mat_IO_DP    mu(numClusters, 2);  // meanX,meanY of each cluster
 													const double minX = *std::min_element(std::begin(x), std::end(x));
 													const double minY = *std::min_element(std::begin(y), std::end(y));
 													const double maxX = *std::max_element(std::begin(x), std::end(x));
@@ -4803,8 +4809,11 @@ public:
 																mydb.prepare((SQLCHAR *)charBuffer, 1);
 														}
 													}
+													double sumMix;
+													//
 													// iterate until done, or there is only 2 clusters
-													while (!done && numClusters > 3) {
+													//
+													while (!done && numClusters > MIN_GMM_CLUSTERS) {
 														//
 														// init cluster assignment uniformly
 														//
@@ -4872,7 +4881,7 @@ public:
 														for(thisIter=0; !emDone && thisIter < gmmIterations; thisIter++) {
 															// fixup clusters with small determinants - usually constant y payoffs
 															for (int i=0; i < numClusters; i++) {
-																int	thisCount = 0;
+																int	   thisCount = 0;
 																while (my2dDet(covX[i], covXY[i], covXY[i], covY[i]) < 1.0e-08) {
 																	covY[i]   = covY[i] == 0.0 ? covX[i] * 0.0001 : covY[i] * 10.0;    // increase y variability a bit - won't impact the conditional regression which does not need covY
 																	thisCount += 1;
@@ -4884,7 +4893,9 @@ public:
 																	}
 																}
 															}
-															// Calculate into z the PDF for each x,y point under each cluster mean and covariances
+															// *************
+															// ***** Calculate into z the PDF for each x,y point under each cluster mean and covariances
+															// *************
 															Mat_IO_DP  oldZ(z);
 															evalResult = mvpdf(z, x, y, mu, covX, covY, covXY, numClusters);
 															if (evalResult.errorCode != 0) {
@@ -4905,23 +4916,32 @@ public:
 																	continue;
 																}																
 															}
-															// Expectation Step - relative likelihood of each cluster to have been "responsible" for each x,y datapoint															
+															// **************
+															// ******* Expectation Step
+															//          - compute       r[j = burnInIteration][i = cluster] = relative likelihood of each cluster i to have been "responsible" for each j(x,y) datapoint															
+															//          - then compute mc[i = cluster]                      = relative likelihood of each cluster i to have been "responsible" for ALL datapoints
+															// **************
 															for (int j=0; j < numBurnInIterations; j++) {
 																double sumModelResponsabilities = 0.0;
 																for (int i=0; i < numClusters; i++) {
-																	// likelihood that cluster i was "responsible " for x,y = normalPDF * cluster's mix a[i] 
+																	// likelihood that cluster i was "responsible " for x,y = normalPDF * cluster's current mix a[i] 
 																	double modelResponsibility =  z[j][i] * a[i];
 																	r[j][i]                   = modelResponsibility;
 																	sumModelResponsabilities += modelResponsibility;
 																}
 																// rescale responsabilities to sum to 1.0 for each x,y datapoint
-																for (int i=0; i < numClusters; i++) {
-																	r[j][i]     /= sumModelResponsabilities;
+																//  ... but not if sumModelResponsabilities is 0.0, which can happen if all responsibilities for this burnIn are 0.0 
+																//  ... ie it is an outlier so that no cluster is near it, especially if we pruned numClusters too hard
+																if (sumModelResponsabilities != 0.0) {
+																	for (int i=0; i < numClusters; i++) {
+																		r[j][i]     /= sumModelResponsabilities;
+																	}
 																}
+																
 															}
 															// recalc cluster mix mc[] to their current expected probability of having generated all x,y datapoints
 															//   = the relative proportion of each cluster's total responsabilities
-															Vec_IO_DP mc(numClusters);          // sum of responsabilities for each cluster - will update mix below
+															Vec_IO_DP mc(numClusters);          // mc[] is sum of responsabilities for each cluster i - will update mix a[] below
 															for (int i=0; i < numClusters; i++) {
 																mc[i] = 0.0;
 															}
@@ -4935,13 +4955,19 @@ public:
 																}
 																eK[j] = thisCluster;
 															}
-															// Maximisation likelihood step 
+															// *************
+															// ******* Maximisation likelihood step 
+															// *************
 															//  - MLEs for each cluster's parameters (by virtue of being normalDists) are just the sample means/covars weighted by the cluster responsabilities
 															//  - update a = mix and normal means/covars using mc[i] = sum(r[j][i]) for each cluster i
+															sumMix = 0.0;
 															for (int i=0; i < numClusters; i++) {
 																double muX  = 0.0;
 																double muY  = 0.0;
-																a[i] = mc[i] / numBurnInIterations;  // update mix to each cluster's relative aggregate responsibility
+																// update mix a[] to each cluster's relative aggregate responsibility
+																a[i]    = mc[i] / numBurnInIterations;  
+																sumMix  += a[i];
+																// update cluster x,y means to responsibilityWeighed
 																for (int j=0; j < numBurnInIterations; j++) {
 																	muX += x[j] * r[j][i];
 																	muY += y[j] * r[j][i];
@@ -4949,6 +4975,13 @@ public:
 																mu[i][0] = muX / mc[i];
 																mu[i][1] = muY / mc[i];
 															}
+															//
+															// check mix a[] sum to near 1.0
+															//
+															if (sumMix < 0.999 || sumMix > 1.001) {
+																int jj = 1;
+															}
+
 															// similarly update covariance matrices, also weighted by responsibilities
 															double totalCovarX(0.0);  // just debug info
 															for (int i=0; i < numClusters; i++) {
@@ -4957,6 +4990,8 @@ public:
 																double thisCovXY = 0.0;
 																for (int j=0; j < numBurnInIterations; j++) {
 																	double thisDx             = x[j] - mu[i][0];
+																	// if we have just 1 point in this cluster_i, then thisDy will be zero, making covY zero
+																	// ... we try and add some covY jiggle above to avoid zero det of the covariance matrix
 																	double thisDy             = y[j] - mu[i][1];
 																	double thisResponsibility = r[j][i];
 																	thisCovX  += thisDx * thisDx * thisResponsibility;
@@ -4990,20 +5025,89 @@ public:
 																done   = true;
 															}
 
-															// check for small clusters - reduce the #clusters and loop again
-															for (int i=0; i < numClusters; i++) {
-																if (mc[i] < minClusterSize) {
-																	numClusters  -= 1;
-																	emDone        = true;
-																	continue;
+															// ********
+															// FINALLY check for small clusters - reduce the #clusters and loop again
+															// ********
+															bool isSmallCluster[MAX_GMM_CLUSTERS];
+															int currentNumClusters = numClusters;
+															double sumMix(0.0);
+															for (int i=0; i < currentNumClusters; i++) {
+																if (mc[i] < minClusterSize  
+																	// comment out next line
+																	// ... 'cos may cause clusters with just 1 burnIn, leading to zero covY, and zero det, for that cluster
+																	// && numClusters > MIN_GMM_CLUSTERS 
+																	) {
+																	numClusters      -= 1;
+																	isSmallCluster[i] = true;
+																}
+																else { 
+																	isSmallCluster[i] = false; 
+																	sumMix += a[i];
+																}
+															}
+															// if we want fewer clusters, copy good cluster params into pole position
+															if (numClusters < currentNumClusters) {
+																for (int i=0,j=0; i < currentNumClusters; i++) {
+																	// keep this cluster
+																	if (!isSmallCluster[i]) {
+																		if (i > j) {
+																			// shuffle z left
+																			for (int m=0; m < numBurnInIterations; m++) {
+																				z[m][j] = z[m][i];
+																			}
+																			// shuffle cluster params left 
+																			// ... shuffle mu,etc  left
+																			mu   [j][0] = mu   [i][0];
+																			mu   [j][1] = mu   [i][1];
+																			covX [j]    = covX [i];
+																			covY [j]    = covY [i];
+																			covXY[j]    = covXY[i];
+																			// shuffle a[] left
+																			a[j] = a[i];
+																			// click KEEP index
+																			j += 1;
+																		}																		
+																		else { j += 1; }
+																	}
+																}
+																// finally renormalise a[] to sum to 1.0
+																if (numClusters == 1){
+																	a[0] = 1.0;
+																}
+																else {
+																	for (int i=0; i < numClusters; i++) {
+																		a[i] /= sumMix;
+																	}
 																}
 															}
 															int jj = 1;
 														} // for EM loop
+														// finally renormalise a[] to sum to 1.0
+														if (numClusters == 1) {
+															a[0] = 1.0;
+														}
+														else {
+															sumMix = 0.0;
+															for (int i=0; i < numClusters; i++) {
+																sumMix  += a[i];
+															}
+															for (int i=0; i < numClusters; i++) {
+																a[i] /= sumMix;
+															}
+														}
 														if (thisIter == gmmIterations) {
 															done = true;
 														}
 													}  // while !done
+													// final check mix a[] sums to 1.0
+													sumMix = 0.0;
+													for (int i=0; i < numClusters; i++) {
+														sumMix  += a[i];
+													}
+													if (sumMix < 0.999 || sumMix > 1.001) {
+														int jj = 1;
+													}
+
 													// install mix coefficients for this barrier
 													for (int i=0; i < numClusters; i++) {
 														thatB.a.push_back(     a[i]      );
@@ -5093,10 +5197,11 @@ public:
 													sprintf(charBuffer, "%s%d%s%d", "delete from regressiondata where productid=", productId, " and barrierid=", thatBarrier);
 													mydb.prepare((SQLCHAR *)charBuffer, 1);
 												}
+
 												double thisFundingUnwindCost = thatB.annualFundingUnwindCost * (maxProductDays - daysExtant - thatB.endDays) / daysPerYear;
-												bool   hasNonFixedCoupons    = thatB.couponValues.size() > 0;
+												int    firstBurnInIndx       = (int)thatB.couponValues.size() - numBurnInIterations;
 												for (int j=0; j < numBurnInIterations; j++) {
-													double thisPayoff            = thatB.payoff + thatB.fixedCouponValue + (hasNonFixedCoupons ? thatB.couponValues[j] : 0.0);
+													double thisPayoff            = thatB.payoff + thatB.fixedCouponValue + (firstBurnInIndx >= 0 ? thatB.couponValues[firstBurnInIndx + j] : 0.0);
 													double continuationValue     = conditionalExpectation[j][0];
 													double oldCashflow           = callableCashflows[j];
 													if (continuationValue > (thisPayoff + thisFundingUnwindCost)) {
@@ -5135,12 +5240,21 @@ public:
 										// ... no need for issuerCallable to resetBarriers during burnIn
 										// ... 'cos storePayoff() never gets called during burnIn, so no need to reverse it with resetBarriers()
 										// ... HOWEVER burnIn DOES use couponValues.pushBack(), so need to remove those added in burnIn
-										if (!doTurkey) { resetBarriers(); }
+										// if (!doTurkey) { resetBarriers(); }
 										for (j=0; j < numBarriers; j++) {
 											SpBarrier& b(barrier.at(j));
 											// install callableIsHit
 											if (b.capitalOrIncome && b.endDays < maxEndDays){
+												// after burnIn, want barriers to be tested with .isCallableHit()
 												b.setIsCallableHit();
+												// remove burnIn couponValues() ... CAPITAL barriers always have numBurnInIterations of them pushed at the end
+												if (numBurnInIterations == (int)b.couponValues.size()) {
+													b.couponValues.clear();
+												}
+												else {
+													b.couponValues.erase(b.couponValues.end() - numBurnInIterations, b.couponValues.end());
+												}
+												int jj = 1;
 											}
 										}
 										if (verbose){ std::cerr << "IssuerCallable: regressions finished ... continue remaining mcIterations " << std::endl; }
