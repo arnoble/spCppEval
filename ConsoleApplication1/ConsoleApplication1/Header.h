@@ -2941,7 +2941,7 @@ public:
 	// 
 	void storePayoff(const std::string thisDateString, const double amount, const double couponValue, const double proportion, 
 		const double finalAssetReturn, const int finalAssetIndx, const int barrierIndx, const bool doFinalAssetReturn, const double benchmarkReturn, 
-		const bool storeBenchmarkReturn, const bool doAccruals, const bool containsVariableCoupons){
+		const bool storeBenchmarkReturn, const bool doAccruals, const bool containsVariableCoupons, const int thisIteration){
 		
 		sumPayoffs     += amount;
 		if (amount >  midPrice){ sumStrPosPayoffs += amount; numStrPosPayoffs++; }
@@ -3371,11 +3371,9 @@ public:
 			if (!b.capitalOrIncome){ numIncomeBarriers += 1; }
 			// clear un-accrued hits ... where we call evaluate() several times eg PRIIPs and PRIIPsStresstest, or doing bumps
 			if (!b.hasBeenHit){
-				b.hit.clear();
-				b.payoffContainsVariableCoupons.clear();
-				b.couponValues.clear();
-				b.fars.clear();
-				b.bmrs.clear();
+				//
+				// all these member variables get set anytime storePayoff() is called
+				//
 				b.sumProportion     = 0.0;
 				b.sumPayoffs        = 0.0;
 				b.sumStrPosPayoffs  = 0.0;
@@ -3385,6 +3383,11 @@ public:
 				b.sumNegPayoffs     = 0.0;
 				b.numNegPayoffs     = 0;
 				b.hitWithDate.clear();
+				b.hit.clear();
+				b.payoffContainsVariableCoupons.clear();
+				b.couponValues.clear();
+				b.fars.clear();
+				b.bmrs.clear();
 			}
 		}
 	}
@@ -4466,9 +4469,13 @@ public:
 							b.doAveraging(startLevels,thesePrices, lookbackLevel, ulPrices, thisPoint, thisMonPoint,numUls,useUl);
 							
 							//
-							// START is barrier hit
+							// ******* START is barrier hit
 							//
+
 							// if issuerCallable, need forwardValue of paidOutCoupons for earlyExercise decision
+							//  ... so during burnIn b.couponValues.push_back() ALWAYS called
+							//  ... so after burnIn  b.couponValues.size() should be >= (numBurnInIterations)
+							//  ... where 'greaterThan' numBurnInIterations can happen if doTurkey and the previous getMarketValue iteratinos recorder some hits
 							if (issuerCallable && couponPaidOut && !doAccruals && b.capitalOrIncome) {
 								double thisCouponValue = 0.0;
 								for (int paidOutBarrier = 0; paidOutBarrier < thisBarrier; paidOutBarrier++) {
@@ -4480,7 +4487,7 @@ public:
 										thisCouponValue   += ((ib.payoffTypeId == fixedPayoff ? 1.0 : 0.0)*(ib.isCountAvg ? ib.participation*min(ib.cap, ib.proportionHits*ib.payoff) : ib.proportionHits*ib.payoff) + ib.variableCoupon)*pow(b.forwardRate, b.yearsToBarrier - ib.yearsToBarrier);
 									}
 								}
-								if (thisIteration < numBurnInIterations) {
+								if (thisIteration >= startBurnInIteration && thisIteration < stopBurnInIteration) {
 									b.couponValues.push_back(thisCouponValue);   // does what storePayoff() would have done, were we not in burnIn period
 								}
 								else {
@@ -4675,7 +4682,7 @@ public:
 													// only store a hit if this barrier is in the future
 													//if (thisMonDays>0){
 													bOther.storePayoff(thisDateString, payoffOther*baseCcyReturn, payoffOther*baseCcyReturn, 1.0, 
-														finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false, doAccruals,false);
+														finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, 0, false, doAccruals,false, thisIteration);
 													//}
 												}
 											}
@@ -5125,6 +5132,9 @@ public:
 										// ******* END: Working backwards, estimate conditional expectation at each earlier CAPITAL barrier
 
 										// reset barriers
+										// ... no need for issuerCallable to resetBarriers during burnIn
+										// ... 'cos storePayoff() never gets called during burnIn, so no need to reverse it with resetBarriers()
+										// ... HOWEVER burnIn DOES use couponValues.pushBack(), so need to remove those added in burnIn
 										if (!doTurkey) { resetBarriers(); }
 										for (j=0; j < numBarriers; j++) {
 											SpBarrier& b(barrier.at(j));
@@ -5142,7 +5152,7 @@ public:
 								else {
 									b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
 										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, 
-										doAccruals, barrierPayoffContainsVariableCoupons);
+										doAccruals, barrierPayoffContainsVariableCoupons, thisIteration);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
 								}
 
