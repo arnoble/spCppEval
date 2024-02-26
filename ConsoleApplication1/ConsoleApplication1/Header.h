@@ -4690,7 +4690,9 @@ public:
 								// ***********************
 								//  ******* issuerCallable
 								// ***********************
-								//   ... initial burnInIterations store 'thisAmount' payoffs
+								//   ... initial burnInIterations:
+								//        ... store 'thisAmount' payoffs in callableCashflows[] during burnIn
+								//        ... DO NOT store them in hit[] 'cos storePayoff() does NOT get called
 								//   ... on the final burnInIteration we use these payoffs to estimate a regressionFunction for each earlier capitalBarrier
 								//   ... subsequent iterations then use b.iscallableHit() to exercise-or-continue based on the expected-vcontinuation-value from these regressionFunctions
 								//         ... MAYBE: Re-estimate for those burn-in iterations, then continue with the remaining iterations
@@ -4709,7 +4711,9 @@ public:
 											std::cerr << " callable: incorrect size of callableCashflows" << std::endl;  exit(1);
 										}
 										double laterDiscountFactor = b.discountFactor;
-										// Working backwards, estimate conditional expectation at each obsDate
+										//
+										// ******* Working backwards, estimate conditional expectation at each earlier CAPITAL
+										//
 										for (int thatBarrier = thisBarrier - 1; thatBarrier >= 0 && barrier[thatBarrier].endDays>0; thatBarrier--){
 											SpBarrier &thatB(barrier[thatBarrier]);
 											if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
@@ -5008,7 +5012,7 @@ public:
 														conditionalExpectation[j][0] = thatB.gmmConditionalExpectation(x[j]);
 													}
 													// debug info
-														if (doDebug  && debugLevel >= 1) {
+													if (doDebug  && debugLevel >= 1) {
 														for (int i=0; i < numClusters; i++) {
 															sprintf(charBuffer, "%s %d%s %d%s %d%s %lf%s %lf%s %lf%s %lf%s %lf%s %lf%s ", 
 																"insert into gmmcoeff (ProductId,BarrierId,ClusterId,mix,muX,muY,covX,covY,covXY) values (", 
@@ -5089,7 +5093,7 @@ public:
 													double continuationValue     = conditionalExpectation[j][0];
 													double oldCashflow           = callableCashflows[j];
 													if (continuationValue > (thisPayoff + thisFundingUnwindCost)) {
-														// issuer would call, opting for the cheaper (expected) payoff
+														// issuer would call,  opting for the cheaper (expected) payoff
 														callableCashflows[j] = thisPayoff;
 													}
 													if (doDebug  && debugLevel >= 2) {
@@ -5118,6 +5122,8 @@ public:
 											}  // if (thatB.endDays < b.endDays && thatB.capitalOrIncome){
 											int jj = 1;
 										} // for (int thatBarrier 
+										// ******* END: Working backwards, estimate conditional expectation at each earlier CAPITAL barrier
+
 										// reset barriers
 										if (!doTurkey) { resetBarriers(); }
 										for (j=0; j < numBarriers; j++) {
@@ -5130,8 +5136,9 @@ public:
 										if (verbose){ std::cerr << "IssuerCallable: regressions finished ... continue remaining mcIterations " << std::endl; }
 									} // if (thisIteration == (numBurnInIterations - 1)
 								} // if (issuerCallable &&  ...
-								// FINALLY, store this payoff
-								//  ... provided not in issuerCallable burnIn period, which does its own 'storage' of payoffs
+								// FINALLY, store this payoff and do hit.push_back(thisAmount)
+								//  ... provided **not** in issuerCallable burnIn period, which does its own 'storage' of payoffs and does NOT do hit.push_back(thisAmount)
+								//  ... so after issuerCallable burnIn, capitalBarriers HAVE EMPTY hit[] arrays
 								else {
 									b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
 										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, 
@@ -5457,7 +5464,7 @@ public:
 						if (applyCredit) { ArtsRanInit(); }  // so multiIssuer analysis always sees the same ran sequence
 						bool     foundEarliest = false;
 						double   probEarly(0.0), probEarliest(0.0);
-						std::vector<double> allPayoffs, allT,allFVpayoffs, allAnnRets, allCouponRets, bmAnnRets, bmRelLogRets, pvInstances;
+						std::vector<double> allPayoffs, allT,allFVpayoffs, allAnnRets, bmAnnRets, bmRelLogRets, pvInstances;
 						std::vector<PriipsStruct> priipsInstances;
 						std::vector<AnnRet> priipsAnnRetInstances;
 						if (doPriips) {
@@ -5493,6 +5500,8 @@ public:
 							int                 numHits         = (int)b.hit.size();
 							double              thisBarrierSumPayoffs(0.0), thisAmount;
 							std::vector<double> thisBarrierPayoffs; thisBarrierPayoffs.reserve(100000);
+							// thisBarrierCouponValues[] seems unnecessary: just stores b.couponValues[i] ... only to be used a few lines later where b.couponValues[i] would have been fine
+							//  ... DOME: maybe remove when time allows ... just use b.couponValues[i] a few lines down
 							std::vector<double> thisBarrierCouponValues; thisBarrierCouponValues.reserve(100000);
 							int                 numInstances    = (int)b.hit.size();
 							double              sumProportion   = b.sumProportion;
@@ -5503,6 +5512,9 @@ public:
 
 							prob            = b.hasBeenHit ? 1.0 : (b.isCountAvg ? (b.totalNumPossibleHits <=0 ? 0.0 : numHits * sumProportion / b.totalNumPossibleHits / numAllEpisodes) : sumProportion / numAllEpisodes); // REMOVED: eg Memory coupons as in #586 (b.endDays < 0 ? 1 : numAllEpisodes); expired barriers have only 1 episode ... the doAccruals.evaluate()
 
+							//
+							// look at each 'hit'
+							//
 							for (i = 0; i < numHits; i++) {
 								thisAmount = b.hit[i].amount;
 								// possibly apply credit adjustment
@@ -5516,7 +5528,7 @@ public:
 										else { eNegPayoff     += thisAmount; numNegInstances++; }
 									}
 								}
-								thisBarrierCouponValues.push_back(b.couponValues[i]);
+								thisBarrierCouponValues.push_back(b.couponValues[i]);  // pointless? see comment above
 								thisBarrierPayoffs.push_back(thisAmount);
 								thisBarrierSumPayoffs += thisAmount;   // but not if couponPaidOut
 							}
@@ -5573,7 +5585,6 @@ public:
 										}
 									}
 								}
-								// MeanAndStdev(thisBarrierCouponValues, avgBarrierCoupon, anyDouble, anyDouble1);
 								for (i = 0; i < (int)b.hit.size(); i++) {
 									double thisAmount      = thisBarrierPayoffs[i];
 									double thisAnnRet      = thisYears <= 0.0 ? 0.0 : 	// assume once investor has lost 90% it is unwound...									
@@ -5609,7 +5620,6 @@ public:
 									allT.push_back(thisYears);
 									allFVpayoffs.push_back(thisAmount*pow(b.forwardRate, maxYears - b.yearsToBarrier));
 									allAnnRets.push_back(thisAnnRet);
-									allCouponRets.push_back(thisCouponRet);
 
 									/*
 									* update cashflow map -
@@ -5650,6 +5660,9 @@ public:
 								}
 							}
 
+							//
+							// having examined/logged each 'hit', calc some metrics
+							//
 							double mean      = numInstances ? thisBarrierSumPayoffs / numInstances : 0.0;
 							// watch out: b.yearsToBarrier might be zero, or returnToAnnualise might be negative (if a product capital barrier was entered that way...
 							double returnToAnnualise = ((b.capitalOrIncome ? 0.0 : 1.0) + mean) / midPrice;
