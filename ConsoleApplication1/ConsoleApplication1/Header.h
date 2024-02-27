@@ -5248,11 +5248,16 @@ public:
 												// after burnIn, want barriers to be tested with .isCallableHit()
 												b.setIsCallableHit();
 												// remove burnIn couponValues() ... CAPITAL barriers always have numBurnInIterations of them pushed at the end
-												if (numBurnInIterations == (int)b.couponValues.size()) {
+												if ( (int)b.couponValues.size() == numBurnInIterations) {
 													b.couponValues.clear();
 												}
 												else {
-													b.couponValues.erase(b.couponValues.end() - numBurnInIterations, b.couponValues.end());
+													// ... doTurkey adds burnIn onto the initial getMarketData analsis, so just want to remove the burnIns
+													// ... or already-happened barriers will not push anything to its .couponValues()
+													// ... or doBumps repeatedly calls .evaluate()
+													if ( (int)b.couponValues.size() > numBurnInIterations) {
+														b.couponValues.erase(b.couponValues.end() - numBurnInIterations, b.couponValues.end());
+													}
 												}
 												int jj = 1;
 											}
