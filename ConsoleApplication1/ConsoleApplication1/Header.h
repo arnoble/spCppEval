@@ -4027,13 +4027,19 @@ public:
 			if (doTurkey && thisIteration == halfNumMcIterations) {
 				getMarketData = false;
 				ArtsRanInit();            // so that doTurkey sees the same ran sequence
+				int totalNumHits(0);      // debugOnly: # CAPITAL hits
 				//
 				// unBend things - they are only bent for getMarketData purposes
 				//
 				for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++) {
 					SpBarrier& b(barrier.at(thisBarrier));
 					// ... keep track of #hits so far
-					b.numHitsAtCheckpoint = (int)b.hit.size();
+					int numHits = (int)b.hit.size();
+					b.numHitsAtCheckpoint = numHits;
+					if (b.capitalOrIncome) {
+						totalNumHits  += numHits;
+					}
+					
 					// ... straighten bends
 					unsigned int numBrel = (unsigned int)b.brel.size();
 					b.straightenBends();
@@ -5269,7 +5275,7 @@ public:
 								//  ... provided **not** in issuerCallable burnIn period, which does its own 'storage' of payoffs and does NOT do hit.push_back(thisAmount)
 								//  ... so after issuerCallable burnIn, capitalBarriers HAVE EMPTY hit[] arrays
 								else {
-									b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
+										b.storePayoff(thisDateString, thisAmount, couponValue*baseCcyReturn, barrierWasHit[thisBarrier] ? b.proportionHits : 0.0,
 										finalAssetReturn, finalAssetIndx, thisBarrier, doFinalAssetReturn, benchmarkReturn, benchmarkId>0 && matured, 
 										doAccruals, barrierPayoffContainsVariableCoupons, thisIteration);
 									//cerr << thisDateString << "\t" << thisBarrier << endl; cout << "Press a key to continue...";  getline(cin, word);
@@ -6433,7 +6439,9 @@ public:
 								mydb.prepare((SQLCHAR *)lineBuffer, 1);
 							}
 						}
-						// report fair value things
+						// ************
+						// ******* report fair value things
+						// ************
 						if ((getMarketData && analyseCase == 0)) {
 							double thisMean, thisStdev, thisStderr;
 							std::string   thisDateString(allDates.at(startPoint));
@@ -6503,10 +6511,11 @@ public:
 							// update db
 							if (updateCashflows || updateProduct) {
 								sprintf(lineBuffer, "%s%s%s%.5lf", "update ", useProto, "product set FairValue='", thisFairValue);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='", thisStderr*issuePrice);
-								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FundingFractionUsed='", fundingFraction);
-								sprintf(lineBuffer, "%s%s%s", lineBuffer, "',FairValueDate='", allDates.at(startPoint).c_str());
-								sprintf(lineBuffer, "%s%s%d%s", lineBuffer, "' where ProductId='", productId, "'");
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FairValueStdev='",        thisStderr*issuePrice);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',FundingFractionUsed='",   fundingFraction);
+								sprintf(lineBuffer, "%s%s%.5lf", lineBuffer, "',RNduration='",            duration);
+								sprintf(lineBuffer, "%s%s%s",    lineBuffer, "',FairValueDate='",         allDates.at(startPoint).c_str());
+								sprintf(lineBuffer, "%s%s%d%s",  lineBuffer, "' where ProductId='",       productId, "'");
 								// std::cout << lineBuffer << std::endl;
 								if (!consumeRands && ukspaCase == "") {
 									mydb.prepare((SQLCHAR *)lineBuffer, 1);
