@@ -5996,17 +5996,10 @@ public:
 						bmRelCAGR       = MyMinAbs(1000.0, bmRelCAGR);
 
 
-						// *******************
-						// ******* process overall product results
-						// *******************
-						sort(allPayoffs.begin(),      allPayoffs.end());
-						sort(allAnnRets.begin(),      allAnnRets.end());
-						if (doPriips) {
-							sort(priipsInstances.begin(), priipsInstances.end());
-							sort(priipsAnnRetInstances.begin(), priipsAnnRetInstances.end());
-						}
-
+						// *******
 						// maybe save productreturns
+						// ... BEFORE SORTING, as allT is not sorted
+						// *******
 						if (doDebug  && debugLevel > 2) {
 							sprintf(lineBuffer, "%s%d%s%lf", "delete from productreturns where ProductId=", productId, " and ProjectedReturn=", projectedReturn);
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
@@ -6031,6 +6024,17 @@ public:
 								mydb.prepare((SQLCHAR *)lineBuffer, 1);
 							}
 						}
+
+						// *******************
+						// ******* process overall product results
+						// *******************
+						sort(allPayoffs.begin(),      allPayoffs.end());
+						sort(allAnnRets.begin(),      allAnnRets.end());
+						if (doPriips) {
+							sort(priipsInstances.begin(), priipsInstances.end());
+							sort(priipsAnnRetInstances.begin(), priipsAnnRetInstances.end());
+						}
+
 						double averageReturn        = sumAnnRets / numAnnRets;
 						double averageCouponReturn  = sumCouponRets / numAnnRets;
 						double vaR99                = 100.0*allAnnRets[(unsigned int)floor((double)numAnnRets*(0.01))];
