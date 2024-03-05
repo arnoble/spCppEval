@@ -1620,11 +1620,11 @@ private:
 	const int bufSize=256;
 	SQLLEN    cbModel;		               // Model buffer bytes recieved
 	HSTMT     hStmt;
-	char     **bindBuffer;
 	std::string dataSource, anyString;
 	const std::string thisCommandLine;
 	
 public:
+	char     **bindBuffer;
 	// log an error
 	int  logAnError(std::string errorString){
 		char       lineBuffer[1000];
@@ -1643,6 +1643,9 @@ public:
 		}
 		else if (dataSource == "spArrow"){
 			fsts =  dbConn(hEnv, &hDBC, L"spArrow", L"anoble", L"Ragtin_Mor14_Lucian");
+		}
+		else if (dataSource == "Arrow_AWS_Prod") {
+			fsts =  dbConn(hEnv, &hDBC, L"Arrow_AWS_Prod", L"risk_engine_user", L"R1zk3gineUz3r");
 		}
 		else if (dataSource == "spLevendi") {
 			fsts =  dbConn(hEnv, &hDBC, L"spLevendi", L"anoble", L"Ragtin_Mor14_Lucian");
@@ -2056,7 +2059,7 @@ private:
 	const bool                  doDebug;
 	const int                   productId, debugLevel;
 	const int                   barrierNum;
-	const double                daysPerYear,fixedCoupon,thisBarrierBend;
+	const double                daysPerYear,fixedCoupon;
 	const double                bendDirection;
 	const std::vector <double>  &baseCurveTenor, &baseCurveSpread;
 	const std::string           couponFrequency,productShape;
@@ -2260,7 +2263,7 @@ public:
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
 	double                          unBentCap, unBentParam1, unBentStrike;
-	const double                    midPrice;
+	const double                    thisBarrierBend,midPrice;
 	const std::string               nature, settlementDate, description, payoffType, barrierCommands;
 	const std::vector<int>          ulIdNameMap;
 	const boost::gregorian::date    bProductStartDate;
@@ -6525,6 +6528,62 @@ public:
 									mydb.prepare((SQLCHAR *)lineBuffer, 1);
 								}
 							}
+							// *****************
+							// update fvsnapshot
+							// *****************
+							int numTenors      = (int)md.oisRatesTenor [0].size();
+							int numCdsTenors   = (int)cdsTenors        [0].size();
+							int numDivsTenors  = (int)md.divYieldsTenor[0].size();
+							int numVolsTenors  = (int)md.ulVolsTenor   [0].size();
+							int numVolsStrikes = (int)md.ulVolsStrike  [0].size();
+							std::string aDate = to_iso_extended_string(bLastDataDate).substr(0, 10);
+							std::string ulList; for (int i = 0; i < numUl; i++) { ulList += (i == 0 ? "":",") + ulNames[i]; }
+							double ratesChecksum(0.0); for (int i=0; i < numTenors;i++)      { 
+								ratesChecksum  += md.oisRatesTenor [0][i]  * md.oisRatesRate [0][i]; 
+							}
+							std::ostringstream ratesStream; ratesStream << "<table><tr><th>Tenor</th><th>Rate</th></tr>";
+							for (int i=0; i < numTenors; i++) {
+								ratesStream << "<tr><td>" << std::showpoint << std::setprecision(4) << md.oisRatesTenor[0][i] << "</td><td>" << std::setprecision(4) << md.oisRatesRate[0][i] << "</td></tr>";
+							}
+							ratesStream << "</table>";
+							std::string ratesHtml = ratesStream.str();
+
+							double cdsChecksum(0.0);   for (int i=0; i < numCdsTenors; i++)  { cdsChecksum    += cdsTenors        [0][i]  * cdsSpreads      [0][i]; }
+							double divsChecksum(0.0);  for (int i=0; i < numDivsTenors; i++) { divsChecksum   += md.divYieldsTenor[0][i]  * md.divYieldsRate[0][i]; }
+							double volsChecksum(0.0);  for (int i=0; i < numVolsTenors; i++) { 
+								for (int j=0; j < numVolsStrikes; j++) {
+									volsChecksum   += md.ulVolsTenor[0][i] * md.ulVolsStrike[0][i][j] * md.ulVolsImpVol[0][i][j];
+								}
+							}
+							
+							mydb.prepare((SQLCHAR *)"BEGIN TRANSACTION", 1);
+							sprintf(lineBuffer, "%s%d", "insert into fvsnapshot (ProductId,UserId,FV,LastDataDate,RatesChecksum,CdsChecksum,DivsChecksum,LocalVolChecksum,BarrierBend,FundingFraction,VolShift,UlList,RatesHtml) values (",productId);
+							sprintf(lineBuffer, "%s%s%d",  lineBuffer, ",",   userId);
+							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   thisFairValue);
+							sprintf(lineBuffer, "%s%s%s", lineBuffer, ",'",   aDate.c_str());
+							sprintf(lineBuffer, "%s%s%lf", lineBuffer, "',",  ratesChecksum);
+							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   cdsChecksum);
+							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   divsChecksum);
+							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   volsChecksum);
+							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   barrier.at(0).thisBarrierBend);
+							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   fundingFraction);
+							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   volShift);
+							sprintf(lineBuffer, "%s%s%s",  lineBuffer, ",'",  ulList.c_str());
+							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", ratesHtml.c_str());
+							sprintf(lineBuffer, "%s%s",    lineBuffer, "')");
+							std::cout << ratesStream.str().c_str() << std::endl;
+							mydb.prepare((SQLCHAR *)lineBuffer, 1);
+							mydb.prepare((SQLCHAR *)"select max(FvSnapshotId) from FvSnapshot", 1);
+							RETCODE retcode = mydb.fetch(true, lineBuffer); 
+							if (retcode == MY_SQL_GENERAL_ERROR) { std::cerr << "IPRerror:" << lineBuffer << std::endl; 
+								mydb.prepare((SQLCHAR *)"ROLLBACK", 1); 
+							}
+							else {
+								sprintf(lineBuffer, "%s%s","FvSnapshotId:",mydb.bindBuffer[0]);
+								std::cout << lineBuffer << std::endl;
+							}
+							mydb.prepare((SQLCHAR *)"COMMIT", 1);
+
 						}
 
 
