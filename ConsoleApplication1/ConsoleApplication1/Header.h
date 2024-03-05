@@ -6538,6 +6538,7 @@ public:
 							int numVolsStrikes = (int)md.ulVolsStrike  [0].size();
 							std::string aDate = to_iso_extended_string(bLastDataDate).substr(0, 10);
 							std::string ulList; for (int i = 0; i < numUl; i++) { ulList += (i == 0 ? "":",") + ulNames[i]; }
+							// rates
 							double ratesChecksum(0.0); for (int i=0; i < numTenors;i++)      { 
 								ratesChecksum  += md.oisRatesTenor [0][i]  * md.oisRatesRate [0][i]; 
 							}
@@ -6547,17 +6548,55 @@ public:
 							}
 							ratesStream << "</table>";
 							std::string ratesHtml = ratesStream.str();
-
+							// cds
 							double cdsChecksum(0.0);   for (int i=0; i < numCdsTenors; i++)  { cdsChecksum    += cdsTenors        [0][i]  * cdsSpreads      [0][i]; }
-							double divsChecksum(0.0);  for (int i=0; i < numDivsTenors; i++) { divsChecksum   += md.divYieldsTenor[0][i]  * md.divYieldsRate[0][i]; }
-							double volsChecksum(0.0);  for (int i=0; i < numVolsTenors; i++) { 
-								for (int j=0; j < numVolsStrikes; j++) {
-									volsChecksum   += md.ulVolsTenor[0][i] * md.ulVolsStrike[0][i][j] * md.ulVolsImpVol[0][i][j];
-								}
+							std::ostringstream cdsStream; cdsStream << "<table><tr><th>Tenor</th><th>Rate</th></tr>";
+							for (int i=0; i < numCdsTenors; i++) {
+								cdsStream << "<tr><td>" << std::showpoint << std::setprecision(3) << cdsTenors[0][i] << "</td><td>" << std::setprecision(4) << cdsSpreads[0][i] << "</td></tr>";
 							}
-							
+							cdsStream << "</table>";
+							std::string cdsHtml = cdsStream.str();
+							// divs
+							double divsChecksum(0.0), thisChecksum, thisChecksumValue;  
+							std::vector<double> allDivsChecksums;
+							for (int i = 0; i < numUl; i++) { 
+								thisChecksum = 0.0;
+								for (int j=0; j < numDivsTenors; j++) { 
+									thisChecksumValue  = md.divYieldsTenor[i][j] * md.divYieldsRate[i][j];
+									thisChecksum      += thisChecksumValue;
+									divsChecksum      += thisChecksumValue;
+								}
+								allDivsChecksums.push_back(thisChecksum);
+							}
+							std::ostringstream divsStream; divsStream << "<table><tr><th>Underlying</th><th>DivsChecksum</th></tr>";
+							for (int i=0; i < numUl; i++) {
+								divsStream << "<tr><td>" << ulNames[i] << "</td><td>" << std::setprecision(4) << allDivsChecksums[i] << "</td></tr>";
+							}
+							divsStream << "</table>";
+							std::string divsHtml = divsStream.str();
+							// vols
+							double volsChecksum(0.0);  
+							std::vector<double> allVolsChecksums;
+							for (int i = 0; i < numUl; i++) {
+								thisChecksum = 0.0;
+								for (int j=0; j < numVolsTenors; j++) {
+									for (int k=0; k < numVolsStrikes; k++) {
+										thisChecksumValue  = md.ulVolsTenor[i][j] * md.ulVolsStrike[i][j][k] * md.ulVolsImpVol[i][j][k]; 
+										thisChecksum      += thisChecksumValue;
+										volsChecksum      += thisChecksumValue;
+									}
+								}
+								allVolsChecksums.push_back(thisChecksum);
+							}
+							std::ostringstream volsStream; volsStream << "<table><tr><th>Underlying</th><th>VolsChecksum</th></tr>";
+							for (int i=0; i < numUl; i++) {
+								volsStream << "<tr><td>" << ulNames[i] << "</td><td>" << std::setprecision(4) << allVolsChecksums[i] << "</td></tr>";
+							}
+							volsStream << "</table>";
+							std::string volsHtml = volsStream.str();
+
 							mydb.prepare((SQLCHAR *)"BEGIN TRANSACTION", 1);
-							sprintf(lineBuffer, "%s%d", "insert into fvsnapshot (ProductId,UserId,FV,LastDataDate,RatesChecksum,CdsChecksum,DivsChecksum,LocalVolChecksum,BarrierBend,FundingFraction,VolShift,UlList,RatesHtml) values (",productId);
+							sprintf(lineBuffer, "%s%d", "insert into fvsnapshot (ProductId,UserId,FV,LastDataDate,RatesChecksum,CdsChecksum,DivsChecksum,LocalVolChecksum,BarrierBend,FundingFraction,VolShift,UlList,RatesHtml,CdsHtml,DivsHtml,VolsHtml) values (",productId);
 							sprintf(lineBuffer, "%s%s%d",  lineBuffer, ",",   userId);
 							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   thisFairValue);
 							sprintf(lineBuffer, "%s%s%s", lineBuffer, ",'",   aDate.c_str());
@@ -6570,6 +6609,9 @@ public:
 							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   volShift);
 							sprintf(lineBuffer, "%s%s%s",  lineBuffer, ",'",  ulList.c_str());
 							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", ratesHtml.c_str());
+							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", cdsHtml.c_str());
+							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", divsHtml.c_str());
+							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", volsHtml.c_str());
 							sprintf(lineBuffer, "%s%s",    lineBuffer, "')");
 							std::cout << ratesStream.str().c_str() << std::endl;
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
