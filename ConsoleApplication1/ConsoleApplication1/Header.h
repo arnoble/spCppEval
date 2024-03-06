@@ -6613,7 +6613,6 @@ public:
 							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", divsHtml.c_str());
 							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", volsHtml.c_str());
 							sprintf(lineBuffer, "%s%s",    lineBuffer, "');");
-							std::cout << ratesStream.str().c_str() << std::endl;
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 							mydb.prepare((SQLCHAR *)"select max(FvSnapshotId) from FvSnapshot", 1);
 							RETCODE retcode = mydb.fetch(true, lineBuffer); 
