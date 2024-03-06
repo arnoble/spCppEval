@@ -6542,17 +6542,17 @@ public:
 							double ratesChecksum(0.0); for (int i=0; i < numTenors;i++)      { 
 								ratesChecksum  += md.oisRatesTenor [0][i]  * md.oisRatesRate [0][i]; 
 							}
-							std::ostringstream ratesStream; ratesStream << "<table><tr><th>Tenor</th><th>Rate</th></tr>";
+							std::ostringstream ratesStream; ratesStream << "<table><tr><th>Tenor</th><th>Rate%</th></tr>";
 							for (int i=0; i < numTenors; i++) {
-								ratesStream << "<tr><td>" << std::showpoint << std::setprecision(4) << md.oisRatesTenor[0][i] << "</td><td>" << std::setprecision(4) << md.oisRatesRate[0][i] << "</td></tr>";
+								ratesStream << "<tr><td>" << std::showpoint << std::setprecision(2) << md.oisRatesTenor[0][i] << "</td><td>" << std::setprecision(4) << 100.0*md.oisRatesRate[0][i] << "</td></tr>";
 							}
 							ratesStream << "</table>";
 							std::string ratesHtml = ratesStream.str();
 							// cds
 							double cdsChecksum(0.0);   for (int i=0; i < numCdsTenors; i++)  { cdsChecksum    += cdsTenors        [0][i]  * cdsSpreads      [0][i]; }
-							std::ostringstream cdsStream; cdsStream << "<table><tr><th>Tenor</th><th>Rate</th></tr>";
+							std::ostringstream cdsStream; cdsStream << "<table><tr><th>Tenor</th><th>CdsSpread%</th></tr>";
 							for (int i=0; i < numCdsTenors; i++) {
-								cdsStream << "<tr><td>" << std::showpoint << std::setprecision(3) << cdsTenors[0][i] << "</td><td>" << std::setprecision(4) << cdsSpreads[0][i] << "</td></tr>";
+								cdsStream << "<tr><td>" << std::showpoint << std::setprecision(2) << cdsTenors[0][i] << "</td><td>" << std::setprecision(4) << 100.0*cdsSpreads[0][i] << "</td></tr>";
 							}
 							cdsStream << "</table>";
 							std::string cdsHtml = cdsStream.str();
