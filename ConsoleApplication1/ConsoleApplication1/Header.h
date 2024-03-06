@@ -6595,7 +6595,7 @@ public:
 							volsStream << "</table>";
 							std::string volsHtml = volsStream.str();
 
-							mydb.prepare((SQLCHAR *)"BEGIN TRANSACTION", 1);
+							mydb.prepare((SQLCHAR *)"START TRANSACTION;", 1);
 							sprintf(lineBuffer, "%s%d", "insert into fvsnapshot (ProductId,UserId,FV,LastDataDate,RatesChecksum,CdsChecksum,DivsChecksum,LocalVolChecksum,BarrierBend,FundingFraction,VolShift,UlList,RatesHtml,CdsHtml,DivsHtml,VolsHtml) values (",productId);
 							sprintf(lineBuffer, "%s%s%d",  lineBuffer, ",",   userId);
 							sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",",   thisFairValue);
@@ -6612,19 +6612,19 @@ public:
 							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", cdsHtml.c_str());
 							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", divsHtml.c_str());
 							sprintf(lineBuffer, "%s%s%s",  lineBuffer, "','", volsHtml.c_str());
-							sprintf(lineBuffer, "%s%s",    lineBuffer, "')");
+							sprintf(lineBuffer, "%s%s",    lineBuffer, "');");
 							std::cout << ratesStream.str().c_str() << std::endl;
 							mydb.prepare((SQLCHAR *)lineBuffer, 1);
 							mydb.prepare((SQLCHAR *)"select max(FvSnapshotId) from FvSnapshot", 1);
 							RETCODE retcode = mydb.fetch(true, lineBuffer); 
 							if (retcode == MY_SQL_GENERAL_ERROR) { std::cerr << "IPRerror:" << lineBuffer << std::endl; 
-								mydb.prepare((SQLCHAR *)"ROLLBACK", 1); 
+								mydb.prepare((SQLCHAR *)"ROLLBACK;", 1); 
 							}
 							else {
 								sprintf(lineBuffer, "%s%s","FvSnapshotId:",mydb.bindBuffer[0]);
 								std::cout << lineBuffer << std::endl;
 							}
-							mydb.prepare((SQLCHAR *)"COMMIT", 1);
+							mydb.prepare((SQLCHAR *)"COMMIT;", 1);
 
 						}
 
