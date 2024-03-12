@@ -3365,6 +3365,32 @@ public:
 	}
 
 	// 
+	// ******* SProduct.resetBarrier()  ... re-initialise a barrier
+	// 
+	void resetBarrier(SpBarrier& b) {
+		// clear un-accrued hits ... where we call evaluate() several times eg PRIIPs and PRIIPsStresstest, or doing bumps
+		if (!b.hasBeenHit) {
+			//
+			// all these member variables get set anytime storePayoff() is called
+			//
+			b.sumProportion     = 0.0;
+			b.sumPayoffs        = 0.0;
+			b.sumStrPosPayoffs  = 0.0;
+			b.numStrPosPayoffs  = 0;
+			b.sumPosPayoffs     = 0.0;
+			b.numPosPayoffs     = 0;
+			b.sumNegPayoffs     = 0.0;
+			b.numNegPayoffs     = 0;
+			b.hitWithDate.clear();
+			b.hit.clear();
+			b.payoffContainsVariableCoupons.clear();
+			b.couponValues.clear();
+			b.fars.clear();
+			b.bmrs.clear();
+		}
+	}
+
+	// 
 	// ******* SProduct.resetBarriers()  ... re-initialise barriers
 	// 
 	void resetBarriers(){
@@ -3374,26 +3400,7 @@ public:
 			SpBarrier& b(barrier.at(j));
 
 			if (!b.capitalOrIncome){ numIncomeBarriers += 1; }
-			// clear un-accrued hits ... where we call evaluate() several times eg PRIIPs and PRIIPsStresstest, or doing bumps
-			if (!b.hasBeenHit){
-				//
-				// all these member variables get set anytime storePayoff() is called
-				//
-				b.sumProportion     = 0.0;
-				b.sumPayoffs        = 0.0;
-				b.sumStrPosPayoffs  = 0.0;
-				b.numStrPosPayoffs  = 0;
-				b.sumPosPayoffs     = 0.0;
-				b.numPosPayoffs     = 0;
-				b.sumNegPayoffs     = 0.0;
-				b.numNegPayoffs     = 0;
-				b.hitWithDate.clear();
-				b.hit.clear();
-				b.payoffContainsVariableCoupons.clear();
-				b.couponValues.clear();
-				b.fars.clear();
-				b.bmrs.clear();
-			}
+			resetBarrier(b);
 		}
 	}
 
@@ -5269,6 +5276,9 @@ public:
 													}
 												}
 												int jj = 1;
+											}
+											else if (!b.capitalOrIncome) {
+												resetBarrier(b);
 											}
 										}
 										if (verbose){ std::cerr << "IssuerCallable: regressions finished ... continue remaining mcIterations " << std::endl; }
