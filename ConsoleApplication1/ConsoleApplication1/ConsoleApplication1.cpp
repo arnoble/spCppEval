@@ -2952,7 +2952,7 @@ int _tmain(int argc, WCHAR* argv[])
 						ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 						/* updateCashflows */false,/* issuerIndx */0);
 					f = evalResult1.value - targetFairValue;
-					cerr << "    Initial MIDWAY multiplier + STEP of " << solverStep << " giving multiplier:" << (currentSolution + solverStep) << " giving paramValue:" << solverParam * (currentSolution + solverStep) << endl;
+					cerr << "        ... for slope Initial MIDWAY multiplier + STEP of " << solverStep << " giving multiplier:" << (currentSolution + solverStep) << " giving paramValue:" << solverParam * (currentSolution + solverStep) << endl;
 					spr.solverSet(solveForThis, solverParam*(currentSolution + solverStep));
 					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
@@ -2962,7 +2962,7 @@ int _tmain(int argc, WCHAR* argv[])
 						/* updateCashflows */false,/* issuerIndx */0);
 					f2 = evalResult2.value - targetFairValue;
 					fSlope = (f2 - f) / solverStep; 
-					cerr << "      INITIAL SLOPE:" << fSlope << " stepped-f:" << f2 << " f:" << f << endl;
+					cerr << "        ... INITIAL SLOPE:" << fSlope << " stepped-f:" << f2 << " f:" << f << endl;
 					// NewtonRaphson iterate
 					// if f <  0.0 we will move LOW  bracket UP     to currentSolution
 					// if f >= 0.0 we will move HIGH bracket DOWN   to currentSolution
@@ -3020,12 +3020,12 @@ int _tmain(int argc, WCHAR* argv[])
 								return(0);
 							}
 							// otherwise change currentSolution by dx
-							cerr << "    NR IN-RANGE dx-step:" << -dx << " to multiplier:" << currentSolution << " giving paramValue:" << solverParam * currentSolution  << endl;
+							cerr << "        ... NR IN-RANGE dx-step:" << -dx << " to multiplier:" << currentSolution << " giving paramValue:" << solverParam * currentSolution  << endl;
 						}
 						// calc f and fSlope
 						// ... calc f  at currentSolution
 						spr.solverSet(solveForThis, solverParam*currentSolution);
-						cerr << "    try param (no step):" << " multiplier is:" << currentSolution << " giving paramValue:" << solverParam * currentSolution << endl;
+						cerr << "--> try param (no step):" << " multiplier is:" << currentSolution << " giving paramValue:" << solverParam * currentSolution << endl;
 						evalResult1 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 							contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,
@@ -3041,7 +3041,7 @@ int _tmain(int argc, WCHAR* argv[])
 							return(0);
 						}
 						// ... calc f  at currentSolution PLUS solverStep
-						cerr << "        for SLOPE try param (stepped) by:" << solverStep << " multiplier is:" << currentSolution + solverStep << " giving paramValue:" << solverParam * (currentSolution + solverStep) << endl;
+						cerr << "        ... for SLOPE try param (stepped) by:" << solverStep << " multiplier is:" << currentSolution + solverStep << " giving paramValue:" << solverParam * (currentSolution + solverStep) << endl;
 						spr.solverSet(solveForThis, solverParam*(currentSolution + solverStep));
 						evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 							numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
@@ -3052,7 +3052,7 @@ int _tmain(int argc, WCHAR* argv[])
 						f2 = evalResult2.value - targetFairValue;
 						// ... calculate slope fSlope
 						fSlope = (f2 - f) / solverStep;    // slope
-						cerr << "      SLOPE:" << fSlope << " stepped-f:" << f2 << " f:" << f << endl;
+						cerr << "        ... SLOPE:" << fSlope << " stepped-f:" << f2 << " f:" << f << endl;
 
 						// maintain the bracket on the root
 						// ... either xLo or xHi will be moved to currentSolution
@@ -3062,7 +3062,7 @@ int _tmain(int argc, WCHAR* argv[])
 						else {      // FV above target
 							xHi = currentSolution; // move HIGH bracket DOWN  to currentSolution (where f is positive)
 						} 
-						cerr << "    After this iteration BRACKETS HIGH x-h:" << xHi << " LOW x-l:" << xLo << " multiplier:" << currentSolution << " paramValue:" << solverParam * currentSolution << endl;
+						cerr << "        ... After this iteration BRACKETS HIGH x-h:" << xHi << " LOW x-l:" << xLo << " multiplier:" << currentSolution << " paramValue:" << solverParam * currentSolution << endl;
 					}  // for iterate
 
 					{ //alert("IRR root-finding: iterations exHiausted"); 
