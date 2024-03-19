@@ -1622,7 +1622,8 @@ private:
 	HSTMT     hStmt;
 	std::string dataSource, anyString;
 	const std::string thisCommandLine;
-	
+	int       debugLevel=0;
+	int       colsRequested;
 public:
 	char     **bindBuffer;
 	// log an error
@@ -1754,10 +1755,12 @@ public:
 		SQLFreeConnect(hDBC); // Free the allocated connection handle
 		SQLFreeEnv(hEnv);     // Free the allocated ODBC environment handle
 	}
+	void setDebugLevel(const int thisDebugLevel) { debugLevel = thisDebugLevel; }
 	int prepare(SQLCHAR* thisSQL,const int numCols) {
 		// ScopedTimer timer{ "db prepare" };
 
 		int numAttempts = 0;
+		colsRequested   = numCols;
 		// DEBUG ONLY
 		if ((int)strlen((char*)thisSQL)>MAX_SP_BUF){
 			std::cerr << "String len:" << strlen((char*)thisSQL) << " will overflow\n";
@@ -1799,6 +1802,9 @@ public:
 		for (int i = 0; i < numCols;i++){
 			SQLBindCol(hStmt, i+1, SQL_C_CHAR, bindBuffer[i], bufSize, &cbModel); // bind columns
 		}
+		if (debugLevel>5) {
+			std::cerr << "******* DB prepare:" << thisSQL << " *******" << std::endl;
+		}
 		return(0);
 	}
 	void bind(int col,char *buffer) {
@@ -1809,6 +1815,11 @@ public:
 		fsts = SQLFetch(hStmt);
 		if (checkForErrors){
 			if (fsts != SQL_SUCCESS && fsts != SQL_SUCCESS_WITH_INFO)	{ extract_error("SQLFetch", msg, hStmt, SQL_HANDLE_STMT);	return(MY_SQL_GENERAL_ERROR); }
+		}
+		if (debugLevel > 5) {
+			for (int i = 0; i < colsRequested; i++) {
+				std::cerr << "******* DB fetch:" << bindBuffer[i] << " *******" << std::endl;
+			}
 		}
 		return fsts;
 	}

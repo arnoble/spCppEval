@@ -119,6 +119,7 @@ int _tmain(int argc, WCHAR* argv[])
 				};
 				std::cout << "\n";
 			}
+			std::cout << "Compiled on: " << __DATE__ << " at " << __TIME__ << std::endl;
 			std::cout << endl;  
 			exit(100);
 		}
@@ -203,6 +204,9 @@ int _tmain(int argc, WCHAR* argv[])
 				done = true;
 			}
 		}
+		//
+		// DB connections
+		//
 		MyDB  mydb(thisCommandLine, (char **)szAllPrices, dbServer), mydb1(thisCommandLine,(char **)szAllPrices, dbServer);
 
 		//
@@ -595,7 +599,7 @@ int _tmain(int argc, WCHAR* argv[])
 				while (token != NULL) { possibleIssuerIds.push_back(atoi(token)); token = std::strtok(NULL, ","); }
 			}
 			if (sscanf(thisArg, "startDate:%s",  lineBuffer))  { strcpy(startDate, lineBuffer); }
-			if (sscanf(thisArg, "debug:%s", lineBuffer))       { doDebug = true; debugLevel = atoi(lineBuffer); }
+			if (sscanf(thisArg, "debug:%s", lineBuffer)) { doDebug = true; debugLevel = atoi(lineBuffer); mydb.setDebugLevel(debugLevel); mydb1.setDebugLevel(debugLevel);	}
 			if (sscanf(thisArg, "UKSPA:%s", lineBuffer))       {
 				ukspaCase     = lineBuffer;
 				doUKSPA       = ukspaCase != "";
