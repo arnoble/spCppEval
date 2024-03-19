@@ -2699,7 +2699,8 @@ int _tmain(int argc, WCHAR* argv[])
 					// ... f is (FV - targetFairValue) for some value "currentSolution" of x
 					// ... which we want to be zero
 					int maxit    = 100;
-					double xacc  = 0.0001;      // 10bp accuracy
+					double xacc  = 0.0002;              // 
+					double fvAcc = xacc * issuePrice;   // 2 cent accuracy
 					double xInitialLo    =  0.5 ;       // lower bound guess
 					double xInitialHi    =  2.0 ;       // upper bound guess
 					double solverStep = 0.03;   // each iteration calculates FV multiplying solverParam by  
@@ -2884,7 +2885,7 @@ int _tmain(int argc, WCHAR* argv[])
 					} // switch
 
 					// possibly done already
-					if (abs(evalResult.value - targetFairValue) < xacc){
+					if (abs(evalResult.value - targetFairValue) < fvAcc){
 						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam);
 						std::cout << lineBuffer << std::endl;
 						return(0);
@@ -2903,7 +2904,7 @@ int _tmain(int argc, WCHAR* argv[])
 						/* updateCashflows */false,/* issuerIndx */0);
 					fh = evalResult2.value - targetFairValue;
 					// are we done?
-					if (abs(fh) < xacc) {
+					if (abs(fh) < fvAcc) {
 						if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*xInitialHi); }
 						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(),":", solverParam*xInitialHi);
 						std::cout << lineBuffer << std::endl;
@@ -2920,7 +2921,7 @@ int _tmain(int argc, WCHAR* argv[])
 						/* updateCashflows */false,/* issuerIndx */0);
 					fl = evalResult1.value - targetFairValue;
 					// are we done?
-					if (abs(fl) < xacc) {
+					if (abs(fl) < fvAcc) {
 						if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*xInitialLo); }
 						sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*xInitialLo);
 						std::cout << lineBuffer << std::endl;
@@ -3021,14 +3022,6 @@ int _tmain(int argc, WCHAR* argv[])
 							// otherwise change currentSolution by dx
 							cerr << "    NR IN-RANGE dx-step:" << -dx << " to multiplier:" << currentSolution << " giving paramValue:" << solverParam * currentSolution  << endl;
 						}
-						// convergence?
-						if (abs(dx) < xacc){
-							cerr << "    NR converged stepSize was:" << dx << " multiplier is:" << currentSolution << " giving paramValue:" << solverParam * currentSolution << endl;
-							if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*currentSolution); }
-							sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*currentSolution);
-							std::cout << lineBuffer << std::endl;
-							return(0);
-						}
 						// calc f and fSlope
 						// ... calc f  at currentSolution
 						spr.solverSet(solveForThis, solverParam*currentSolution);
@@ -3039,7 +3032,14 @@ int _tmain(int argc, WCHAR* argv[])
 							useProto, getMarketData, useUserParams, thisMarketData, cdsTenors, cdsSpreads, fundingFraction, productNeedsFullPriceRecord,
 							ovveridePriipsStartDate, thisFairValue, doBumps /* conserveRands */, true /* consumeRands */, productHasMatured,/* priipsUsingRNdrifts */ false,
 							/* updateCashflows */false,/* issuerIndx */0);
-						f = evalResult1.value - targetFairValue;						
+						f = evalResult1.value - targetFairValue;		
+						// convergence?
+						if (abs(f) < fvAcc || abs(dx) < xacc) {
+							if (solveForCommit) { spr.solverCommit(solveForThis, solverParam*currentSolution); }
+							sprintf(lineBuffer, "%s%s%s%.4lf", "solveFor:1:", whatToSolveFor.c_str(), ":", solverParam*currentSolution);
+							std::cout << lineBuffer << std::endl;
+							return(0);
+						}
 						// ... calc f  at currentSolution PLUS solverStep
 						cerr << "        for SLOPE try param (stepped) by:" << solverStep << " multiplier is:" << currentSolution + solverStep << " giving paramValue:" << solverParam * (currentSolution + solverStep) << endl;
 						spr.solverSet(solveForThis, solverParam*(currentSolution + solverStep));
