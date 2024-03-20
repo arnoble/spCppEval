@@ -2603,9 +2603,9 @@ int _tmain(int argc, WCHAR* argv[])
 				for (i=0; i < numBarriers; i++){
 					SpBarrier&    b(spr.barrier.at(i));
 					b.maxEndDays = maxEndDays;
-					b.setIsNeverHit();
 				}
-			}
+				spr.setIsNeverHitBarriers();
+				}
 			//
 			// ******* END: further initialisation, given product info
 			//
@@ -2895,7 +2895,7 @@ int _tmain(int argc, WCHAR* argv[])
 					// initial values at upper/lower bound
 					// try highBracket xInitialHi
 					spr.solverSet(solveForThis, solverParam*xInitialHi);
-					cerr << "    Initial HIGH bracket multiplier:" << xInitialHi << " --> paramValue:" << solverParam*xInitialHi << endl;
+					cerr << "    Initial HIGH bracket multiplier:" << xInitialHi << " --> paramValue:" << solverParam*xInitialHi << endl;			
 					evalResult2 = spr.evaluate(totalNumDays, thisNumIterations == 1 ? daysExtant : totalNumDays - 1, thisNumIterations == 1 ? totalNumDays - spr.productDays : totalNumDays /*daysExtant + 1*/, /* thisNumIterations*numBarriers>100000 ? 100000 / numBarriers : */ min(2000000, thisNumIterations), historyStep, ulPrices, ulReturns,
 						numBarriers, numUl, ulIdNameMap, monDateIndx, monDateT, recoveryRate, hazardCurves, mydb, accruedCoupon, false, doFinalAssetReturn, doDebug, debugLevel, startTime, benchmarkId, benchmarkMoneyness,
 						contBenchmarkTER, hurdleReturn, doTimepoints, doPaths, timepointDays, timepointNames, simPercentiles, false /* doPriipsStress */,

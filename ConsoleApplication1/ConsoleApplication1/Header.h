@@ -2267,10 +2267,14 @@ public:
 	std::vector<double>             muY;      // GMM  muY    for each cluster
 	std::vector<double>             covXY;    //f GMM  covXY  for each cluster
 	std::vector<double>             covX;     // GMM  covX   for each cluster
-	int                             gmmNumClusters;
-	char                            charBuffer[1000];
 	std::vector<double>             worstUlRegressionPrices;     // worst underlying prices if issuerCallable	
 	std::vector<double>             nextWorstUlRegressionPrices; // next worst underlying prices if issuerCallable	
+	std::vector <SpPayoff>          hit;
+	std::vector <SpPayoffAndDate>   hitWithDate;
+	std::vector <double>            couponValues;    // storePayoff() does .pushBack()
+	std::vector <bool>              payoffContainsVariableCoupons;
+	int                             gmmNumClusters;
+	char                            charBuffer[1000];
 	const int                       barrierId, payoffTypeId, underlyingFunctionId, avgDays, avgFreq, avgType, daysExtant;
 	const bool                      capitalOrIncome, isAnd, isMemory, isAbsolute, isStrikeReset, isStopLoss, isForfeitCoupons, isCountAvg;
 	double                          unBentCap, unBentParam1, unBentStrike;
@@ -2286,10 +2290,6 @@ public:
 	std::vector <finalAssetInfo>    fars; // final asset returns
 	std::vector <double>            bmrs; // benchmark returns
 	std::vector <SpBarrierRelation> brel;
-	std::vector <SpPayoff>          hit;
-	std::vector <SpPayoffAndDate>   hitWithDate;
-	std::vector <double>            couponValues;    // storePayoff() does .pushBack()
-	std::vector <bool>              payoffContainsVariableCoupons;
 	const int numLRMrhs             = (int)spots.size() > 1 ? 5 : 3;
 	const bool aimForHeadlineAnnRet = !getMarketData && !doForwardValueCoupons;
 	// number of days until barrier end date
@@ -3398,6 +3398,14 @@ public:
 			b.couponValues.clear();
 			b.fars.clear();
 			b.bmrs.clear();
+			b.a.clear();        // GMM  mix    for each cluster
+			b.muX.clear();      // GMM  muX    for each cluster
+			b.muY.clear();      // GMM  muY    for each cluster
+			b.covXY.clear();    //f GMM  covXY  for each cluster
+			b.covX.clear();     // GMM  covX   for each cluster
+			b.worstUlRegressionPrices.clear();     // worst underlying prices if issuerCallable	
+			b.nextWorstUlRegressionPrices.clear(); // next worst underlying prices if issuerCallable	
+
 		}
 	}
 
@@ -3416,6 +3424,20 @@ public:
 	}
 
 	// 
+	// ******* SProduct.setIsNeverHitBarriers()  ... for issuerCallables only
+	// 
+	void setIsNeverHitBarriers() {
+		if (issuerCallable) {
+			int numBarriers = (int)barrier.size();
+			for (int j=0; j < numBarriers; j++) {
+				SpBarrier& b(barrier.at(j));
+				b.setIsNeverHit();
+			}
+		}
+	}
+
+
+	// 
 	// ******* SProduct.solverSet()  ... set some product param
 	// 
 	void solverSet(const int solveForThis,const double paramValue){
@@ -3432,6 +3454,7 @@ public:
 					b.payoff  =  (b.capitalOrIncome ? 1.0 : 0.0) + paramValue * (b.capitalOrIncome ? b.totalBarrierYears : (b.totalBarrierYears - previousBarrierYears));
 					previousBarrierYears = b.totalBarrierYears;
 				}
+				// std::cerr << "Barrier:" << j << " on:" << b.settlementDate.c_str() << " Payoff:" << b.payoff << std::endl;
 			}
 			break;
 		case solveForAutocallTrigger:
@@ -3801,6 +3824,10 @@ public:
 
 		if (!doAccruals){
 			resetBarriers();
+			if (issuerCallable) {
+				setIsNeverHitBarriers();
+			}
+
 			for (int thisBarrier = 0; thisBarrier < numBarriers; thisBarrier++){
 				SpBarrier& b(barrier.at(thisBarrier));
 				// MUST recalc discountRate as b.yearsToBarrier may have changed when bumpTheta  b.bumpSomeDays()
