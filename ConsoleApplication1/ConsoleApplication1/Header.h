@@ -3130,7 +3130,7 @@ double PayoffStdev(const std::vector<SpBarrier> &barrier, const double mean){
 // structured product
 class SProduct {
 private:
-	const int                       productId;
+	const int                       productId, requestingUserId;
 	const int                       userId;
 	const std::string               productCcy,thisCommandLine;
 	const std::vector <bool>        &allNonTradingDays;
@@ -3154,6 +3154,7 @@ private:
 	const bool                      doForwardValueCoupons;
 public:
 	SProduct(
+		const int                       requestingUserId,
 		const bool                      extendingPrices,
 		const std::string               thisCommandLine,
 		MyDB                           &mydb,
@@ -3222,7 +3223,7 @@ public:
 		const double                    daysPerYear,
 		const bool                      doTurkey
 		)
-		: extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
+		: requestingUserId(requestingUserId),extendingPrices(extendingPrices), thisCommandLine(thisCommandLine), mydb(mydb), lineBuffer(lineBuffer), bLastDataDate(bLastDataDate), productId(productId), userId(userId), productCcy(productCcy), allDates(baseTimeseies.date),
 		allNonTradingDays(baseTimeseies.nonTradingDay), bProductStartDate(bProductStartDate), fixedCoupon(fixedCoupon),	couponFrequency(couponFrequency), 
 		couponPaidOut(couponPaidOut), AMC(AMC), showMatured(showMatured), productShape(productShape), fullyProtected(fullyProtected), 
 		benchmarkStrike(benchmarkStrike), depositGteed(depositGteed), collateralised(collateralised),
@@ -6647,7 +6648,7 @@ public:
 
 								mydb.prepare((SQLCHAR *)"START TRANSACTION;", 1);
 								sprintf(lineBuffer, "%s%d", "insert into fvsnapshot (ProductId,UserId,FV,LastDataDate,RatesChecksum,CdsChecksum,DivsChecksum,LocalVolChecksum,BarrierBend,FundingFraction,VolShift,UlList,RatesHtml,CdsHtml,DivsHtml,VolsHtml) values (", productId);
-								sprintf(lineBuffer, "%s%s%d", lineBuffer, ",", userId);
+								sprintf(lineBuffer, "%s%s%d", lineBuffer, ",", requestingUserId);
 								sprintf(lineBuffer, "%s%s%lf", lineBuffer, ",", thisFairValue);
 								sprintf(lineBuffer, "%s%s%s", lineBuffer, ",'", aDate.c_str());
 								sprintf(lineBuffer, "%s%s%lf", lineBuffer, "',", ratesChecksum);

@@ -76,6 +76,7 @@ int _tmain(int argc, WCHAR* argv[])
 		argWords["bumpUserId"]              = "nnn";
 		argWords["minSecsTaken"]            = "nnn";
 		argWords["maxSecsTaken"]            = "nnn";
+		argWords["requestingUserId"]        = "userId";
 		argWords["userParameters"]          = "userId BUT cannot also have getMarketData (which is for FV calcs); will use impvol(not localvol),impdivyield for this userId";
 		argWords["only"]                    = "<comma-sep list of underlyings names>";
 		argWords["notOnly"]                 = "<comma-sep list of underlyings names>";
@@ -126,7 +127,7 @@ int _tmain(int argc, WCHAR* argv[])
 		
 
 
-		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0,corrUserId=0;
+		int              historyStep = 1, minSecsTaken=0, maxSecsTaken=0,corrUserId=0,requestingUserId=3;
 		int              commaSepList   = strstr(WcharToChar(argv[1], &numChars),",") ? 1:0;
 		int              userParametersId(0),startProductId, stopProductId, fxCorrelationUid(0), fxCorrelationOtherId(0), eqCorrelationUid(0), eqCorrelationOtherId(0), optimiseNumDays(0);
 		int              bumpUserId(3),requesterNumIterations = argc > 3 - commaSepList ? _ttoi(argv[3 - commaSepList]) : 100;
@@ -619,6 +620,7 @@ int _tmain(int argc, WCHAR* argv[])
 			else if (sscanf(thisArg, "spotsDate:%s",             lineBuffer)){ strcpy(spotsDate, lineBuffer); }
 			else if (sscanf(thisArg, "bumpUserId:%s",            lineBuffer)){ bumpUserId            = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "corrUserId:%s",            lineBuffer)){ corrUserId            = atoi(lineBuffer); }
+			else if (sscanf(thisArg, "requestingUserId:%s",      lineBuffer)){ requestingUserId      = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "minSecsTaken:%s",          lineBuffer)){ minSecsTaken          = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "maxSecsTaken:%s",          lineBuffer)){ maxSecsTaken          = atoi(lineBuffer); }
 			else if (sscanf(thisArg, "userParameters:%s",        lineBuffer)){ userParametersId      = atoi(lineBuffer); }
@@ -2115,7 +2117,7 @@ int _tmain(int argc, WCHAR* argv[])
 			std::vector<double>  cdsVols;
 			double annualFundingUnwindCost(0.0);  // not getting sensible results for IssuerCallables ... so hold off until we know more what issuers do ...
 
-			SProduct spr(extendingPrices,thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
+			SProduct spr(requestingUserId,extendingPrices,thisCommandLine,mydb,&lineBuffer[0],bLastDataDate,productId, userId, productCcy, ulOriginalPrices.at(0), bProductStartDate, fixedCoupon, couponFrequency, couponPaidOut, AMC, showMatured,
 				productShape, fullyProtected, benchmarkStrike,depositGteed, collateralised, daysExtant, midPrice, baseCurve, ulIds, forwardStartT, issuePrice, ukspaCase,
 				doPriips,ulNames,(fairValueDateString == lastDataDateString),fairValuePrice / issuePrice, askPrice / issuePrice,baseCcyReturn,
 				shiftPrices, doShiftPrices, forceIterations, optimiseMcLevels, optimiseUlIdNameMap,forOptimisation, saveOptimisationPaths, productIndx,
