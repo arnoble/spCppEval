@@ -3921,6 +3921,7 @@ public:
 		bool   doQuantoDriftAdj  = notUKSPA;
 		bool   useAntithetic     = true;
 		double thisT,thatT,thisPrice;
+		double theseSig[100];
 		std::vector<std::vector<double> > simulatedShocks(numUl);
 		std::vector<std::vector<double> > cholMatrix(numUl, std::vector<double>(numUl)), rnCorr(numUl, std::vector<double>(numUl)),
 			antitheticRandom(productDays+1, std::vector<double>(numUl));
@@ -4223,6 +4224,8 @@ public:
 									varianceBasedSig = InterpolateMatrix(localVol ? totalVariance[i] : ObsDateVols[i], localVol ? md.ulVolsTenor[i] : ObsDatesT, md.ulVolsStrike[i][0], thisT, currentLevels[i] / spotLevels[i]);
 									varianceBasedSig = pow(varianceBasedSig / thisT, 0.5);
 									thisSig          = varianceBasedSig;
+									// debug only
+									theseSig[i]      = thisSig; 
 									//... calculate return for thisDt  for this underlying
 									
 									thisReturn             = exp((thisDriftRate[i] - thisDivYieldRate[i] - lognormalAdj*thisSig * thisSig)* dt + thisSig * correlatedRandom[i] * rootDt);

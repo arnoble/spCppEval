@@ -1161,9 +1161,10 @@ int _tmain(int argc, WCHAR* argv[])
 			sprintf(lineBuffer, "%s%s%s%s%s%d%s", "select distinct u.UnderlyingId UnderlyingId,upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs,FixedDivs from ", useProto, "productbarrier join ", useProto, "barrierrelation using (ProductBarrierId) join underlying u using (underlyingid) where ProductId='",
 				productId, "' ");
 			if (benchmarkId && !getMarketData && !forOptimisation){
-				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, ",upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs,FixedDivs from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
+				sprintf(charBuffer, "%s%d%s%s%s%d%s", " union (select ", benchmarkId, " UnderlyingId,upper(u.ccy) ulCcy,ERP,u.name,PriceReturnUid,TZhrs,FixedDivs from ", useProto, "product p join underlying u on (p.BenchmarkId=u.UnderlyingId) where ProductId='", productId, "') ");
 				strcat(lineBuffer, charBuffer);
 			}
+			strcat(lineBuffer, " order by UnderlyingId");
 			mydb.prepare((SQLCHAR *)lineBuffer, 7);
 			retcode = mydb.fetch(true, lineBuffer); if (retcode == MY_SQL_GENERAL_ERROR){ std::cerr << "IPRerror:" << lineBuffer << endl; continue; }
 			while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
