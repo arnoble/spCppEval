@@ -6665,7 +6665,7 @@ public:
 								sprintf(lineBuffer, "%s%s%s", lineBuffer, "','", volsHtml.c_str());
 								sprintf(lineBuffer, "%s%s", lineBuffer, "');");
 								mydb.prepare((SQLCHAR *)lineBuffer, 1);
-								mydb.prepare((SQLCHAR *)"select max(FvSnapshotId) from FvSnapshot", 1);
+								mydb.prepare((SQLCHAR *)"select max(FvSnapshotId) from fvsnapshot", 1);
 								RETCODE retcode = mydb.fetch(true, lineBuffer);
 								if (retcode == MY_SQL_GENERAL_ERROR) {
 									std::cerr << "IPRerror:" << lineBuffer << std::endl;
