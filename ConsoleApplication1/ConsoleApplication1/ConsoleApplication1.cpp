@@ -1946,6 +1946,12 @@ int _tmain(int argc, WCHAR* argv[])
 				//
 				//  ******* eq-fx corr
 				//
+				std::vector<int>  possibleUlIds;
+				for (i = 0; i < numUl; i++) {
+					if (ulCcys[i] != productCcy.c_str()) {
+						possibleUlIds.push_back(ulIds[i]);
+					}
+				}
 				sprintf(ulSql, "%s%d", "select UnderlyingId,OtherId,Correlation from correlation c join currencies y on (y.CcyId=c.OtherId) where OtherIdIsCcy=1 and UnderlyingId in (", ulIds[0]);
 				for (i = 1; i < numUl; i++) {
 					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);

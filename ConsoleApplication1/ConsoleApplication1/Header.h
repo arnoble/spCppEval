@@ -4351,13 +4351,16 @@ public:
 				}
 			}
 			// track simulated underlying levels at maturity
-			for (i = 0; i < numUl; i++) {
-				double thisReturn = ulPrices[i].price[startPoint + productDays] / ulPrices[i].price[startPoint];
-				simulatedLogReturnsToMaxYears[i].push_back(log(thisReturn)); 
-				simulatedReturnsToMaxYears[i].push_back(thisReturn);
-				simulatedLevelsToMaxYears[i].push_back(ulPrices[i].price[startPoint + productDays]);
+			if (!doAccruals) {
+				for (i = 0; i < numUl; i++) {
+					double thisLevel  = ulPrices[i].price[startPoint + productDays];
+					double thisReturn = thisLevel / ulPrices[i].price[startPoint];
+					simulatedLogReturnsToMaxYears[i].push_back(log(thisReturn));
+					simulatedReturnsToMaxYears[i].push_back(thisReturn);
+					simulatedLevelsToMaxYears[i].push_back(thisLevel);
+				}
 			}
-
+			
 			// START LOOP wind 'thisPoint' forwards to next TRADING date, so as to start a new product
 			for (int thisPoint = startPoint; thisPoint < lastPoint; thisPoint += historyStep) {
 				if (numMcIterations == 1){  // only need to start on a trading day for HistoricBacktest
