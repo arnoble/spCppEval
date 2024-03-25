@@ -1952,33 +1952,35 @@ int _tmain(int argc, WCHAR* argv[])
 						possibleUlIds.push_back(ulIds[i]);
 					}
 				}
-				sprintf(ulSql, "%s%d", "select UnderlyingId,OtherId,Correlation from correlation c join currencies y on (y.CcyId=c.OtherId) where OtherIdIsCcy=1 and UnderlyingId in (", ulIds[0]);
-				for (i = 1; i < numUl; i++) {
-					sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
-				}
-				sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", useMyEqFxCorr ? (corrUserId>0 ? corrUserId : productUserId) : userId, " order by UnderlyingId,OtherId ");
-				// .. parse each record <Date,price0,...,pricen>
-				mydb.prepare((SQLCHAR *)ulSql, 3);
-				retcode   = mydb.fetch(false, ulSql);
-				std::vector<std::tuple<int, int>> foundFxCorr;
-				while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO)	{
-					int    thisUid    = atoi(szAllPrices[0]);
-					int    thisUidx   = ulIdNameMap.at(thisUid);
-					int    otherId    = atoi(szAllPrices[1]);
-					double thisCorr   = atof(szAllPrices[2]);
-					// if we already have this correlation (correlation table may have also entered the correlation the other way round)
-					bool done = false;
-					for (int i=0; !done && i < foundFxCorr.size(); i++){
-						if (std::get<0>(foundFxCorr[i]) == thisUid && std::get<1>(foundFxCorr[i]) == otherId){
-							done = true;
+				if (possibleUlIds.size()>0) {
+					sprintf(ulSql, "%s%d", "select UnderlyingId,OtherId,Correlation from correlation c join currencies y on (y.CcyId=c.OtherId) where OtherIdIsCcy=1 and UnderlyingId in (", ulIds[0]);
+					for (i = 1; i < numUl; i++) {
+						sprintf(ulSql, "%s%s%d", ulSql, ",", ulIds[i]);
+					}
+					sprintf(ulSql, "%s%s%s%s%d%s", ulSql, ") and y.Name='", productCcy.c_str(), "'  and userid=", useMyEqFxCorr ? (corrUserId > 0 ? corrUserId : productUserId) : userId, " order by UnderlyingId,OtherId ");
+					// .. parse each record <Date,price0,...,pricen>
+					mydb.prepare((SQLCHAR *)ulSql, 3);
+					retcode   = mydb.fetch(false, ulSql);
+					std::vector<std::tuple<int, int>> foundFxCorr;
+					while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+						int    thisUid    = atoi(szAllPrices[0]);
+						int    thisUidx   = ulIdNameMap.at(thisUid);
+						int    otherId    = atoi(szAllPrices[1]);
+						double thisCorr   = atof(szAllPrices[2]);
+						// if we already have this correlation (correlation table may have also entered the correlation the other way round)
+						bool done = false;
+						for (int i=0; !done && i < foundFxCorr.size(); i++) {
+							if (std::get<0>(foundFxCorr[i]) == thisUid && std::get<1>(foundFxCorr[i]) == otherId) {
+								done = true;
+							}
 						}
+						if (!done) {
+							fxcorrsOtherId[thisUidx].push_back(otherId);
+							fxcorrsCorrelation[thisUidx].push_back(forceEqFxCorr &&	fxCorrelationUid == thisUid && fxCorrelationOtherId == otherId ? forceEqFxCorrelation : thisCorr);
+							foundFxCorr.push_back(std::make_tuple(otherId, thisUid));
+						}
+						retcode = mydb.fetch(false, "");
 					}
-					if (!done){
-						fxcorrsOtherId[thisUidx].push_back(otherId);
-						fxcorrsCorrelation[thisUidx].push_back(forceEqFxCorr &&	fxCorrelationUid == thisUid && fxCorrelationOtherId == otherId ? forceEqFxCorrelation : thisCorr);
-						foundFxCorr.push_back(std::make_tuple(otherId, thisUid));
-					}
-					retcode = mydb.fetch(false, "");
 				}
 				//
 				//  ******* END: eq-fx corr
