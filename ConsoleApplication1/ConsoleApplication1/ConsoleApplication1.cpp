@@ -2765,14 +2765,15 @@ int _tmain(int argc, WCHAR* argv[])
 							coupon = 0.1; // default 10%pa 
 						}
 						solverParam = coupon;
-						xInitialLo    =  0.25;
+						xInitialLo    =  0.01;
 						xInitialHi    =  4.0;
 						break;
 					case solveForPutBarrier:
 						for (j=0; !putFound && j < numBarriers; j++){
 							SpBarrier& b(spr.barrier.at(j));
-							if (b.capitalOrIncome && (b.payoffTypeId == putPayoff || b.payoffTypeId == basketPutPayoff) && b.participation < 0.0 && (int)b.brel.size()>0){
+							if (b.capitalOrIncome && (b.payoffTypeId == putPayoff || b.payoffTypeId == basketPutPayoff || b.payoffTypeId == autocallPutPayoff) && b.participation < 0.0 && (int)b.brel.size()>0){
 								switch (b.payoffTypeId) {
+								case autocallPutPayoff:
 									case putPayoff:
 										putFound    = true;
 										solverParam = b.brel[0].barrier;
@@ -2789,7 +2790,7 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						xInitialLo    =  0.5;
+						xInitialLo    =  0.3;
 						xInitialHi    =  1.5 / solverParam;  // max 1.5
 						break;
 					case solveForAutocallTrigger:
@@ -2806,7 +2807,7 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						xInitialLo    =  0.5;
+						xInitialLo    =  0.3;
 						xInitialHi    =  2.0;
 						break;
 					case solveForLastCallCap:
@@ -2822,7 +2823,7 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						xInitialLo    =  0.5;
+						xInitialLo    =  0.01;
 						xInitialHi    =  2.0;
 						break;
 					case solveForDigital:
@@ -2839,8 +2840,8 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						xInitialLo    =  0.5;
-						xInitialHi    =  2.0;
+						xInitialLo    =  0.3;
+						xInitialHi    =  3.0;
 						break;
 					case solveForPositiveParticipation:
 						// look for LAST participation > 0 && payoffType != 'fixed' and hasBrels
@@ -2856,8 +2857,8 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						xInitialLo    =  0.5;
-						xInitialHi    =  2.0;
+						xInitialLo    =  0.3;
+						xInitialHi    =  3.0;
 						break;
 					case solveForPositivePutParticipation:
 						// look for LAST participation > 0 && payoffType = 'put' and hasBrels
@@ -2873,8 +2874,8 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						xInitialLo    =  0.5;
-						xInitialHi    =  2.0;
+						xInitialLo    =  0.3;
+						xInitialHi    =  3.0;
 						break;
 					case solveForShortPutStrike:
 						// look for LAST participation < 0 && payoffType == 'put' and hasBrels
@@ -2890,7 +2891,7 @@ int _tmain(int argc, WCHAR* argv[])
 							std::cout << lineBuffer << std::endl;
 							return(105);
 						}
-						xInitialLo    =  0.5;
+						xInitialLo    =  0.3;
 						xInitialHi    =  1.5/solverParam; // max 1.5
 						break;
 					} // switch

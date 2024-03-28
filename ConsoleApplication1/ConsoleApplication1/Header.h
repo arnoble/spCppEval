@@ -3485,8 +3485,9 @@ public:
 			for (int j=0; !putBarrierFound && j < numBarriers; j++) {
 				SpBarrier& b(barrier.at(j));
 				int numBrels = (int)b.brel.size();
-				if (b.capitalOrIncome && (b.payoffTypeId == putPayoff || b.payoffTypeId == basketPutPayoff) && b.participation < 0.0 && (int)b.brel.size()>0) {
+				if (b.capitalOrIncome && (b.payoffTypeId == putPayoff || b.payoffTypeId == basketPutPayoff || b.payoffTypeId == autocallPutPayoff) && b.participation < 0.0 && (int)b.brel.size()>0) {
 					switch (b.payoffTypeId) {
+					case autocallPutPayoff:
 					case putPayoff:
 						putBarrierFound    = true;
 						for (int k=0; k < numBrels; k++) {
@@ -3602,8 +3603,9 @@ public:
 			for (int j=0; !putBarrierFound && j < numBarriers; j++){
 				SpBarrier& b(barrier.at(j));
 				int numBrels = (int)b.brel.size();
-				if (b.capitalOrIncome && (b.payoffTypeId == putPayoff || b.payoffTypeId == basketPutPayoff) && b.participation < 0.0 && (int)b.brel.size()>0) {
+				if (b.capitalOrIncome && (b.payoffTypeId == putPayoff || b.payoffTypeId == basketPutPayoff || b.payoffTypeId == autocallPutPayoff) && b.participation < 0.0 && (int)b.brel.size()>0) {
 					switch (b.payoffTypeId) {
+					case autocallPutPayoff:
 					case putPayoff:
 						putBarrierFound    = true;
 						for (int k=0; k < numBrels; k++) {
